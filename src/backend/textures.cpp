@@ -145,7 +145,11 @@ static TexData* load_with_sdl_image(const char* path) {
     size_t n;
     while ((n = fread(chunk, 1, sizeof chunk, f)) > 0) buf.insert(buf.end(), chunk, chunk + n);
     fclose(f);
-    SDL_Surface* s = IMG_Load_RW(SDL_RWFromConstMem(buf.data(), (int)buf.size()), 1);
+    // TGA has no signature to sniff, so pass the type from the extension.
+    const char* dot = strrchr(path, '.');
+    std::string type = dot ? dot + 1 : "";
+    for (char& c : type) c = (char)toupper((unsigned char)c);
+    SDL_Surface* s = IMG_LoadTyped_RW(SDL_RWFromConstMem(buf.data(), (int)buf.size()), 1, type.c_str());
     if (!s) return nullptr;
     SDL_Surface* c = SDL_ConvertSurfaceFormat(s, SDL_PIXELFORMAT_ARGB8888, 0);
     SDL_FreeSurface(s);

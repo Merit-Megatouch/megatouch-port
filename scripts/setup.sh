@@ -129,6 +129,12 @@ if ! done_mark "$S/data-common"; then
   mark "$D"
 fi
 
+# the cabinet's fallback "default" game: game-over, winner/loser, quit and exit prompts per resolution
+if [ ! -d "$S/data-common/usr/local/games/default" ]; then
+  step "shared game screens (shared/data-common/usr/local/games/default)"
+  cab_rdump root /usr/local/games/default "$S/data-common/usr/local/games"
+fi
+
 # ------------------------------------------------------------------ shared runtime
 step "assembling the 32-bit runtime (shared/runtime)"
 if ! done_mark "$S/runtime"; then

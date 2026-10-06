@@ -6,6 +6,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <cctype>
+#include <sys/stat.h>
 // ---------------------------------------------------------------------------
 // loader services
 
@@ -83,12 +85,52 @@ public:
     int HighestScore(int);
     char const* HighestName(int);
 };
+// High scores. Games keep the running score in PlrScore[player]; at game over they call
+// Winner() and HighEnough(winner, ...). On the cabinet "true" opened the loader's name-entry
+// screen, which we don't have — so the best score is recorded here and false is returned,
+// letting the game play its own game-over sequence. One best score per game, stored in
+// /var/merit/highscores/<GAME_ID>.txt (the game's private data/var/merit) as "<score> <name>".
+// The name is MEGA_PLAYER_NAME, else the user name.
+namespace {
+struct Best { int score = 0; std::string name; };
+std::string best_path() {
+    const char* id = getenv("MEGA_GAME_ID");
+    return std::string("/var/merit/highscores/") + (id ? id : "0") + ".txt";
+}
+Best& best() {
+    static Best b;
+    static bool loaded;
+    if (!loaded) {
+        loaded = true;
+        if (FILE* f = fopen(best_path().c_str(), "r")) {
+            char name[64] = "";
+            if (fscanf(f, "%d %63[^\n]", &b.score, name) >= 1) b.name = name;
+            fclose(f);
+        }
+    }
+    return b;
+}
+void save_best(int score) {
+    const char* who = getenv("MEGA_PLAYER_NAME");
+    if (!who || !*who) who = getenv("USER");
+    std::string name = who && *who ? who : "PLAYER";
+    for (char& c : name) c = (char)toupper((unsigned char)c);
+    best().score = score;
+    best().name = name;
+    mkdir("/var/merit/highscores", 0755);
+    if (FILE* f = fopen(best_path().c_str(), "w")) { fprintf(f, "%d %s\n", score, name.c_str()); fclose(f); }
+}
+}  // namespace
+
 HighScoresManager* HighScoresManager::Instance() { static char inst[64]; return reinterpret_cast<HighScoresManager*>(inst); }
-bool HighScoresManager::HighEnough(int, int) { return false; }
+bool HighScoresManager::HighEnough(int player, int) {
+    int score = (player >= 0 && player < 8) ? PlrScore[player] : 0;
+    if (score > best().score) save_best(score);
+    return false;
+}
 int HighScoresManager::Winner() const { return 0; }
-// Shown in a game's top-score display (Word Dojo 2). No score table is kept yet.
-int HighScoresManager::HighestScore(int) { return 0; }
-char const* HighScoresManager::HighestName(int) { return ""; }
+int HighScoresManager::HighestScore(int) { return best().score; }
+char const* HighScoresManager::HighestName(int) { return best().name.c_str(); }
 
 // The cabinet's language setting. Locale::Languages: 0 = English, 3 = French, 4 = Spanish, ...
 // (same order as LanguagesSupported in gamedata.xml). Games pick dictionaries/help by it.

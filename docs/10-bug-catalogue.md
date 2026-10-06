@@ -24,8 +24,8 @@
 | 20 | Waiting script never fires | `pgrep -f trix-bin` matched its own command line | Match `[l]d-linux.so.2` style patterns |
 
 ## Known remaining issues
-* `gfx/hud/common_files/tricks` and `gameover/bkg.tga` are not found (data quirks; possibly
-  provided by the loader's shared graphics on the cabinet).
+* `gfx/hud/common_files/tricks` is not found (data quirk). The game-over art was in the cabinet's
+  fallback game folder `/usr/local/games/default` — now part of shared data, linked into every game.
 * One sound is requested with an empty name.
 * Music track changes stall ~90 ms (whole-file OGG decode) — fix by streaming.
 * First use of large `.spr` animations stalls 100–200 ms — fix with a decode cache / preload.

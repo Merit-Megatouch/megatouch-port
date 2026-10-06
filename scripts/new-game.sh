@@ -75,6 +75,7 @@ extract_assets() {
   fi
   # shared cabinet data (read-only links) + a private, writable /var/merit
   ln -sfn ../../../../../shared/data-common/usr/local/gamedata "$GD/data/usr/local/gamedata"
+  ln -sfn ../../../../../../shared/data-common/usr/local/games/default "$GD/data/usr/local/games/default"
   ln -sfn ../../../shared/data-common/etc   "$GD/data/etc"
   ln -sfn ../../../shared/data-common/pango "$GD/data/pango"
   [ -d "$GD/data/var/merit" ] || { mkdir -p "$GD/data/var"; cp -r "$R/shared/data-common/var-template/merit" "$GD/data/var/"; }
