@@ -50,6 +50,12 @@ loaded afterwards bind to them: a definition in the main program beats any libra
 versioned references like `glob@GLIBC_2.0`. That one fact makes both the shim and the stand-ins
 possible.
 
+## Unity games
+
+Unity-family games skip all of the above: `run` sees `ENGINE=unity`, writes `var/launcher.xml`
+and starts the cabinet's own `LinuxPlayer` from the game's `player/` folder, with
+`libmega_unity.so` preloaded for sound. Details: [unity.md](unity.md).
+
 ## Startup sequence
 
 ```

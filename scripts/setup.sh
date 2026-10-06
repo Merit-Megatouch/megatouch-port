@@ -152,6 +152,19 @@ if ! done_mark "$S/runtime"; then
   mark "$RT"
 fi
 
+# the Unity 3.2 player shared by every Unity-family game, plus the 2008 libraries it needs
+# that the runtime lacks (GLU, curl 3, FMOD Ex, Theora, gthread...)
+step "Unity player (shared/unity)"
+if ! done_mark "$S/unity"; then
+  U=$S/unity
+  mkdir -p "$U/lib"
+  cab_dump ion /games/launcher/LinuxPlayer "$U/LinuxPlayer" && chmod +x "$U/LinuxPlayer"
+  scripts/lib/extract-libs.sh "$U/closure" libGLU.so.1 libcurl.so.3 libfmodex.so libtheora.so.0 libgthread-2.0.so.0 2>/dev/null || true
+  for f in "$U"/closure/*; do [ -e "$S/runtime/$(basename "$f")" ] || mv "$f" "$U/lib/"; done
+  rm -rf "$U/closure"
+  mark "$U"
+fi
+
 # ------------------------------------------------------------------ build
 step "building megatouch-host + SDL2 backend (shared/bin)"
 make -s -C "$R" build

@@ -1,7 +1,7 @@
 # Porting a game
 
-A step-by-step guide for GameDevice games, which is everything that runs on the shared backend
-today. Word Dojo 2 is the worked example: it went from `make new` to fully playable in one
+A step-by-step guide for GameDevice games. **Unity games** are simpler: `make new GAME=<folder>`,
+`make run`, then fill in missing launcher settings; see [reference/unity.md](../reference/unity.md). Word Dojo 2 is the worked example: it went from `make new` to fully playable in one
 session. For other engine families see [the roadmap](../roadmap.md).
 
 ## 0. Pick a game

@@ -3,8 +3,8 @@
 # 60 GB image is no longer required (scripts use the snapshot automatically when it exists).
 #
 #   scripts/snapshot-cabinet.sh          engine + all game code + cabinet data + game assets
-#                                        (skips attract videos and Unity games' Data folders)
-#   scripts/snapshot-cabinet.sh --all    everything on the games partition (~6.7 GB)
+#                                        (skips the attract videos)
+#   scripts/snapshot-cabinet.sh --all    also the attract videos (everything on the games partition, ~6.7 GB)
 set -euo pipefail
 R=$(cd "$(dirname "$0")/.." && pwd)
 . "$R/cabinet.conf"
@@ -43,7 +43,6 @@ mkdir -p "$SNAP/ion/games"
 for g in $(cab_ls ion /games); do
   if [ "$ALL" != "--all" ]; then
     [ "$g" = idle ] && continue                         # attract-mode videos
-    cab_exists ion "/games/$g/Data" && continue          # Unity games
   fi
   printf '  %s\n' "$g"
   cab_rdump ion "/games/$g" "$SNAP/ion/games"

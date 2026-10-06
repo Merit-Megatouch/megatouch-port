@@ -47,6 +47,7 @@ folder to redo its step.
 | 2008 libraries | `shared/cabinet-libs/` | From the image: libexpat.so.0, libsqlite.so.0, libsqlite3.so.0, libssl.so.6 (and crypto, krb5…), Pango 1.14, glib, fontconfig, freetype |
 | Engine SDK | `shared/engine-sdk/` | From the image: libgame_device, libgraphics, libcore, libinput, libmerit_sound, libenums plus their closure (the backend links against these) |
 | Shared data | `shared/data-common/` | gamedata `config translations help ttf fonts`, var/merit `locale settings`, `.fonts.conf`, Pango modules, `usr/local/games/default` |
+| Unity player | `shared/unity/` | From the image: `LinuxPlayer` and libGLU, libcurl.so.3, libfmodex, libtheora, libgthread with their closure |
 | Runtime | `shared/runtime/` | glibc, libstdc++, libgcc from the sysroot; i386 libs; the 2008 libraries last. Never the image's libz. |
 | Build | `shared/bin/` | `make build` |
 
@@ -113,9 +114,9 @@ To keep a log: `make run GAME=g_trix DEBUG=profile 2>&1 | tee games/g_trix/notes
 - system libraries the closures need
 - `/usr/local/gamedata`, `/usr/local/games`
 - `/var/merit` config, `/home/maxx/.fonts.conf`, the Pango modules and registry
-- every game asset folder except attract videos (`idle/`) and Unity games' `Data/`
+- every game asset folder, including the Unity player and Unity games' `Data/`, except the attract videos (`idle/`)
 
-That is about 1–2 GB. `--all` copies the whole games partition (about 6.7 GB). Once `cabinet/`
+That includes the Unity games' `Data/`. `--all` also copies the attract videos (the whole games partition, about 6.7 GB). Once `cabinet/`
 exists, every script reads from it instead of the image (`scripts/lib/cabinet.sh`), and the
 image can be archived.
 
@@ -150,6 +151,10 @@ always wins.
 | `TITLE` | no | Window title | `Megatouch TRIX` |
 | `CARD_FANNING` | no | Operator option for card games (default 0; Trix doesn't ship the art) | `1` |
 | `HOME`, `DATA` | no | Override the game folder or the data root (normally derived) | — |
+| `ENGINE` | Unity only | `unity`: `run` starts the shared Unity player instead of megatouch-host | `unity` |
+| `GAME` | Unity only | The game's folder, written to `launcher.gameid` | `g_tri_towers_2` |
+
+Unity games have no `LIB`/`ASSET_DIR`; see [unity.md](unity.md).
 
 ## Environment variables
 
@@ -184,6 +189,7 @@ All are read with the `MEGA_` prefix. The old `TRIX_` prefix still works for eac
 | --- | --- |
 | `MEGA_RENDERER=software\|opengl\|opengles2` | SDL render driver by name (default: SDL's choice, normally OpenGL through Mesa llvmpipe) |
 | `MEGA_VSYNC=0` | Disable vsync (default on) |
+| `MEGA_FMOD_OUTPUT=<n>` | Unity games: FMOD output (default 13 PulseAudio; 0 auto, 10 OSS, 11 ALSA, 12 ESD) |
 | `MEGA_FPS=<n>` | Override the 30 updates/frames per second (15–240). **Breaks game timing**: the AI and animations count ticks. |
 
 ### Useful non-MEGA variables

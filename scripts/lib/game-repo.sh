@@ -11,6 +11,8 @@ game_repo_init() {
 /runtime
 /run
 /megatouch-host
+/player/
+/var/
 /decomp/
 /notes/ghproj/
 /notes/shots/

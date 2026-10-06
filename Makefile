@@ -41,7 +41,7 @@ all: build
 # dependencies without using them (everything they did is in libgame_device_sprite.so).
 STUBS := $(addprefix $(BIN)/stubs/,libgraphics_sprite.so libinput_sprite.so libsound_sprite.so)
 
-build: $(BIN)/megatouch-host $(BIN)/libgame_device_sprite.so $(BIN)/gameids $(STUBS)
+build: $(BIN)/megatouch-host $(BIN)/libgame_device_sprite.so $(BIN)/gameids $(STUBS) $(BIN)/libmega_unity.so
 
 $(BIN)/stubs/%.so:
 	@mkdir -p $(dir $@)
@@ -64,6 +64,11 @@ $(BIN)/libgame_device_sprite.so: $(BACKEND_OBJ)
 $(BIN)/megatouch-host: $(HOST_OBJ)
 	@mkdir -p $(BIN)
 	$(CXX) -rdynamic -o $@.new $^ -ldl -lrt -lpthread && mv $@.new $@
+
+# Preloaded into the Unity player (Unity-family games): routes FMOD's sound output to PulseAudio.
+$(BIN)/libmega_unity.so: src/unity/fmod_output.cpp src/common/env.h
+	@mkdir -p $(BIN)
+	$(CXX) $(CXXFLAGS) -shared -o $@.new $< -ldl && mv $@.new $@
 
 $(BIN)/gameids: tools/gameids.cpp
 	@mkdir -p $(BIN)
@@ -101,7 +106,7 @@ snapshot:
 # A fresh clone has each game's config and notes (submodules) but not its cabinet files.
 games:
 	@for g in games/*/game.conf; do d=$${g%/game.conf}; n=$${d#games/}; \
-	  [ -d $$d/lib ] && echo "$$n: ok" || scripts/new-game.sh $$n; done
+	  { [ -d $$d/lib ] || [ -d $$d/player ]; } && echo "$$n: ok" || scripts/new-game.sh $$n; done
 
 publish:
 	@test -n "$(GAME)" || { echo "usage: make publish GAME=<name>|all"; exit 1; }

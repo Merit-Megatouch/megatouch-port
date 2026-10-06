@@ -12,7 +12,7 @@ tools, docs) lives here. A fix made for one game helps every game of its family.
 | Family | Games | Status | What porting takes |
 | --- | ---: | --- | --- |
 | GameDevice (2009+) | 22 | **3 playable** (Trix, Word Dojo 2, Boxxi Blitz); 1 more with 0 missing symbols | Shared SDL2 backend (done). A few loader stand-ins per game: see the [survey](reference/gamedevice-survey.md). |
-| Unity 3.2 | 30 | not started | Run the cabinet's `LinuxPlayer`; replace the cabinet plugins in .NET |
+| Unity 3.2 | 30 | **route works**: Tri Towers 2 plays with sound | `make new GAME=<folder>`; per game, find the launcher settings it misses ([unity](reference/unity.md)) |
 | Merit3D | 13 | not started | The loader's 3D services: ODE, OpenGL, Allegro |
 | Legacy sprite | 143 | not started | **The loader's 2D engine**: `Sprite`, `Bitmap`, `WorldClass`, Allegro |
 | Service entries | 3 | — | Menu, ads, online: not games |
@@ -38,14 +38,14 @@ Easiest first, in the order of the [survey](reference/gamedevice-survey.md):
    GameDevice backend. Same technique, different base classes.
 7. Known Trix issues: OGG streaming, `.spr` decode cache.
 
-### 2. Unity games (30)
+### 2. Unity games (30) — route done 2026-10-07
 
-The player (`ion_only/games/launcher/LinuxPlayer`, Unity 3.2.0f4, 32-bit, not stripped) is an
-ordinary Linux program. Cabinet integration is in managed DLLs (`LauncherUnity.dll`,
-`LauncherFile.dll`, `AMIUnityExtensions_Plugins.dll`). Plan: lay out `Data/` the way the loader's
-symlink did, run it on our 32-bit runtime, then stub or patch the plugins in C# (Mono.Cecil or
-dnSpy). That is cheaper than native reverse engineering. Output: a `unity` launcher in `src/`
-and `make new` support for the family.
+The cabinet's player (`ion_only/games/launcher/LinuxPlayer`, Unity 3.2.0f4) runs unchanged on our
+32-bit runtime. Done: `make new` scaffolds Unity games, `launch.sh` writes the `launcher.xml` the
+loader used to write, and `libmega_unity.so` routes FMOD's sound to PulseAudio. Tri Towers 2 plays.
+Next: scaffold and play-test the other 29, find the remaining launcher keys
+(`AllPlayersLoggedIn`), and high scores, which went through the loader's messaging. Patching the
+cabinet's .NET plugins (Mono.Cecil) is the fallback where settings aren't enough.
 
 ### 3. The loader, part 1: the legacy 2D engine (143 games)
 
