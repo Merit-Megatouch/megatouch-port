@@ -7,3 +7,6 @@
 [submodule "games/g_boxxi_template"]
 	path = games/g_boxxi_template
 	url = https://github.com/Merit-Megatouch/g_boxxi_template.git
+[submodule "games/g_tri_towers_2"]
+	path = games/g_tri_towers_2
+	url = https://github.com/Merit-Megatouch/g_tri_towers_2.git
