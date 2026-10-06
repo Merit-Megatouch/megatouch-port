@@ -4,3 +4,6 @@
 [submodule "games/g_word_dojo_2"]
 	path = games/g_word_dojo_2
 	url = https://github.com/Merit-Megatouch/g_word_dojo_2.git
+[submodule "games/g_boxxi_template"]
+	path = games/g_boxxi_template
+	url = https://github.com/Merit-Megatouch/g_boxxi_template.git
