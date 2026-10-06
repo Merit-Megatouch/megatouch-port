@@ -6,7 +6,7 @@ Re-run after adding stand-ins: a symbol added for one game disappears from every
 
 | Missing | Game | DLL | GameId | Resolution | Assets | Extra engine libs | Missing symbols | |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0 | BOXXI BLITZ | `g_boxxi_template` | G_BOXXI_TEMPLATE = 257 | 1024x768? | ion_only/games/g_boxxi_template | — | — |  |
+| 0 | BOXXI BLITZ | `g_boxxi_template` | G_BOXXI_TEMPLATE = 257 | 800x600 | ion_only/games/g_boxxi_template | — | — | ported |
 | 0 | SPIN CARD HOLDEM | `g_spin_card_holdem` | G_SPIN_CARD_HOLDEM = 249 | 1280x800 | ion_only/games/g_spin_card_holdem | — | — |  |
 | 0 | TRIX | `g_trix` | G_TRIX = 245 | 1280x800 | ion_only/games/g_trix | — | — | ported |
 | 0 | WORD DOJO 2 | `g_word_dojo_2` | G_WORD_DOJO_2 = 258 | 1280x800 | ion_only/games/g_word_dojo_2 | libbrush.so  | — | ported |

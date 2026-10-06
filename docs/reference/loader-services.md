@@ -7,6 +7,22 @@ what our stand-in in `src/host/loader_services.cpp` does.
 `make analyze GAME=<name>` lists what a game still needs. [gamedevice-survey.md](gamedevice-survey.md)
 lists it for every GameDevice game at once.
 
+## Hardware and key checks
+
+Some cabinet games are said to check the I/O board (coin mech, key switch) or the security key
+mid-game, and to crash or stop when the check fails. Which games do this isn't known yet. A
+GameDevice game can't reach hardware directly; a check has to go through one of:
+
+| Route | How to see it |
+| --- | --- |
+| A loader function (`NVRAMData`, credits, `MegacGlobals`…) | `make analyze`: it shows as an unresolved symbol, so we choose its answer |
+| A file or device (`/dev/...`, `/var/merit/...`, `/proc`) | `DEBUG=files` |
+| IPC to the loader (`libipc_new`, unix sockets in `/dev/merit_ipc/`) | `[ipc]` lines in every run's output (`MEGA_TRACE_IPC=1` for every attempt) |
+
+When a port crashes or freezes mid-game for no visible reason, check those three first and note
+the result in the game's `NOTES.md`. Results so far: Trix, Word Dojo 2 and Boxxi Blitz make no
+IPC connections and read no hardware paths during play.
+
 ## Rules for writing a stand-in
 
 1. **Get the exact mangled name** from `notes/unresolved.txt` or `nm -D --undefined-only`.

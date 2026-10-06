@@ -76,7 +76,7 @@ added after the base build carry their own `gamedata.xml` in their asset folder.
 ```
 
 `UseResolution` values: `RESOLUTION_<W>x<H>`; `SUPER_HIGH_RESOLUTION` (1280×800, confirmed with
-Word Dojo 2); `HIGH_RESOLUTION` (probably 1024×768, unconfirmed); absent (probably 800×600).
+Word Dojo 2); `HIGH_RESOLUTION` (unreliable: Boxxi Blitz declares it and is 800×600, so trust the art); absent (probably 800×600).
 Several games can share one library: `photo_hunt_hd.so` serves Photo Hunt HD, Penthouse
 Photohunt HD and Photo Hunt Hunks, chosen by GameId.
 

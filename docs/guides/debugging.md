@@ -16,6 +16,7 @@ listed in [reference/commands.md](../reference/commands.md#environment-variables
 | Wrong or missing text | Check `translations/<dll>.utf8` | `translations/untranslated` flag |
 | No sound | `DEBUG=sound` | Check `SDL_AUDIODRIVER`; run `pactl info` on WSLg |
 | Lag or stutter | `DEBUG=profile` | `profreport.py` |
+| Crash or freeze mid-game, no clear cause | Look for `[ipc]` lines; `DEBUG=files` for `/dev`, `/proc`, `/var/merit` reads | Possible hardware or key check ([loader services](../reference/loader-services.md#hardware-and-key-checks)) |
 | Logic wrong | Screenshots plus `MEGA_AUTOCLICK` to repeat it | Compare with the decompiled game |
 
 ## Reading a crash trace
@@ -113,7 +114,7 @@ llvmpipe's JIT code can fault. Symbols are resolved with `dladdr` at exit. More 
 
 ## The engine's own logs
 
-Our backend's lines start with `[mega]`; the shim's with `[file]`/`[glob]`; the profiler's with
+Our backend's lines start with `[mega]`; the shim's with `[file]`/`[glob]`/`[ipc]`; the profiler's with
 `[profile]`, `[frames]`, `[hitch]`. The engine logs a lot to stderr too (`Unable to read`, `found []`, state changes). Grep for
 `Debug_Flag_Set` strings to switch on more ([flags](../reference/commands.md#engine-debug-flags)),
 and `Logger` output appears on stderr too.

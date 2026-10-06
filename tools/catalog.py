@@ -47,7 +47,7 @@ for desc, gid, active in tsv(os.path.join(root, 'docs/data/games-catalogue.tsv')
     status = ''
     gdir = os.path.join(root, 'games', dll)
     conf = os.path.join(gdir, 'game.conf')
-    if os.path.isfile(conf) and not res:
+    if os.path.isfile(conf):           # a ported game's game.conf beats the declared resolution
         kv = dict(l.strip().split('=', 1) for l in open(conf) if '=' in l and not l.startswith('#'))
         res = f"{kv.get('WIDTH', '')}x{kv.get('HEIGHT', '')}"
     if os.path.isfile(os.path.join(gdir, 'NOTES.md')):

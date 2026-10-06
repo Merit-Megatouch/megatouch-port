@@ -76,7 +76,7 @@ It looks in the master `gamedata.xml` first, then in each game folder's own `gam
 `FORCE=1` re-extracts code and assets and rewrites `game.conf`. `NOTES.md` is never touched.
 
 Resolution names: `RESOLUTION_WxH` → W×H, `SUPER_HIGH_RESOLUTION` → 1280×800,
-`HIGH_RESOLUTION` → 1024×768 (unverified), none → 800×600 (unverified).
+`HIGH_RESOLUTION` → 1024×768 (unreliable; Boxxi Blitz is 800×600, which the largest-PNG check caught), none → 800×600 (unverified).
 
 ### make run
 
@@ -169,6 +169,7 @@ All are read with the `MEGA_` prefix. The old `TRIX_` prefix still works for eac
 | Variable | Effect |
 | --- | --- |
 | `MEGA_TRACE_FILES=1` | `[file] <path>` for every path through the shim; `[glob] pattern -> n` for globs |
+| `MEGA_TRACE_IPC=1` | Log every connection attempt to the cabinet loader's `/dev/merit_ipc/` sockets. Without it, each endpoint is logged once as `[ipc] connect <path> -> <error>`. |
 | `MEGA_DEBUG_SOUND=1` | Timestamped sound calls: play (file, loop, volume → voice id and sample count), stop, volume, pause, is-playing |
 | `MEGA_SHOT_DIR=<dir>` | Save `frameNNNNN.png` there… |
 | `MEGA_SHOT_EVERY=<n>` | …every n rendered frames (default 60 = 2 s) |

@@ -8,11 +8,15 @@
 #include <stdarg.h>
 #include <dirent.h>
 #include <glob.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/un.h>
 #include <unistd.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cerrno>
+#include <cstddef>
 #include <string>
 // ---------------------------------------------------------------------------
 // path redirection
@@ -27,10 +31,14 @@ static const char* redirect(const char* path, char* buf, size_t len) {
     static bool trace = menv("TRACE_FILES") != nullptr;
     if (trace && path) fprintf(stderr, "[file] %s\n", path);
     if (!path || path[0] != '/' || g_root.empty()) return path;
+    // The resource locator's wildcard search builds "//usr/local/..." (base "/" + "/usr...");
+    // the kernel treats repeated slashes as one, so must we.
+    const char* q = path;
+    while (q[1] == '/') q++;
     for (const char* const* p = kPrefixes; *p; p++) {
         size_t n = strlen(*p);
-        if (strncmp(path, *p, n) == 0 && (path[n] == '/' || path[n] == 0)) {
-            snprintf(buf, len, "%s%s", g_root.c_str(), path);
+        if (strncmp(q, *p, n) == 0 && (q[n] == '/' || q[n] == 0)) {
+            snprintf(buf, len, "%s%s", g_root.c_str(), q);
             return buf;
         }
     }
@@ -155,6 +163,29 @@ int glob(const char* pattern, int flags, int (*errfunc)(const char*, int), glob_
         }
     }
     return r;
+}
+
+// Cabinet IPC: games and engine libraries talk to the loader over unix sockets under
+// /dev/merit_ipc/ (libipc_new). Nothing listens in a port, so every request fails; a game
+// that treats that as a hardware/key failure may misbehave later. Each distinct endpoint
+// is logged once (every attempt with MEGA_TRACE_IPC=1) so such games are easy to spot.
+int connect(int fd, const struct sockaddr* addr, socklen_t len) {
+    REAL(connect);
+    if (addr && addr->sa_family == AF_UNIX && len > (socklen_t)offsetof(sockaddr_un, sun_path)) {
+        const char* path = reinterpret_cast<const sockaddr_un*>(addr)->sun_path;
+        if (*path && strncmp(path, "/dev/merit_ipc", 14) == 0) {
+            int r = real_connect(fd, addr, len);
+            static std::string seen;
+            static bool all = menv("TRACE_IPC") != nullptr;
+            std::string key = std::string("|") + path + "|";
+            if (all || seen.find(key) == std::string::npos) {
+                seen += key;
+                fprintf(stderr, "[ipc] connect %s -> %s (no cabinet loader)\n", path, r == 0 ? "ok" : strerror(errno));
+            }
+            return r;
+        }
+    }
+    return real_connect(fd, addr, len);
 }
 
 void trix_set_data_root(const char* root) { g_root = root; }

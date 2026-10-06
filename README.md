@@ -3,11 +3,11 @@
 The Megatouch ION (2014) cabinet games, running on Linux and WSL2 using the cabinet's real game
 and engine binaries. The goal is **every game on the platform**, and in the end **the cabinet's
 loader itself**. Today the cabinet backend for the 2009+ "GameDevice" engine is replaced by SDL2,
-and two games are fully playable.
+and three games are fully playable.
 
 | | Games | Status |
 | --- | ---: | --- |
-| GameDevice engine | 22 | **Trix, Word Dojo 2 playable**; the rest need a few stand-ins each ([survey](docs/reference/gamedevice-survey.md)) |
+| GameDevice engine | 22 | **Trix, Word Dojo 2, Boxxi Blitz playable**; the rest need a few stand-ins each ([survey](docs/reference/gamedevice-survey.md)) |
 | Unity 3.2 | 30 | next family ([roadmap](docs/roadmap.md)) |
 | Merit3D | 13 | needs the loader's 3D services |
 | Legacy sprite engine | 143 | needs the loader's 2D engine, the big milestone |
@@ -94,3 +94,4 @@ All options and environment variables: [docs/reference/commands.md](docs/referen
 | --- | --- | ---: | --- |
 | Trix | [g_trix](https://github.com/Merit-Megatouch/g_trix) | 245 | Playable |
 | Word Dojo 2 | [g_word_dojo_2](https://github.com/Merit-Megatouch/g_word_dojo_2) | 258 | Playable |
+| Boxxi Blitz | [g_boxxi_template](https://github.com/Merit-Megatouch/g_boxxi_template) | 257 | Playable |

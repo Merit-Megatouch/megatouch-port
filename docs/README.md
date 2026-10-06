@@ -2,7 +2,7 @@
 
 The goal is every game from the Megatouch ION cabinet running on a normal PC (Linux or WSL2),
 using the original game and engine binaries, and in the end a replacement for the cabinet's
-loader itself. Two GameDevice games are fully playable today; the [roadmap](roadmap.md) covers
+loader itself. Three GameDevice games are fully playable today; the [roadmap](roadmap.md) covers
 the remaining 200-odd.
 
 ## Start here

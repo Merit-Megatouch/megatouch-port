@@ -11,7 +11,7 @@ tools, docs) lives here. A fix made for one game helps every game of its family.
 
 | Family | Games | Status | What porting takes |
 | --- | ---: | --- | --- |
-| GameDevice (2009+) | 22 | **2 playable** (Trix, Word Dojo 2); 2 more with 0 missing symbols | Shared SDL2 backend (done). A few loader stand-ins per game: see the [survey](reference/gamedevice-survey.md). |
+| GameDevice (2009+) | 22 | **3 playable** (Trix, Word Dojo 2, Boxxi Blitz); 1 more with 0 missing symbols | Shared SDL2 backend (done). A few loader stand-ins per game: see the [survey](reference/gamedevice-survey.md). |
 | Unity 3.2 | 30 | not started | Run the cabinet's `LinuxPlayer`; replace the cabinet plugins in .NET |
 | Merit3D | 13 | not started | The loader's 3D services: ODE, OpenGL, Allegro |
 | Legacy sprite | 143 | not started | **The loader's 2D engine**: `Sprite`, `Bitmap`, `WorldClass`, Allegro |
@@ -25,7 +25,7 @@ Per-game list: [reference/games.md](reference/games.md).
 
 Easiest first, in the order of the [survey](reference/gamedevice-survey.md):
 
-1. **Boxxi Blitz, Spin Card Hold'em**: 0 missing symbols; `make new` and play-test.
+1. ~~Boxxi Blitz~~ (done, 2026-10-07). **Spin Card Hold'em**: 0 missing symbols; `make new` and play-test.
 2. **The GameId overloads** of `HighScoresManager` (`HighEnough(GameIds,int,int,int)`,
    `HighestScore(GameIds,int)`, `HighestName(GameIds,int)`). They unblock about 15 games.
 3. **No-op services:** `LightShow`, `LightShowManager::Play`, `ads::in_game_ads::get_ad_name`,

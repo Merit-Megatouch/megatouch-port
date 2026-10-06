@@ -89,6 +89,12 @@ int main(int argc, char** argv) {
     // The cabinet's loader starts each game from inside its own directory; layouts and
     // effects are opened with paths relative to it.
     std::string gameDir = root + "/" + assets;
+    // Output paths given relative to where the user started the game must survive the chdir.
+    char cwd[PATH_MAX];
+    if (getcwd(cwd, sizeof cwd))
+        for (const char* k : {"SHOT_DIR", "PROFILE"})
+            if (const char* v = menv(k); v && *v && *v != '/')
+                setenv((std::string("MEGA_") + k).c_str(), (std::string(cwd) + "/" + v).c_str(), 1);
     if (chdir(gameDir.c_str()) != 0) { perror(gameDir.c_str()); return 1; }
 
     std::string game = base + "/lib/" + lib;

@@ -7,7 +7,7 @@ again. The "#" numbers 1–20 match the original journal ([history/10](../histor
 
 | Game | Issue | Idea |
 | --- | --- | --- |
-| g_trix | `gfx/hud/common_files/tricks` not found | Data quirk; look for the asset under another name |
+| g_trix | `gfx/hud/common_files/tricks` not found | The cabinet ships an empty `tricks/` folder next to `tricks.spr.gz`; the folder wins. A real data quirk. |
 | g_trix | One sound requested with an empty name | Harmless; find the caller with `DEBUG=sound` |
 | all | Music track start stalls ~90 ms (whole OGG decoded) | Stream with `stb_vorbis_open_memory` + `get_samples` |
 | all | First use of large `.spr` stalls 100–200 ms | Decode cache or preload at layout load |
@@ -52,6 +52,7 @@ triggering the free, as with `StopSound`.
 | 16 | No music; tracks restart every frame | `SDL_BuildAudioCVT` "no conversion" leaves `len_cvt` unset → empty buffers → `IsPlaying` false → playlist advances | Use `len` when no conversion |
 | — | TGA images missing (Word Dojo 2) | `IMG_Load_RW` can't detect TGA | `IMG_LoadTyped_RW` with the type from the extension |
 | — | Game-over screen blank (Word Dojo 2) | Art lives in the fallback game `/usr/local/games/default` | Part of shared data, linked into every game |
+| — | `Failed to find resource [gfx/end_tile_explosion]` (Boxxi Blitz); Trix fire animations missing | Animations stored as a folder of frames are listed by the locator's wildcard search, which builds `//usr/local/...` paths; the shim only matched one leading slash | Shim collapses repeated leading slashes |
 | — | `libinput_sprite.so: cannot open shared object` (Word Dojo 2) | Listed as NEEDED but unused | Empty stub libraries |
 | 18 | Profiled windowed run dies with no trace | `backtrace()` in the SIGPROF handler unwound into llvmpipe JIT code | `sigsetjmp` guard, recovered from the crash handler |
 | 19 | `MEGA_FPS=60` makes AI turns very slow | Game logic counts ticks | Keep 30 |
