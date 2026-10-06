@@ -1,0 +1,6 @@
+[submodule "games/g_trix"]
+	path = games/g_trix
+	url = https://github.com/Merit-Megatouch/g_trix.git
+[submodule "games/g_word_dojo_2"]
+	path = games/g_word_dojo_2
+	url = https://github.com/Merit-Megatouch/g_word_dojo_2.git

@@ -1,0 +1,14 @@
+# 32-bit compiler support for the host gcc (amd64 multilib packages, no root needed).
+# @GCC@ is replaced with the host gcc major version.
+libc6-dev-i386
+libc6-i386
+lib32stdc++-@GCC@-dev
+lib32gcc-@GCC@-dev
+lib32stdc++6
+lib32gcc-s1
+lib32atomic1
+lib32gomp1
+lib32itm1
+lib32quadmath0
+lib32asan8
+lib32ubsan1

@@ -1,0 +1,172 @@
+#!/bin/bash
+# Scaffold a game port from the cabinet into games/<dll>/.
+#
+#   scripts/new-game.sh <name> [--force]        (or: make new GAME=<name>)
+#
+# <name>: DLLName (g_word_dojo_2), asset folder, or GameId (G_WORD_DOJO_2).
+# --force re-extracts code and assets and rewrites game.conf; NOTES.md is never touched.
+#
+# Creates:  game.conf  NOTES.md  README.md  run  lib/  data/  notes/scaffold.md  notes/unresolved.txt
+# and makes games/<dll> its own git repo (see scripts/lib/game-repo.sh).
+set -euo pipefail
+R=$(cd "$(dirname "$0")/.." && pwd)
+. "$R/cabinet.conf"
+. "$R/scripts/lib/cabinet.sh"
+. "$R/repos.conf"
+. "$R/scripts/lib/game-repo.sh"
+
+NAME=${1:?usage: new-game.sh <name> [--force]}
+FORCE=${2:-}
+say()  { printf '\033[1m==>\033[0m %s\n' "$*"; }
+warn() { printf '\033[33m!!\033[0m %s\n' "$*"; }
+TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+[ -x "$R/shared/bin/gameids" ] || { echo "run 'make setup' first"; exit 1; }
+cab_check
+
+# Sets GAMEID_NAME DLL DIR DESC RES from gamedata.xml (the master list, else the game's own copy).
+identify_game() {
+  local master="$R/shared/data-common/usr/local/gamedata/config/gamedata.xml" info d
+  if ! info=$(python3 -I "$R/tools/gameinfo.py" "$NAME" "$master"); then
+    for d in "$NAME" "$(echo "$NAME" | tr 'A-Z' 'a-z')"; do
+      cab_dump ion "/games/$d/gamedata.xml" "$TMP/gamedata.xml" 2>/dev/null && break || true
+    done
+    info=$(python3 -I "$R/tools/gameinfo.py" "$NAME" "$TMP/gamedata.xml" 2>/dev/null) || { echo "'$NAME' not found in gamedata.xml"; exit 1; }
+  fi
+  eval "$info"
+  [ -n "$DLL" ] || { echo "no DLLName for $NAME"; exit 1; }
+}
+
+# Game library + its dependency closure; sets FAMILY.
+extract_code() {
+  rm -rf "$GD/lib"; mkdir -p "$GD/lib" "$GD/notes"
+  cab_exists root "/usr/local/lib/$DLL.so" || { echo "/usr/local/lib/$DLL.so is not in the cabinet"; exit 1; }
+  say "extracting $DLL.so and the libraries it needs"
+  "$R/scripts/lib/extract-libs.sh" "$GD/lib" "$DLL.so" 2> "$GD/notes/missing-libs.txt" || true
+  local f; for f in "$GD"/lib/*; do [ -e "$R/shared/runtime/$(basename "$f")" ] && rm -f "$f"; done
+
+  FAMILY=legacy
+  if readelf -d "$GD/lib/$DLL.so" | grep -q libgame_device_sprite.so; then FAMILY=gamedevice
+  elif readelf -d "$GD/lib/$DLL.so" | grep -q libmerit3d.so; then FAMILY=merit3d; fi
+  cab_exists ion "/games/$DIR/Data" && FAMILY=unity
+  say "engine family: $FAMILY"
+  if [ "$FAMILY" = gamedevice ]; then
+    # the cabinet backend and the legacy engine it called are replaced by our SDL2 backend
+    rm -f "$GD"/lib/{libgame_device_sprite,libgraphics_sprite,libinput_sprite,libsound_sprite,libmerit2d,libmerit3d,libmeritbasegame,libmerit_threads}.so
+    ln -sf ../../../shared/bin/libgame_device_sprite.so "$GD/lib/libgame_device_sprite.so"
+  else
+    warn "not a GameDevice game — the SDL2 backend alone will not run it (docs/11-porting-another-game.md)"
+  fi
+}
+
+# Assets + links to shared data; sets ASSET_DIR.
+extract_assets() {
+  local part="" src=""
+  if cab_exists ion "/games/$DIR"; then ASSET_DIR="usr/local/ion_only/games/$DIR"; part=ion; src="/games/$DIR"
+  elif cab_exists root "/usr/local/games/$DIR"; then ASSET_DIR="usr/local/games/$DIR"; part=root; src="/usr/local/games/$DIR"
+  else ASSET_DIR="usr/local/ion_only/games/$DIR"; warn "no asset folder '$DIR' found — set ASSET_DIR in game.conf"; fi
+  mkdir -p "$GD/data/$(dirname "$ASSET_DIR")" "$GD/data/usr/local/games" "$GD/data/usr/local/ion_only/games"
+  if [ -n "$part" ]; then
+    say "extracting assets from $src"
+    rm -rf "$GD/data/$ASSET_DIR"
+    cab_rdump "$part" "$src" "$GD/data/$(dirname "$ASSET_DIR")"
+  fi
+  # shared cabinet data (read-only links) + a private, writable /var/merit
+  ln -sfn ../../../../../shared/data-common/usr/local/gamedata "$GD/data/usr/local/gamedata"
+  ln -sfn ../../../shared/data-common/etc   "$GD/data/etc"
+  ln -sfn ../../../shared/data-common/pango "$GD/data/pango"
+  [ -d "$GD/data/var/merit" ] || { mkdir -p "$GD/data/var"; cp -r "$R/shared/data-common/var-template/merit" "$GD/data/var/"; }
+  # runtime, host and launcher are shared
+  ln -sfn ../../shared/runtime "$GD/runtime"
+  ln -sf ../../shared/bin/megatouch-host "$GD/megatouch-host"
+  ln -sf ../../scripts/launch.sh "$GD/run"
+}
+
+# game.conf: numeric GameId and window size; sets ID W H RES_SRC BIGGEST.
+write_config() {
+  ID=$(LD_LIBRARY_PATH="$R/shared/engine-sdk:$R/shared/runtime" "$R/shared/runtime/ld-linux.so.2" \
+       "$R/shared/bin/gameids" "$GAMEID_NAME" 2>/dev/null || echo -1)
+  case "$RES" in
+    RESOLUTION_*x*)        W=${RES#RESOLUTION_}; H=${W#*x}; W=${W%x*} ;;
+    SUPER_HIGH_RESOLUTION) W=1280; H=800 ;;   # widescreen (the launcher pairs it with FULLSCREEN_WIDE)
+    HIGH_RESOLUTION)       W=1024; H=768 ;;   # unverified
+    *)                     W=800;  H=600 ;;   # unverified default
+  esac
+  RES_SRC="declared ${RES:-none}"
+  BIGGEST=$(python3 -I "$R/tools/largest-png.py" "$GD/data/$ASSET_DIR")
+  case "${BIGGEST%% *}" in   # a full-screen background beats the declaration
+    1280x800|1024x768|800x600|640x480)
+      [ "${BIGGEST%% *}" != "${W}x${H}" ] && RES_SRC="largest PNG (declared ${RES:-none} → ${W}x${H})"
+      W=${BIGGEST%%x*}; H=${BIGGEST#*x}; H=${H%% *} ;;
+  esac
+  if [ ! -f "$GD/game.conf" ] || [ "$FORCE" = --force ]; then
+    cat > "$GD/game.conf" <<EOF
+# $DESC — generated by new-game.sh $(date +%F). Keys become MEGA_<KEY>; the environment wins.
+LIB=$DLL.so
+ASSET_DIR=$ASSET_DIR
+GAME_ID=$ID
+WIDTH=$W
+HEIGHT=$H
+LANGUAGE=english
+TITLE=Megatouch $DESC
+# CARD_FANNING=1
+EOF
+  fi
+  [ "$ID" -ge 0 ] 2>/dev/null || warn "no numeric GameId for $GAMEID_NAME — set GAME_ID in game.conf"
+}
+
+# notes/scaffold.md (regenerated) and NOTES.md (created once, yours to edit).
+write_notes() {
+  local unres="(not analysed: not a GameDevice game)" missing newlibs
+  [ "$FAMILY" = gamedevice ] && unres=$("$R/tools/analyze.sh" "$GD")
+  missing=$(grep -c . "$GD/notes/missing-libs.txt" 2>/dev/null || true)
+  newlibs=$(comm -23 <(ls "$GD/lib" | sort) <(ls "$R/shared/engine-sdk" | sort) \
+            | grep -vx "$DLL.so" | grep -vx libgame_device_sprite.so | tr '\n' ' ' || true)
+  cat > "$GD/notes/scaffold.md" <<EOF
+# $DESC — scaffold facts ($(date +%F), regenerated by new-game.sh)
+
+| Fact | Value |
+| --- | --- |
+| GameId | $GAMEID_NAME = $ID |
+| Code | /usr/local/lib/$DLL.so |
+| Engine family | $FAMILY |
+| Assets | /$ASSET_DIR |
+| Window size | ${W}x${H} — from $RES_SRC |
+| Largest PNG | $BIGGEST |
+| Engine libraries beyond the shared SDK | ${newlibs:-none} |
+| Libraries not found in the cabinet | $missing (missing-libs.txt) |
+| Unresolved symbols | ${unres%% →*} (unresolved.txt) |
+EOF
+  [ -f "$GD/NOTES.md" ] || cat > "$GD/NOTES.md" <<EOF
+# $DESC ($DLL)
+
+Status: scaffolded $(date +%F). Facts: [notes/scaffold.md](notes/scaffold.md).
+
+## Checklist
+- [ ] Window size in game.conf matches the largest PNG (notes/scaffold.md)
+- [ ] Every symbol in notes/unresolved.txt has a stand-in in src/host/loader_services.cpp
+      (\`make analyze GAME=$DLL\` until it reports 0)
+- [ ] First run: \`make run GAME=$DLL DEBUG=shots\` — crash trace + screenshots in notes/shots
+- [ ] Paths: \`make run GAME=$DLL DEBUG=files\`; engine trace: \`mkdir -p data/var/merit/debug/files && touch data/var/merit/debug/files/resource_locator\`
+- [ ] Reference code: \`make decompile GAME=$DLL\`
+- [ ] Translations + help text appear (gamedata/translations/$DLL.utf8)
+- [ ] Sound and music play (\`DEBUG=sound\`)
+- [ ] A full game plays through (\`DEBUG=profile\` to catch stalls and old-malloc bugs)
+
+## Log
+<!-- dated notes: what broke, what fixed it -->
+EOF
+  echo "$unres"
+}
+
+identify_game
+GD="$R/games/$DLL"
+if [ -d "$GD/lib" ] && [ "$FORCE" != --force ]; then echo "games/$DLL already exists (use --force to redo)"; exit 1; fi
+say "$DESC  ($GAMEID_NAME → $DLL.so, assets '$DIR')"
+extract_code
+extract_assets
+write_config
+UNRES=$(write_notes)
+game_repo_init "$GD" "$DLL" "$DESC"
+say "games/$DLL ready (its own git repo; publish with: make publish GAME=$DLL)"
+echo "    ${UNRES}"
+echo "    next: make run GAME=$DLL DEBUG=shots     (notes: games/$DLL/NOTES.md)"
