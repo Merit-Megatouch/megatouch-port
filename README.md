@@ -3,8 +3,8 @@
 Run original Megatouch ION (2014) cabinet games on Linux and WSL2 — the real 2013 game and
 engine binaries, with only the cabinet's display/sound/input backend replaced by SDL2.
 
-**Status:** Trix plays fully (graphics, text, animations, music, help). Word Dojo 2 is
-scaffolded and needs 8 more cabinet functions. 20 other games use the same engine.
+**Status:** Trix plays fully (graphics, text, animations, music, help). Word Dojo 2 runs
+(board, timer, music, dictionary). 19 other games use the same engine.
 
 ```
 git clone --recurse-submodules https://github.com/Merit-Megatouch/megatouch-port
@@ -83,6 +83,6 @@ Settings: every `game.conf` key becomes `MEGA_<KEY>`, and the environment overri
 | Game | Folder | State |
 | --- | --- | --- |
 | Trix | `games/g_trix` | Playable |
-| Word Dojo 2 | `games/g_word_dojo_2` | Scaffolded — 8 unresolved loader functions |
+| Word Dojo 2 | `games/g_word_dojo_2` | Runs (board, timer, music, dictionary); word entry not yet hand-tested |
 
 Engine family of all 178 game libraries: [docs/data/engine-families.tsv](docs/data/engine-families.tsv).

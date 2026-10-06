@@ -80,10 +80,70 @@ public:
     static HighScoresManager* Instance();
     bool HighEnough(int, int);
     int Winner() const;
+    int HighestScore(int);
+    char const* HighestName(int);
 };
 HighScoresManager* HighScoresManager::Instance() { static char inst[64]; return reinterpret_cast<HighScoresManager*>(inst); }
 bool HighScoresManager::HighEnough(int, int) { return false; }
 int HighScoresManager::Winner() const { return 0; }
+// Shown in a game's top-score display (Word Dojo 2). No score table is kept yet.
+int HighScoresManager::HighestScore(int) { return 0; }
+char const* HighScoresManager::HighestName(int) { return ""; }
+
+// The cabinet's language setting. Locale::Languages: 0 = English, 3 = French, 4 = Spanish, ...
+// (same order as LanguagesSupported in gamedata.xml). Games pick dictionaries/help by it.
+namespace Locale {
+class LanguageManager {
+public:
+    static LanguageManager* GetInstance();
+    int Active() const;
+};
+LanguageManager* LanguageManager::GetInstance() { static char inst[64]; return reinterpret_cast<LanguageManager*>(inst); }
+int LanguageManager::Active() const { return 0; }
+}
+
+// Allegro 4 Unicode string helpers (the loader linked Allegro; its default text format is
+// UTF-8). Word Dojo 2 uses them on dictionary words.
+static int utf8_len(const unsigned char* s) {
+    return *s < 0x80 ? 1 : (*s >> 5) == 6 ? 2 : (*s >> 4) == 14 ? 3 : (*s >> 3) == 30 ? 4 : 1;
+}
+static int utf8_decode(const unsigned char* s) {
+    int n = utf8_len(s);
+    if (n == 1) return *s;
+    int c = *s & (0x7f >> n);
+    for (int i = 1; i < n && (s[i] & 0xc0) == 0x80; i++) c = (c << 6) | (s[i] & 0x3f);
+    return c;
+}
+extern "C" {
+int ustrlen(const char* s) {
+    int n = 0;
+    for (const unsigned char* p = (const unsigned char*)s; *p; p += utf8_len(p)) n++;
+    return n;
+}
+// Character at index; a negative index counts from the end (Allegro semantics).
+int ugetat(const char* s, int index) {
+    if (index < 0) index += ustrlen(s);
+    if (index < 0) return 0;
+    const unsigned char* p = (const unsigned char*)s;
+    for (; *p && index > 0; index--) p += utf8_len(p);
+    return *p ? utf8_decode(p) : 0;
+}
+int ustrcmp(const char* a, const char* b) {
+    const unsigned char *p = (const unsigned char*)a, *q = (const unsigned char*)b;
+    while (*p && *q) {
+        int c = utf8_decode(p), d = utf8_decode(q);
+        if (c != d) return c - d;
+        p += utf8_len(p); q += utf8_len(q);
+    }
+    return utf8_decode(p) - utf8_decode(q);
+}
+// Uppercase in place (ASCII letters; multi-byte characters are left as they are).
+char* ustrupr(char* s) {
+    for (unsigned char* p = (unsigned char*)s; *p; p += utf8_len(p))
+        if (*p >= 'a' && *p <= 'z') *p -= 32;
+    return s;
+}
+}
 
 class Logger {
 public:

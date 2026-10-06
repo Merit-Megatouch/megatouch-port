@@ -36,7 +36,15 @@ HEADERS     := $(wildcard src/*/*.h)
 .PHONY: all build setup new run analyze decompile package snapshot games publish clean help
 all: build
 
-build: $(BIN)/megatouch-host $(BIN)/libgame_device_sprite.so $(BIN)/gameids
+# Empty stand-ins for the cabinet's other backend libraries: some games list them as
+# dependencies without using them (everything they did is in libgame_device_sprite.so).
+STUBS := $(addprefix $(BIN)/stubs/,libgraphics_sprite.so libinput_sprite.so libsound_sprite.so)
+
+build: $(BIN)/megatouch-host $(BIN)/libgame_device_sprite.so $(BIN)/gameids $(STUBS)
+
+$(BIN)/stubs/%.so:
+	@mkdir -p $(dir $@)
+	echo '/* intentionally empty: superseded by libgame_device_sprite.so */' | $(CC) -shared -fPIC -o $@ -Wl,-soname,$*.so -
 
 $(OUT)/%.o: src/%.cpp $(HEADERS)
 	@mkdir -p $(dir $@)

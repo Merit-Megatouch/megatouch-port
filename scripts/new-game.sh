@@ -53,6 +53,9 @@ extract_code() {
     # the cabinet backend and the legacy engine it called are replaced by our SDL2 backend
     rm -f "$GD"/lib/{libgame_device_sprite,libgraphics_sprite,libinput_sprite,libsound_sprite,libmerit2d,libmerit3d,libmeritbasegame,libmerit_threads}.so
     ln -sf ../../../shared/bin/libgame_device_sprite.so "$GD/lib/libgame_device_sprite.so"
+    # some games list the other backend libraries without using them: empty stand-ins
+    local s; for s in libgraphics_sprite libinput_sprite libsound_sprite; do
+      ln -sf "../../../shared/bin/stubs/$s.so" "$GD/lib/$s.so"; done
   else
     warn "not a GameDevice game — the SDL2 backend alone will not run it (docs/11-porting-another-game.md)"
   fi
