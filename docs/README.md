@@ -1,49 +1,71 @@
-# Megatouch ION → Linux/WSL porting cookbook
+# megatouch-port documentation
 
-How Megatouch **Trix** (Megatouch ION 2014, software PG3002-01 V40.02) was taken off a
-60 GB cabinet disk image and made to run as a normal windowed game on Linux / WSL2 —
-running the **original 2013 game and engine binaries**, with only the cabinet-specific
-display/sound/input backend replaced by an SDL2 one.
+The goal is every game from the Megatouch ION cabinet running on a normal PC (Linux or WSL2),
+using the original game and engine binaries, and in the end a replacement for the cabinet's
+loader itself. Two GameDevice games are fully playable today; the [roadmap](roadmap.md) covers
+the remaining 200-odd.
 
-Written so the same process can be repeated for other games from the platform.
+## Start here
 
-## Chapters
+| I want to… | Read |
+| --- | --- |
+| Play Trix or Word Dojo 2 | [Quick start](guides/quick-start.md) |
+| Port another game | [Porting a game](guides/porting-a-game.md), then the [survey](reference/gamedevice-survey.md) to pick one |
+| Fix something that doesn't work | [Troubleshooting](guides/troubleshooting.md) |
+| Find out why a game crashes or lags | [Debugging](guides/debugging.md) |
+| Push my work | [Contributing](guides/contributing.md) |
+| Know what's next for the project | [Roadmap](roadmap.md) |
+| Understand how it works | [Architecture](reference/architecture.md) |
 
-| # | Chapter | What you get out of it |
-|---|---------|------------------------|
-| 01 | [Platform anatomy](01-platform-anatomy.md) | Disk layout, partitions, where games/configs live, the four engine families |
-| 02 | [Toolchain setup (no root)](02-toolchain-setup.md) | debugfs offsets, 32-bit gcc, Ghidra headless, private i386 apt, Python helpers |
-| 03 | [Extracting a game](03-extracting-a-game.md) | Game catalogue, assets, code, dependency closure, old system libraries |
-| 04 | [Mapping the runtime](04-mapping-the-runtime.md) | Who-loads-whom, the host-symbol surface, finding the replaceable boundary |
-| 05 | [Reverse engineering the backend](05-reverse-engineering.md) | Decompiling, vtable dumps, recovered object layouts and slot tables |
-| 06 | [Writing the SDL2 backend](06-writing-the-backend.md) | The vtable-cloning technique and each replacement class |
-| 07 | [Host shim, filesystem & data layout](07-host-and-data.md) | Loader stand-ins, path redirection, old glibc ABI, fonts, Pango, translations |
-| 08 | [Asset formats](08-asset-formats.md) | PNG/TGA, the `.spr` sprite format (fully decoded), OGG/WAV |
-| 09 | [Debugging & profiling toolkit](09-debugging-and-profiling.md) | Crash handler, file tracing, engine debug flags, screenshots, autoclick, profiler |
-| 10 | [Bug catalogue](10-bug-catalogue.md) | Every failure hit on the way: symptom → cause → fix |
-| 11 | [Porting another game](11-porting-another-game.md) | Step-by-step checklist, what is game-specific, plans per engine family |
-| 12 | [Scaffolding a new game](12-scaffolding.md) | The template: `new-game.sh`, the workspace layout, the working loop |
+## Guides (task-oriented)
 
-## Where things are
+| Guide | Contents |
+| --- | --- |
+| [quick-start](guides/quick-start.md) | WSL install, packages, clone, image, `make setup`, play, Windows shortcut, standalone copy |
+| [porting-a-game](guides/porting-a-game.md) | Scaffold → stand-ins → first run → play-through → commit, worked through on Word Dojo 2 |
+| [debugging](guides/debugging.md) | Symptom → tool table; crash traces, screenshots, autoclick, paths, sound, profiler, ABI questions |
+| [troubleshooting](guides/troubleshooting.md) | Setup, launch, gameplay and git problems with fixes |
+| [contributing](guides/contributing.md) | Main repo vs game repos, everyday git, publishing, credentials, what to update, testing |
 
-See the [top-level README](../README.md) for the repository layout and commands, and
-[chapter 12](12-scaffolding.md) for the workspace in detail. Chapters 02–11 describe how the
-first port was done by hand; `make setup` and `make new` now automate most of it.
+## Reference (look things up)
 
-## The whole journey in one screen
+| Reference | Contents |
+| --- | --- |
+| [commands](reference/commands.md) | Every make target, `game.conf` key, `MEGA_*` variable, engine debug flag and tool |
+| [architecture](reference/architecture.md) | Components, startup sequence, frame loop, file, image and sound data flow, repo layout |
+| [engine-abi](reference/engine-abi.md) | Classes, sizes, field offsets, vtable slots; which slots our backend fills; adding a class |
+| [loader-services](reference/loader-services.md) | Every loader stand-in with behaviour and the game that needed it; what unported games still need |
+| [cabinet](reference/cabinet.md) | Disk image partitions, directory map, gamedata.xml, settings.xml, GameIds, engine libraries |
+| [file-formats](reference/file-formats.md) | `.spr` (fully decoded), images, sound, layouts, fonts, translations |
+| [known-bugs](reference/known-bugs.md) | Open issues; every bug fixed so far by category; diagnosing a new crash |
+| [games](reference/games.md) | All 194 cabinet games: GameId, library, family, resolution, port status *(generated: `make docs`)* |
+| [gamedevice-survey](reference/gamedevice-survey.md) | Each GameDevice game's missing loader symbols, easiest first *(generated: `make survey`)* |
+| [glossary](reference/glossary.md) | Terms used throughout |
 
-1. **Inspect the image** with `debugfs -R "..." "img?offset=<start*512>"` — no mounting, no root.
-2. **Catalogue games** from `/var/merit/settings.xml` + `/usr/local/gamedata/config/gamedata.xml`.
-3. **Locate the game**: assets in `/usr/local/ion_only/games/g_<name>/`, code in `/usr/local/lib/g_<name>.so`.
-4. **Close over dependencies** (`readelf -d` NEEDED, recursively) and pull old system libs from the image.
-5. **Find the seam**: the game only imports `GameDevice::CreateNewGameDevice()` from
-   `libgame_device_sprite.so`; everything else goes through virtual calls on engine base classes.
-6. **Decompile** the original sprite backend (Ghidra headless) to recover object sizes, field offsets
-   and which vtable slots it overrides.
-7. **Write a replacement `libgame_device_sprite.so`** on SDL2: construct engine base objects with their
-   exported constructors, then point them at *cloned base vtables* with only our slots patched.
-8. **Stand in for the cabinet loader**: ~10 C++ functions (Translator, ContinueControl, HighScores...)
-   plus a filesystem shim mapping `/usr/local/...` and `/var/merit/...` into a local `data/` tree.
-9. **Fix the environment**: CWD = game dir, 64-bit-inode-safe `__xstat`, cabinet `fonts.conf`,
-   Pango 1.14 modules file, translation tables, old-glibc use-after-free tolerance.
-10. **Decode the remaining asset formats** (`.spr`), wire up sound, verify with screenshots, profile.
+## History
+
+[history/](history/README.md): the twelve-chapter journal of the first port (Trix), written as
+it happened. It shows how the seam was found, how the backend was reverse-engineered and why each
+fix exists. Paths in it are from before the reorganisation.
+
+## Data
+
+| File | Contents |
+| --- | --- |
+| [data/games-catalogue.tsv](data/games-catalogue.tsv) | Name, GameId and Active flag for each game in `/var/merit/settings.xml` |
+| [data/engine-families.tsv](data/engine-families.tsv) | Engine family of each of the 178 game libraries |
+
+## In one screen
+
+1. **Read the image** with `debugfs` at partition offsets: no mounting, no root.
+2. **Catalogue games** from `settings.xml` and `gamedata.xml`.
+3. **Extract** a game's library plus its dependency closure and its asset folder.
+4. **The seam:** GameDevice games import only `GameDevice::CreateNewGameDevice()` from the
+   cabinet backend. Everything else is virtual calls on engine base classes.
+5. **Our backend** builds engine objects with their own constructors and points them at copies of
+   their vtables with our SDL2 functions in the slots.
+6. **The host** stands in for a dozen loader functions and maps cabinet paths into a per-game
+   `data/` folder, with old-glibc `stat` fixed for 64-bit inodes.
+7. **The environment:** working directory = asset dir, the cabinet's fonts, Pango 1.14 modules,
+   translation tables, old-malloc behaviour.
+8. **Formats:** `.spr` decoded; PNG, TGA, WAV, OGG through SDL and stb_vorbis.

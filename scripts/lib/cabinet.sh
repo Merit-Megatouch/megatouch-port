@@ -22,7 +22,7 @@ cab_mode() { if [ -n "${CABINET_SNAPSHOT:-}" ] && [ -d "$CABINET_SNAPSHOT" ]; th
 
 cab_check() {
   if [ "$(cab_mode)" = snapshot ]; then return 0; fi
-  [ -f "${IMG:-}" ] || { echo "cabinet image not found: '${IMG:-}' (edit cabinet.conf, or set CABINET_SNAPSHOT)" >&2; return 1; }
+  [ -f "${IMG:-}" ] || { echo "cabinet image not found: '${IMG:-}' (set IMG='…' in cabinet.local.conf, or make a snapshot in ./cabinet)" >&2; return 1; }
 }
 
 cab_readlink() {

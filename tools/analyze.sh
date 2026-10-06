@@ -1,7 +1,7 @@
 #!/bin/bash
 # List the symbols a game's libraries still need that nothing provides:
 # not the game's lib/, not the shared 32-bit runtime, not megatouch-host.
-# These are cabinet-loader services you must stand in for in src/host.cpp.
+# These are cabinet-loader services you must stand in for in src/host/loader_services.cpp.
 #
 # usage: tools/analyze.sh games/<name>      → writes games/<name>/notes/unresolved.txt
 set -euo pipefail
@@ -30,7 +30,7 @@ join -v1 "$T/undef" "$T/def" > "$T/missing"
 {
   echo "# Symbols no library, runtime or megatouch-host provides ($(date +%F))"
   echo "# megatouch-host loads the game with RTLD_NOW, so each of these must be defined"
-  echo "# (usually in src/host.cpp) before the game will start."
+  echo "# (usually in src/host/loader_services.cpp) before the game will start."
   echo "# symbol | needed by"
   while read -r sym lib; do printf '%s | %s\n' "$(echo "$sym" | c++filt)" "$lib"; done < "$T/missing"
 } > "$GD/notes/unresolved.txt"

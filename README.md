@@ -1,88 +1,96 @@
 # megatouch-port
 
-Run original Megatouch ION (2014) cabinet games on Linux and WSL2 — the real 2013 game and
-engine binaries, with only the cabinet's display/sound/input backend replaced by SDL2.
+The Megatouch ION (2014) cabinet games, running on Linux and WSL2 using the cabinet's real game
+and engine binaries. The goal is **every game on the platform**, and in the end **the cabinet's
+loader itself**. Today the cabinet backend for the 2009+ "GameDevice" engine is replaced by SDL2,
+and two games are fully playable.
 
-**Status:** Trix plays fully (graphics, text, animations, music, help). Word Dojo 2 plays fully
-(scoring, power-ups, game over, saved hi-score). 19 other games use the same engine.
+| | Games | Status |
+| --- | ---: | --- |
+| GameDevice engine | 22 | **Trix, Word Dojo 2 playable**; the rest need a few stand-ins each ([survey](docs/reference/gamedevice-survey.md)) |
+| Unity 3.2 | 30 | next family ([roadmap](docs/roadmap.md)) |
+| Merit3D | 13 | needs the loader's 3D services |
+| Legacy sprite engine | 143 | needs the loader's 2D engine, the big milestone |
 
-```
-git clone --recurse-submodules https://github.com/Merit-Megatouch/megatouch-port
-cd megatouch-port
+Every title: [docs/reference/games.md](docs/reference/games.md).
+
+## Quick start
+
+```bash
+git clone --recurse-submodules https://github.com/Merit-Megatouch/megatouch-port ~/megatouch-port
+cd ~/megatouch-port
 echo 'IMG="/path/to/Megatouch ION 2014 HDD Keyless.img"' > cabinet.local.conf
 make setup                       # once: toolchain, 32-bit runtime, shared cabinet data (~3 min)
 make games                       # extract each game's code + assets from the cabinet
-make run GAME=g_trix             # play   (DEBUG=shots|files|sound|profile for diagnostics)
-make new GAME=g_word_dojo_2      # start porting another game
-make help                        # all commands
+make run GAME=g_trix             # play   (F11 = fullscreen)
 ```
 
-On Windows (WSL2 with WSLg): `wsl make -C ~/trix-port run GAME=g_trix`, or a shortcut to
-`wsl ~/trix-port/games/g_trix/run`.
+You need Ubuntu on Linux or WSL2 (with WSLg) and
+`sudo apt install git gcc g++ make python3 python3-venv curl e2fsprogs binutils`. Nothing else is
+installed system-wide. Step-by-step instructions from a bare Windows machine:
+[docs/guides/quick-start.md](docs/guides/quick-start.md).
 
-## What you need
+You also need the cabinet disk image, or a snapshot made from it with `make snapshot`. It is only
+used to extract files; ported games never read it. Cabinet code and assets are never committed.
 
-* Ubuntu (tested 26.04) on Linux or WSL2, with `gcc g++ make python3 curl e2fsprogs binutils`.
-  No root: every download is unpacked inside this folder.
-* The cabinet disk image (`Megatouch ION 2014 HDD Keyless.img`). Put its path in
-  `cabinet.local.conf` (not committed; see [cabinet.conf](cabinet.conf)). After `make snapshot` (≈1–2 GB copy of just what porting
-  uses) the image is no longer needed. Ported games never need it to run.
+## Documentation
 
-## How it works (one paragraph)
+| | |
+| --- | --- |
+| [Quick start](docs/guides/quick-start.md) | From nothing to playing |
+| [Porting a game](docs/guides/porting-a-game.md) | The workflow, worked through on Word Dojo 2 |
+| [Debugging](docs/guides/debugging.md) · [Troubleshooting](docs/guides/troubleshooting.md) | When something goes wrong |
+| [Contributing](docs/guides/contributing.md) | Repos, submodules, publishing |
+| [Roadmap](docs/roadmap.md) | Every family, and the loader |
+| [Reference](docs/README.md#reference-look-things-up) | Commands and settings, architecture, engine ABI, loader services, cabinet layout, file formats, known bugs |
+| [History](docs/history/README.md) | How the first port was done, chapter by chapter |
+
+## How it works
 
 On the cabinet, a protected program called the loader `dlopen`s each game library and gives it
-graphics, sound and input through `libgame_device_sprite.so`. Games built on the 2009+
-"GameDevice" engine reach that backend through just one function, `CreateNewGameDevice()`, and
-then only through virtual calls on engine base classes. We ship our own
-`libgame_device_sprite.so` (SDL2), build its objects with the engine's own constructors and
-patched copies of its vtables, and stand in for the dozen loader functions the games still call.
-A launcher (`megatouch-host`) redirects the cabinet's file paths into a per-game `data/` folder.
-The full story, with every offset and every bug: [docs/](docs/README.md).
+graphics, sound and input through `libgame_device_sprite.so`. GameDevice games reach that backend
+through one function, `CreateNewGameDevice()`, and after that only through virtual calls on
+engine base classes. We ship our own `libgame_device_sprite.so` on SDL2. It builds engine objects
+with their own constructors and points them at copies of their vtables with our functions in the
+slots. Our host program, `megatouch-host`, stands in for the dozen loader functions the games
+still call, and redirects the cabinet's file paths into a per-game `data/` folder.
+[Architecture](docs/reference/architecture.md).
+
+## Commands
+
+```
+make setup                       toolchain + runtime + shared cabinet data (once)
+make                             rebuild host + backend
+make new GAME=<dll> [FORCE=1]    scaffold a game from the cabinet into games/<dll>
+make run GAME=<dll> [DEBUG=shots|files|sound|profile]
+make analyze GAME=<dll>          loader symbols still missing
+make decompile GAME=<dll>        Ghidra C of the game (needs scripts/setup.sh --ghidra)
+make package GAME=<dll> DEST=<dir>   standalone copy
+make snapshot                    copy what porting needs out of the image
+make games                       regenerate every game's lib/ + data/ (after a clone)
+make publish GAME=<dll>|all      push to GitHub; games are submodules
+make docs | make survey          regenerate the game catalogue | the porting survey
+```
+
+All options and environment variables: [docs/reference/commands.md](docs/reference/commands.md).
 
 ## Layout
 
 | Path | In git | What |
 | --- | --- | --- |
-| `Makefile`, `cabinet.conf`, `repos.conf` | yes | Commands; cabinet image settings (your path goes in `cabinet.local.conf`); GitHub org |
-| `scripts/` | yes | `setup.sh`, `new-game.sh`, `publish.sh`, `snapshot-cabinet.sh`, `launch.sh`, `lib/` |
-| `src/backend/` | yes | SDL2 backend: `device` `textures` `sprites` `input` `sound` `net` `spr` (one subsystem per file) |
-| `src/host/` | yes | `megatouch-host`: `main` (game.conf, launch), `fs_shim` (paths, old glibc ABI), `loader_services` (cabinet stand-ins), `profiler` |
-| `tools/` | yes | `analyze.sh` `decompile.sh` `package.sh` `gameinfo.py` `largest-png.py` `vtdump.py` `sprdump.py` `profreport.py` `gameids.cpp` |
-| `docs/` | yes | The porting cookbook, 12 chapters |
-| `games/<name>/` | own repo (submodule) | Each game is a separate repo, `Merit-Megatouch/<name>`: `game.conf`, `NOTES.md`, `notes/`. Its `lib/`, `data/` (cabinet files) are regenerated by `make new` / `make games` |
-| `shared/` | no | 32-bit runtime, built host + backend, cabinet data every game shares (`make setup`) |
-| `toolchain/` | no | 32-bit compiler sysroot, i386 packages, Python venv, Ghidra (`make setup`) |
-| `reference/` | no | Decompiled engine libraries (reading material) |
-| `cabinet/` | no | Optional snapshot of the cabinet image (`make snapshot`) |
-
-Cabinet code and assets are never committed — they are copyrighted and large — so a fresh
-clone plus the image (or a snapshot) regenerates everything with `make setup` and `make new`.
-
-## Working on a game
-
-1. `make new GAME=<dll>` → read `games/<dll>/notes/scaffold.md` and `notes/unresolved.txt`.
-2. Add stand-ins for unresolved symbols in `src/host/loader_services.cpp`; `make` and
-   `make analyze GAME=<dll>` until it reports 0.
-3. `make run GAME=<dll> DEBUG=shots` — read the crash trace, look at `notes/shots/`.
-4. Keep a dated log in `games/<dll>/NOTES.md`.
-5. Commit in the game repo (`git -C games/<dll> commit`), and shared code in the main repo.
-   `make publish GAME=<dll>` pushes the game (creating `Merit-Megatouch/<dll>` and adding the
-   submodule the first time); `make publish GAME=all` pushes every game and then the main repo.
-
-Git notes: games are [submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules), so the
-main repo records which commit of each game goes with which commit of the shared code. After
-pulling, `git submodule update --init` brings the games along. Pushing uses your normal git
-credentials (on WSL, Windows Credential Manager via Git for Windows' credential helper).
-
-Settings: every `game.conf` key becomes `MEGA_<KEY>`, and the environment overrides it
-(`MEGA_WIDTH=1024 make run GAME=...`). Debug switches are listed in
-[docs/09](docs/09-debugging-and-profiling.md).
+| `Makefile`, `cabinet.conf`, `repos.conf` | yes | Commands; image settings (your path goes in `cabinet.local.conf`, ignored); GitHub org |
+| `scripts/` | yes | `setup`, `new-game`, `publish`, `snapshot-cabinet`, `launch`; `lib/` helpers; `packages/` lists |
+| `src/backend/` | yes | SDL2 backend: `device` `textures` `sprites` `input` `sound` `net` `spr` |
+| `src/host/` | yes | `megatouch-host`: `main`, `fs_shim`, `loader_services`, `profiler` |
+| `tools/` | yes | `analyze` `decompile` `package` `catalog` `survey` `vtdump` `sprdump` `profreport` `gameinfo` `largest-png` `gameids` |
+| `docs/` | yes | `guides/`, `reference/`, `history/`, `roadmap.md`, `data/` |
+| `games/<dll>/` | own repo | `Merit-Megatouch/<dll>` as a submodule: `game.conf`, `NOTES.md`, `notes/`; `lib/` + `data/` regenerated |
+| `shared/`, `toolchain/`, `build/` | no | Generated by `make setup` / `make` |
+| `reference/`, `cabinet/` | no | Decompiled engine (local); optional image snapshot |
 
 ## Games
 
-| Game | Folder | State |
-| --- | --- | --- |
-| Trix | `games/g_trix` | Playable |
-| Word Dojo 2 | `games/g_word_dojo_2` | Playable |
-
-Engine family of all 178 game libraries: [docs/data/engine-families.tsv](docs/data/engine-families.tsv).
+| Game | Repo | GameId | State |
+| --- | --- | ---: | --- |
+| Trix | [g_trix](https://github.com/Merit-Megatouch/g_trix) | 245 | Playable |
+| Word Dojo 2 | [g_word_dojo_2](https://github.com/Merit-Megatouch/g_word_dojo_2) | 258 | Playable |

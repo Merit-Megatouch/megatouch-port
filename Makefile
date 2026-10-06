@@ -10,6 +10,7 @@
 #   make snapshot                  copy what porting needs out of the disk image (then it can be archived)
 #   make games                     after a fresh clone: regenerate lib/ + data/ for every game
 #   make publish GAME=...          push a game repo to GitHub (submodule of this repo); GAME=all for everything
+#   make docs                      regenerate the game catalogue; make survey for the porting survey (slow)
 #   make help                      this text
 
 R        := $(abspath .)
@@ -33,7 +34,7 @@ BACKEND_OBJ := $(BACKEND_SRC:src/%.cpp=$(OUT)/%.o) $(OUT)/third_party/stb_vorbis
 HOST_OBJ    := $(HOST_SRC:src/%.cpp=$(OUT)/%.o)
 HEADERS     := $(wildcard src/*/*.h)
 
-.PHONY: all build setup new run analyze decompile package snapshot games publish clean help
+.PHONY: all build setup new run analyze decompile package snapshot games publish docs survey clean help
 all: build
 
 # Empty stand-ins for the cabinet's other backend libraries: some games list them as
@@ -106,8 +107,14 @@ publish:
 	@test -n "$(GAME)" || { echo "usage: make publish GAME=<name>|all"; exit 1; }
 	scripts/publish.sh $(if $(filter all,$(GAME)),--all,$(GAME))
 
+docs:
+	tools/catalog.sh
+
+survey:
+	tools/survey.sh
+
 clean:
 	rm -rf $(OUT)
 
 help:
-	@sed -n '3,13p' Makefile | sed 's/^# \{0,1\}//'
+	@sed -n '3,14p' Makefile | sed 's/^# \{0,1\}//'

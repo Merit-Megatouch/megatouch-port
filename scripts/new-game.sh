@@ -57,7 +57,7 @@ extract_code() {
     local s; for s in libgraphics_sprite libinput_sprite libsound_sprite; do
       ln -sf "../../../shared/bin/stubs/$s.so" "$GD/lib/$s.so"; done
   else
-    warn "not a GameDevice game — the SDL2 backend alone will not run it (docs/11-porting-another-game.md)"
+    warn "not a GameDevice game — the SDL2 backend alone will not run it (docs/roadmap.md)"
   fi
 }
 
