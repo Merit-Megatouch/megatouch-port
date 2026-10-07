@@ -559,3 +559,30 @@
 [submodule "games/ginrummy"]
 	path = games/ginrummy
 	url = https://github.com/Merit-Megatouch/ginrummy.git
+[submodule "games/cepixmix"]
+	path = games/cepixmix
+	url = https://github.com/Merit-Megatouch/cepixmix.git
+[submodule "games/chboxxi"]
+	path = games/chboxxi
+	url = https://github.com/Merit-Megatouch/chboxxi.git
+[submodule "games/chpixmix"]
+	path = games/chpixmix
+	url = https://github.com/Merit-Megatouch/chpixmix.git
+[submodule "games/golf"]
+	path = games/golf
+	url = https://github.com/Merit-Megatouch/golf.git
+[submodule "games/locboxxi"]
+	path = games/locboxxi
+	url = https://github.com/Merit-Megatouch/locboxxi.git
+[submodule "games/luxor2"]
+	path = games/luxor2
+	url = https://github.com/Merit-Megatouch/luxor2.git
+[submodule "games/rowelink_ui"]
+	path = games/rowelink_ui
+	url = https://github.com/Merit-Megatouch/rowelink_ui.git
+[submodule "games/safari"]
+	path = games/safari
+	url = https://github.com/Merit-Megatouch/safari.git
+[submodule "games/ttunes"]
+	path = games/ttunes
+	url = https://github.com/Merit-Megatouch/ttunes.git
