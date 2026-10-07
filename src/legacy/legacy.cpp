@@ -31,35 +31,14 @@
 #include <string>
 #include <vector>
 
-#define LOG(...) do { fprintf(stderr, "[legacy] " __VA_ARGS__); fputc('\n', stderr); } while (0)
+#include "engine.h"
 
 // ---------------------------------------------------------------------------------- types
-// +0 is the Allegro BITMAP (games blit it with Allegro directly), +4/+8 width/height
-struct _RADBitmap { BITMAP* bmp; uint32_t w; uint32_t h; uint32_t* px; uint32_t tag; };
 extern "C" { extern volatile int mouse_x, mouse_y, mouse_b, mouse_pos; }
 struct _MSmack;
 struct SoundBase;
-struct Bitmap;
-
-static const uint32_t kTag = 0x52414442;          // "RADB"
-// Pixels are in Allegro's 32-bit format (0x00RRGGBB) so games' own Allegro drawing and ours
-// share one framebuffer. The transparency key is Allegro's 32-bit mask colour, magenta.
-static const uint32_t kKey = 0x00ff00ff;          // transparent (palette index 5 / skipped RLE)
-static inline uint32_t to_px(uint32_t argb) { return (argb >> 24) < 128 ? kKey : (argb & 0x00ffffff); }
-static void frames_to_px(std::vector<MeritFrame>& fr) { for (auto& f : fr) for (auto& p : f.argb) p = to_px(p); }
-
-static uint32_t color_of(unsigned idx) {
-    switch (idx) {
-    case 5:   return kKey;
-    // 0 and 254/255 were the transparent entries of the 8-bit palettes; the true-colour
-    // conversion of the art left those pixels black (airhockey key 0, tennis keys 0xfe/0xff)
-    case 0: case 254: case 255: return 0x00000000;
-    default:  return idx * 0x010101u;                 // unknown palette: grey ramp
-    }
-}
 
 // ---------------------------------------------------------------------------------- screen
-static const int SW = 640, SH = 480;              // the 2D API's screen
 static uint32_t g_fallbackScreen[SW * SH];
 static uint32_t* g_screen = g_fallbackScreen;     // Allegro's `screen` bitmap once it is set up
 static bool g_gl = menv("GL") != nullptr;        // Merit3D games: an OpenGL window instead
@@ -73,6 +52,7 @@ static bool g_dirty = true, g_quit;
 static Uint32 g_start, g_lastPresent, g_quitAt;
 
 struct Zone { std::string name; int x, y, w, h; };
+static std::vector<legacy::Touch> g_touches;      // for the sprite engine (take_touches)
 static std::vector<Zone> g_zones;
 static std::vector<std::string> g_pending;       // touched zone names not yet read
 
@@ -147,7 +127,10 @@ static void autoclick() {
     static const char* spec = menv("AUTOCLICK");
     static size_t pos;
     if (!spec) return;
-    if (g_autoRelease && SDL_GetTicks() >= g_autoRelease) { g_mouseDown = false; g_autoRelease = 0; }
+    if (g_autoRelease && SDL_GetTicks() >= g_autoRelease) {
+        g_mouseDown = false; g_autoRelease = 0;
+        g_touches.push_back({g_mouseX, g_mouseY, false});
+    }
     while (spec[pos]) {
         unsigned t; int x, y, used = 0;
         if (sscanf(spec + pos, "%u:%d,%d%n", &t, &x, &y, &used) != 3) { spec = nullptr; return; }
@@ -155,6 +138,7 @@ static void autoclick() {
         pos += used + (spec[pos + used] == ';');
         // games that poll the mouse (MouseX/Y, mouse_b, GetTouchCoord) see a 150 ms press
         g_mouseX = x; g_mouseY = y; g_mouseDown = true; g_autoRelease = SDL_GetTicks() + 150;
+        g_touches.push_back({x, y, true});
         for (auto& z : g_zones)
             if (x >= z.x && x < z.x + z.w && y >= z.y && y < z.y + z.h) { g_pending.push_back(z.name); break; }
     }
@@ -179,11 +163,13 @@ static void pump() {
             break;
         case SDL_MOUSEBUTTONUP:
             g_mouseDown = false;
+            g_touches.push_back({e.button.x, e.button.y, false});
             break;
         case SDL_MOUSEBUTTONDOWN: {
             // SDL already reports mouse positions in logical (640x480) coordinates
             int x = e.button.x, y = e.button.y;
             g_mouseX = x; g_mouseY = y; g_mouseDown = true;
+            g_touches.push_back({x, y, true});
             const char* hit = nullptr;
             // the most recently added zone wins where zones overlap
             for (auto it = g_zones.rbegin(); it != g_zones.rend(); ++it)
@@ -243,14 +229,6 @@ static void blit(const uint32_t* src, int sw, int sh, int sx, int sy,
 // ---------------------------------------------------------------------------------- .dlt files
 // .dlt animations are delta-coded: frame 1 is a full picture, every later frame holds only
 // the pixels that changed (the rest are skipped), so frames are composited in order.
-struct Anim {
-    std::vector<MeritFrame> frames;
-    int w = 0, h = 0, delay = 4, cur = 0;
-    Uint32 last = 0;
-    _RADBitmap* target = nullptr;
-    std::vector<uint32_t> canvas;                   // frames[0..cur] composited
-};
-
 static void anim_overlay(Anim* a, int f) {
     const MeritFrame& fr = a->frames[f];
     for (int y = 0; y < fr.h && y < a->h; y++)
@@ -635,6 +613,14 @@ bool voice_playing(int voice) {
     for (auto& v : g_voices) if (v.id == voice) return true;
     return false;
 }
+bool find_asset(const char* name, bool lang, const char* ext, std::string& out) { return ::find_asset(name, lang, ext, out); }
+Anim* anim_load(const char* name, bool lang) { return ::anim_load(name, lang); }
+void anim_seek(Anim* a, int f) { ::anim_seek(a, f); }
+void sleep_ms(Uint32 ms) { ::sleep_ms(ms); }
+Uint32 ticks() { return SDL_GetTicks() - g_start; }
+std::vector<Touch> take_touches() { ::pump(); std::vector<Touch> t; t.swap(g_touches); return t; }
+bool quitting() { return g_quit; }
+_RADBitmap* rad_new(uint32_t w, uint32_t h, uint32_t fill) { ::video_init(); return bmp_new(w, h, fill); }
 }
 
 // --- loader objects
@@ -672,8 +658,6 @@ struct FontBase;
 namespace Locale { enum Languages : int {}; }
 
 namespace {
-const uint32_t kBmpTag = 0x58504d42;        // "BMPX"
-struct BmpData { int w = 0, h = 0; std::vector<uint32_t> px; Anim* anim = nullptr; };
 
 // --- video buffers (VideoClass): the 2D screen is VB "screen"; games draw into an open VB and
 // show it. Ids from CreateVB/OpenVB are kept as separate 640x480 buffers.
@@ -692,377 +676,21 @@ uint32_t* vb_pixels(int id) {
 uint32_t* target() { return vb_pixels(g_curVB); }
 void touched_target() { if (g_curVB < 0) g_dirty = true; }
 }
-
-class Bitmap {
-public:
-    Bitmap(int, int, unsigned char, unsigned char);
-    virtual ~Bitmap();                       // games delete through the vtable (slot 1)
-    bool LoadPCX(char*, int, int, unsigned char);
-    bool LoadData(char*, unsigned char, int);
-    bool LoadCompressedData(char*, _IO_FILE*);
-    bool LoadTGA_32(char*);
-    void Display(int, int, int);
-    void DisplayRegion(int, int, int, int, int, int, int);
-    void CopyFromCurrent(int, int);
-    void CopyToBitmap(Bitmap*, int, int, int, int, int, int);
-    bool SmackAnimationLoad(char*, unsigned char);
-    void SmackAnimationJumpTo(int);
-    void SmackAnimationRewind();
-    void SmackAnimationDisplay(int, int, unsigned char);
-    void SmackAnimationUnload();
-    void DisplaySmack(unsigned short, unsigned short, unsigned char);
-    void SetDim(int, int);
-    void CreateColoredSmackTextBox(char const*, FontBase*, signed char, unsigned short, unsigned short,
-                                   short, short, short, unsigned char, bool);
-};
-
-static BmpData* bd(Bitmap* b) {
-    auto* raw = reinterpret_cast<unsigned char*>(b);
-    uint32_t tag; memcpy(&tag, raw + 0x8c, 4);
-    BmpData* d = nullptr;
-    if (tag == kBmpTag) memcpy(&d, raw + 0x88, sizeof d);
-    if (!d) {
-        d = new BmpData;
-        memcpy(raw + 0x88, &d, sizeof d);
-        tag = kBmpTag; memcpy(raw + 0x8c, &tag, 4);
-    }
-    return d;
+namespace legacy {
+BITMAP* vb_bitmap(int id) {
+    if (id < 0) return screen;
+    static std::map<int, BITMAP*> wraps;
+    BITMAP*& b = wraps[id];
+    if (!b) b = al_wrap32(vb_pixels(id), SW, SH);
+    return b;
 }
-static void bmp_resize(Bitmap* b, int w, int h, uint32_t fill) {
-    BmpData* d = bd(b);
-    d->w = w < 0 ? 0 : w; d->h = h < 0 ? 0 : h;
-    d->px.assign((size_t)d->w * d->h, fill);
-    auto* raw = reinterpret_cast<unsigned char*>(b);
-    memcpy(raw + 0x4c, &d->w, 4); memcpy(raw + 0x50, &d->h, 4);
+BITMAP* target_bitmap() { return vb_bitmap(g_curVB); }
+uint32_t* target_px() { return vb_pixels(g_curVB); }
+void touched_target() { ::touched_target(); }
 }
 
-Bitmap::Bitmap(int w, int h, unsigned char, unsigned char) {
-    video_init();
-    memset(reinterpret_cast<unsigned char*>(this) + 4, 0, 0x94 - 4);   // keep the vtable pointer
-    bmp_resize(this, w, h, kKey);
-}
-Bitmap::~Bitmap() { BmpData* d = bd(this); delete d->anim; delete d; memset(reinterpret_cast<unsigned char*>(this) + 0x88, 0, 8); }
-void Bitmap::SetDim(int w, int h) { bmp_resize(this, w, h, kKey); }
-
-// Games name files with or without their extension; try the cabinet's image extensions too.
-static bool read_file(const char* name, std::vector<uint8_t>& d) {
-    std::string path;
-    for (const char* ext : {"", ".img", ".pcx", ".tga", ".dlt", ".spr"})
-        if (find_asset(name, false, ext, path)) return merit_read_gz(path.c_str(), d);
-    return false;
-}
-
-// PCX: run-length rows. 8-bit with a 256-colour palette at the end, or 24-bit as three
-// planes per row (R, G, B lines).
-bool Bitmap::LoadPCX(char* name, int, int, unsigned char) {
-    std::vector<uint8_t> d;
-    if (!name || !read_file(name, d)) { LOG("missing PCX %s", name ? name : "?"); return false; }
-    if (d.size() < 128 || d[0] != 0x0a) { LOG("not a PCX: %s", name); return false; }
-    int w = (d[8] | d[9] << 8) - (d[4] | d[5] << 8) + 1, h = (d[10] | d[11] << 8) - (d[6] | d[7] << 8) + 1;
-    int planes = d[65], bpl = d[66] | d[67] << 8;
-    bool pal8 = planes == 1 && d.size() >= 128 + 769 && d[d.size() - 769] == 12;
-    const uint8_t* pal = pal8 ? &d[d.size() - 768] : nullptr;
-    if (w <= 0 || h <= 0 || w > 4096 || h > 4096 || (planes != 1 && planes != 3)) { LOG("unsupported PCX %s", name); return false; }
-    bmp_resize(this, w, h, kKey);
-    BmpData* b = bd(this);
-    size_t o = 128, end = pal8 ? d.size() - 769 : d.size();
-    std::vector<uint8_t> line((size_t)bpl * planes);
-    for (int y = 0; y < h; y++) {
-        size_t x = 0;
-        while (x < line.size() && o < end) {
-            uint8_t c = d[o++];
-            int n = 1;
-            if ((c & 0xc0) == 0xc0 && o < end) { n = c & 0x3f; c = d[o++]; }
-            while (n-- && x < line.size()) line[x++] = c;
-        }
-        for (int i = 0; i < w; i++) {
-            uint32_t v;
-            if (planes == 3) v = (uint32_t)line[i] << 16 | line[bpl + i] << 8 | line[2 * bpl + i];
-            else if (pal) { const uint8_t* p = pal + line[i] * 3; v = (uint32_t)p[0] << 16 | p[1] << 8 | p[2]; }
-            else v = line[i] * 0x010101u;
-            b->px[(size_t)y * w + i] = v;
-        }
-    }
-    return true;
-}
-
-// .img: u32 width, u32 height, raw RGB565 (magenta 0xF81F transparent)
-bool Bitmap::LoadData(char* name, unsigned char, int) {
-    std::vector<uint8_t> d;
-    if (!name || !read_file(name, d) || d.size() < 8) { LOG("missing image %s", name ? name : "?"); return false; }
-    uint32_t w, h; memcpy(&w, &d[0], 4); memcpy(&h, &d[4], 4);
-    if (w > 4096 || h > 4096 || 8 + (size_t)w * h * 2 > d.size()) { LOG("bad image %s", name); return false; }
-    bmp_resize(this, w, h, kKey);
-    BmpData* b = bd(this);
-    for (size_t i = 0; i < (size_t)w * h; i++) {
-        uint16_t c = d[8 + 2 * i] | d[9 + 2 * i] << 8;
-        b->px[i] = c == 0xf81f ? kKey : (merit_rgb565(c, 255) & 0x00ffffff);
-    }
-    return true;
-}
-bool Bitmap::LoadCompressedData(char* name, _IO_FILE*) {
-    // a .dlt picture (first frame) when it is one, else the raw .img layout
-    std::string path;
-    if (name && find_asset(name, false, "", path)) {
-        std::vector<uint8_t> d;
-        if (merit_read_gz(path.c_str(), d)) {
-            size_t off, count;
-            if (merit_container(d, off, count)) {
-                std::vector<MeritFrame> f;
-                merit_read_frames(d, off, f, 1);
-                if (!f.empty()) {
-                    frames_to_px(f);
-                    bmp_resize(this, f[0].w, f[0].h, kKey);
-                    bd(this)->px = f[0].argb;
-                    return true;
-                }
-            }
-        }
-    }
-    return LoadData(name, 0, -1);
-}
-bool Bitmap::LoadTGA_32(char* name) {
-    std::vector<uint8_t> d;
-    if (!name || !read_file(name, d) || d.size() < 18) return false;
-    int idlen = d[0], type = d[2], w = d[12] | d[13] << 8, h = d[14] | d[15] << 8, bpp = d[16], desc = d[17];
-    if (type != 2 || (bpp != 32 && bpp != 24)) { LOG("unsupported TGA %s", name); return false; }
-    int bytes = bpp / 8;
-    bmp_resize(this, w, h, kKey);
-    BmpData* b = bd(this);
-    size_t o = 18 + idlen;
-    for (int y = 0; y < h; y++)
-        for (int x = 0; x < w && o + bytes <= d.size(); x++, o += bytes) {
-            int yy = (desc & 0x20) ? y : h - 1 - y;
-            uint32_t a = bytes == 4 ? d[o + 3] : 255;
-            b->px[(size_t)yy * w + x] = a < 128 ? kKey : ((uint32_t)d[o + 2] << 16 | d[o + 1] << 8 | d[o]);
-        }
-    return true;
-}
-
-// Draws into the open video buffer (or the screen); transparent pixels skipped. A non-zero
-// flag also treats pure black as transparent (PCX sprites have no other transparency).
-void Bitmap::Display(int x, int y, int flag) {
-    BmpData* b = bd(this);
-    if (b->w <= 0) return;
-    blit(b->px.data(), b->w, b->h, 0, 0, target(), SW, SH, x, y, b->w, b->h, true, flag ? 0u : kKey);
-    touched_target();
-}
-void Bitmap::DisplayRegion(int x, int y, int sx, int sy, int w, int h, int) {
-    BmpData* b = bd(this);
-    blit(b->px.data(), b->w, b->h, sx, sy, target(), SW, SH, x, y, w, h, true, kKey);
-    touched_target();
-}
-void Bitmap::CopyFromCurrent(int x, int y) {
-    BmpData* b = bd(this);
-    blit(target(), SW, SH, x, y, b->px.data(), b->w, b->h, 0, 0, b->w, b->h, false, 0);
-}
-void Bitmap::CopyToBitmap(Bitmap* dst, int dx, int dy, int sx, int sy, int w, int h) {
-    if (!dst) return;
-    BmpData* s = bd(this); BmpData* d = bd(dst);
-    blit(s->px.data(), s->w, s->h, sx, sy, d->px.data(), d->w, d->h, dx, dy, w, h, true, kKey);
-}
-
-// Animations attached to a bitmap (.dlt "smacks").
-bool Bitmap::SmackAnimationLoad(char* name, unsigned char lang) {
-    BmpData* b = bd(this);
-    delete b->anim;
-    b->anim = name ? anim_load(name, lang) : nullptr;
-    if (!b->anim) return false;
-    bmp_resize(this, b->anim->w, b->anim->h, kKey);
-    b->anim->target = nullptr;
-    return true;
-}
-void Bitmap::SmackAnimationUnload() { BmpData* b = bd(this); delete b->anim; b->anim = nullptr; }
-void Bitmap::SmackAnimationRewind() { BmpData* b = bd(this); if (b->anim) anim_seek(b->anim, 0); }
-void Bitmap::SmackAnimationJumpTo(int f) {
-    BmpData* b = bd(this);
-    if (b->anim && !b->anim->frames.empty()) anim_seek(b->anim, f < 0 ? 0 : f % (int)b->anim->frames.size());
-}
-// Shows the current frame at (x, y), then steps to the next one.
-void Bitmap::SmackAnimationDisplay(int x, int y, unsigned char) {
-    BmpData* b = bd(this);
-    if (!b->anim) return;
-    Anim* a = b->anim;
-    if (a->canvas.empty()) anim_seek(a, a->cur);
-    blit(a->canvas.data(), a->w, a->h, 0, 0, target(), SW, SH, x, y, a->w, a->h, true, kKey);
-    touched_target();
-    anim_seek(a, (a->cur + 1) % (int)a->frames.size());
-}
-void Bitmap::DisplaySmack(unsigned short x, unsigned short y, unsigned char f) { SmackAnimationDisplay(x, y, f); }
-
-// --- fonts and text boxes. BmpFont(w, h, n) picks a cabinet bitmap font (gamedata/fonts/*.dlt:
-// one glyph per frame, frame = character code) by cell size.
-class BmpFont { public: BmpFont(short, short, unsigned short); };
-
-// FontBase objects are polymorphic: games call their virtual methods (slots 0x10, 0x2c, 0x4c,
-// 0x54, ...). Until each slot's meaning is known, every slot is a stand-in that logs its first
-// call with its arguments (MEGA_DEBUG_FONT=1 logs every call) and returns 0. Slots get real
-// implementations in font_slot() as they are identified.
-namespace {
-int font_slot(int slot, void* self, const int* a);
-template <int N> int font_vfn(void* self, int a0, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9) {
-    int a[10] = {a0, a1, a2, a3, a4, a5, a6, a7, a8, a9};
-    return font_slot(N, self, a);
-}
-template <int... I> struct Seq {};
-template <int N, int... I> struct MakeSeq : MakeSeq<N - 1, N - 1, I...> {};
-template <int... I> struct MakeSeq<0, I...> { typedef Seq<I...> type; };
-template <int... I> void* const* make_font_vtable(Seq<I...>) {
-    static void* const vt[] = {reinterpret_cast<void*>(&font_vfn<I>)...};
-    return vt;
-}
-void* const* font_vtable() { static void* const* vt = make_font_vtable(MakeSeq<48>::type()); return vt; }
-void font_attach(void* obj) { void* const* vt = font_vtable(); memcpy(obj, &vt, sizeof vt); }
-}
-namespace {
-struct GlyphFont { int w = 0, h = 0; std::vector<MeritFrame> glyphs; std::vector<int> adv; };
-std::map<const void*, GlyphFont*> g_fonts;
-GlyphFont* g_defaultFont;
-
-GlyphFont* font_load(const char* file) {
-    std::string path = std::string("/usr/local/gamedata/fonts/") + file;
-    std::vector<uint8_t> d;
-    if (!merit_read_gz(path.c_str(), d)) return nullptr;
-    size_t off, count;
-    if (!merit_container(d, off, count)) return nullptr;
-    auto* f = new GlyphFont;
-    merit_read_frames(d, off, f->glyphs, count);
-    if (f->glyphs.empty()) { delete f; return nullptr; }
-    frames_to_px(f->glyphs);
-    f->w = f->glyphs[0].w; f->h = f->glyphs[0].h;
-    for (auto& g : f->glyphs) {           // proportional advance: rightmost opaque column + 2
-        int r = -1;
-        for (int y = 0; y < g.h; y++) for (int x = g.w - 1; x > r; x--) if (g.argb[(size_t)y * g.w + x] != kKey) { r = x; break; }
-        f->adv.push_back(r < 0 ? f->w / 2 : r + 2);
-    }
-    return f;
-}
-GlyphFont* font_for(short w, short h) {
-    char names[4][32];
-    snprintf(names[0], 32, "b%dx%d.dlt.gz", w, h); snprintf(names[1], 32, "%dx%d.dlt.gz", w, h);
-    snprintf(names[2], 32, "%dx%dw.dlt.gz", w, h); snprintf(names[3], 32, "%dx%d.dlt.gz", h, h);
-    for (auto& n : names) if (GlyphFont* f = font_load(n)) return f;
-    return nullptr;
-}
-GlyphFont* default_font() {
-    if (!g_defaultFont) g_defaultFont = font_load("12x16.dlt.gz");    // white glyphs, fits the games' text boxes
-    if (!g_defaultFont) g_defaultFont = font_load("b24x24.dlt.gz");
-    return g_defaultFont;
-}
-}
-BmpFont::BmpFont(short w, short h, unsigned short) {
-    video_init();
-    font_attach(this);
-    GlyphFont* f = font_for(w, h);
-    if (!f) { LOG("no bitmap font %dx%d, using the default", w, h); f = default_font(); }
-    g_fonts[this] = f;
-}
-
-// A w x h bitmap with `text` centred, glyphs tinted with (r, g, b) unless all are 0.
-void Bitmap::CreateColoredSmackTextBox(char const* text, FontBase* font, signed char, unsigned short w,
-                                       unsigned short h, short r, short g, short bl, unsigned char, bool) {
-    GlyphFont* f = nullptr;
-    auto it = g_fonts.find(font);
-    f = it != g_fonts.end() ? it->second : default_font();
-    if (!f) return;
-    const unsigned char* t = reinterpret_cast<const unsigned char*>(text ? text : "");
-    int tw = 0;
-    for (const unsigned char* p = t; *p; p++) tw += *p < f->adv.size() ? f->adv[*p] : f->w;
-    int W = w ? w : tw, H = h ? h : f->h;
-    bmp_resize(this, W, H, kKey);
-    BmpData* b = bd(this);
-    int x = (W - tw) / 2, y = (H - f->h) / 2;
-    bool tint = r || g || bl;
-    for (const unsigned char* p = t; *p; p++) {
-        if (*p < f->glyphs.size()) {
-            const MeritFrame& gl = f->glyphs[*p];
-            for (int yy = 0; yy < gl.h; yy++)
-                for (int xx = 0; xx < gl.w; xx++) {
-                    uint32_t c = gl.argb[(size_t)yy * gl.w + xx];
-                    if (c == kKey) continue;
-                    if (tint) {
-                        uint32_t lum = ((c >> 16 & 255) + (c >> 8 & 255) + (c & 255)) / 3;
-                        c = (uint32_t)(r * lum / 255 & 255) << 16 | (uint32_t)(g * lum / 255 & 255) << 8 | (uint32_t)(bl * lum / 255 & 255);
-                    }
-                    int X = x + xx, Y = y + yy;
-                    if (X >= 0 && X < W && Y >= 0 && Y < H) b->px[(size_t)Y * W + X] = c;
-                }
-        }
-        x += *p < f->adv.size() ? f->adv[*p] : f->w;
-    }
-}
-
-// The loader's graphics globals: FontBase* fonts at +0x04..+0x80 (games use +0x08, +0x1c, +0x40).
-class MegacGraphics { public: static MegacGraphics* GetInstance(); };
-MegacGraphics* MegacGraphics::GetInstance() {
-    static unsigned char g[0x400];
-    static bool init;
-    if (!init) {
-        init = true;
-        for (int off = 0x04; off <= 0x80; off += 4) {
-            auto* f = new unsigned char[256]();
-            font_attach(f);
-            g_fonts[f] = default_font();
-            memcpy(g + off, &f, sizeof f);
-        }
-    }
-    return reinterpret_cast<MegacGraphics*>(g);
-}
-
-namespace {
-struct FontState { int align = 0; int spacing = 0; };
-std::map<const void*, FontState> g_fontState;
-
-int text_width(GlyphFont* f, const unsigned char* t, int spacing) {
-    int w = 0;
-    for (; *t; t++) w += (*t < f->adv.size() ? f->adv[*t] : f->w) + spacing;
-    return w;
-}
-void text_draw(GlyphFont* f, const unsigned char* t, int x, int y, int spacing) {
-    uint32_t* dst = target();
-    for (; *t; t++) {
-        if (*t < f->glyphs.size()) {
-            const MeritFrame& g = f->glyphs[*t];
-            blit(g.argb.data(), g.w, g.h, 0, 0, dst, SW, SH, x, y, g.w, g.h, true, kKey);
-        }
-        x += (*t < f->adv.size() ? f->adv[*t] : f->w) + spacing;
-    }
-    touched_target();
-}
-
-// Slots identified so far (byte offsets): 0x18 width of a string, 0x24 alignment
-// (0 left, 1 centre, 2 right), 0x2c draw text (text, x, y, width, ...), 0x54 spacing.
-int font_slot(int slot, void* self, const int* a) {
-    static bool all = menv("DEBUG_FONT") != nullptr;
-    static std::map<int, bool> seen;
-    if (all || !seen[slot]) {
-        seen[slot] = true;
-        LOG("font %p slot 0x%x args %d %d %d %d %d %d %d %d", self, slot * 4, a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
-    }
-    auto it = g_fonts.find(self);
-    GlyphFont* f = it != g_fonts.end() && it->second ? it->second : default_font();
-    FontState& st = g_fontState[self];
-    if (!f) return 0;
-    switch (slot * 4) {
-    case 0x18: {                         // width of a string
-        const char* t = reinterpret_cast<const char*>(a[0]);
-        return t ? text_width(f, reinterpret_cast<const unsigned char*>(t), st.spacing) : 0;
-    }
-    case 0x24: st.align = a[0]; return 0;
-    case 0x54: st.spacing = a[0] > 4 ? 0 : a[0]; return 0;   // values seen (10, 12) look like sizes, not gaps
-    case 0x2c: {                         // draw: text, x, y, width (0 = at x)
-        const unsigned char* t = reinterpret_cast<const unsigned char*>(a[0]);
-        if (!t) return 0;
-        int x = a[1], y = a[2], w = a[3], tw = text_width(f, t, st.spacing);
-        if (w > 0) x += st.align == 1 ? (w - tw) / 2 : st.align == 2 ? w - tw : 0;
-        else x -= st.align == 1 ? tw / 2 : st.align == 2 ? tw : 0;
-        text_draw(f, t, x, y, st.spacing);
-        return tw;
-    }
-    }
-    return 0;
-}
-}
+class Bitmap;
+class FontBase;
 
 // --- VideoClass
 class VideoClass {

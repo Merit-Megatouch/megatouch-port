@@ -71,7 +71,7 @@ $(BIN)/megatouch-host: $(HOST_OBJ)
 # The cabinet loader's legacy 2D engine, for pre-2009 games (preloaded by megatouch-host).
 $(BIN)/libmerit_legacy.so: $(LEGACY_OBJ)
 	@mkdir -p $(BIN)
-	$(CXX) -shared -o $@.new $^ $(LINKPATH) -lSDL2 -lz -ldl && mv $@.new $@
+	$(CXX) -shared -o $@.new $^ $(LINKPATH) -lSDL2 -lSDL2_image -lz -ldl && mv $@.new $@
 
 # Preloaded into the Unity player (Unity-family games): routes FMOD's sound output to PulseAudio.
 $(BIN)/libmega_unity.so: src/unity/fmod_output.cpp src/host/fs_shim.cpp src/common/gl_shots.cpp src/common/env.h
