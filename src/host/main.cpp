@@ -105,6 +105,7 @@ int main(int argc, char** argv) {
             if (i < list.size() && list[i] != ' ' && list[i] != ',') { name += list[i]; continue; }
             if (name.empty()) continue;
             std::string p = base + "/lib/" + name;
+            if (access(p.c_str(), F_OK) != 0) p = name;       // a library from the runtime (libGL.so.1)
             if (!dlopen(p.c_str(), RTLD_NOW | RTLD_GLOBAL)) { fprintf(stderr, "failed to preload %s: %s\n", p.c_str(), dlerror()); return 1; }
             name.clear();
         }

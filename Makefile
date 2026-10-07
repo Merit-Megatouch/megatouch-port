@@ -10,6 +10,7 @@
 #   make snapshot                  copy what porting needs out of the disk image (then it can be archived)
 #   make games                     after a fresh clone: regenerate lib/ + data/ for every game
 #   make publish GAME=...          push a game repo to GitHub (submodule of this repo); GAME=all for everything
+#   make stubs GAME=...            placeholder loader functions so a game loads (each logs its first call)
 #   make docs                      regenerate the game catalogue; make survey for the porting survey (slow)
 #   make help                      this text
 
@@ -36,7 +37,7 @@ HOST_OBJ    := $(HOST_SRC:src/%.cpp=$(OUT)/%.o)
 LEGACY_OBJ  := $(LEGACY_SRC:src/%.cpp=$(OUT)/%.o)
 HEADERS     := $(wildcard src/*/*.h)
 
-.PHONY: all build setup new run analyze decompile package snapshot games publish docs survey clean help
+.PHONY: all build setup new run analyze decompile package snapshot games publish stubs docs survey clean help
 all: build
 
 # Empty stand-ins for the cabinet's other backend libraries: some games list them as
@@ -119,6 +120,18 @@ publish:
 	@test -n "$(GAME)" || { echo "usage: make publish GAME=<name>|all"; exit 1; }
 	scripts/publish.sh $(if $(filter all,$(GAME)),--all,$(GAME))
 
+# Placeholder definitions for every unresolved symbol (tools/stubgen.py), so a game loads while its
+# loader services are written; each stub logs its first call. Re-run after adding stand-ins.
+stubs:
+	@test -n "$(GAME)" || { echo "usage: make stubs GAME=<name>"; exit 1; }
+	@mkdir -p $(OUT)/stubs
+	tools/analyze.sh games/$(GAME) >/dev/null
+	$(T)/venv/bin/python -I tools/stubgen.py games/$(GAME) $(OUT)/stubs/$(GAME).c
+	$(CC) -O0 -fPIC -shared -w -o games/$(GAME)/lib/libmega_stubs.so $(OUT)/stubs/$(GAME).c
+	@grep -q 'libmega_stubs.so' games/$(GAME)/game.conf || \
+	  { grep -q '^PRELOAD=' games/$(GAME)/game.conf && sed -i 's/^PRELOAD=\(.*\)/PRELOAD=\1 libmega_stubs.so/' games/$(GAME)/game.conf || echo 'PRELOAD=libmega_stubs.so' >> games/$(GAME)/game.conf; }
+	@grep '^PRELOAD' games/$(GAME)/game.conf
+
 docs:
 	tools/catalog.sh
 
@@ -129,4 +142,4 @@ clean:
 	rm -rf $(OUT)
 
 help:
-	@sed -n '3,14p' Makefile | sed 's/^# \{0,1\}//'
+	@sed -n '3,15p' Makefile | sed 's/^# \{0,1\}//'

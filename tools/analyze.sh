@@ -16,13 +16,14 @@ defined() { { nm -D --defined-only "$@" 2>/dev/null || true; } | awk 'NF>=3 {pri
 
 # Everything that is provided.
 {
-  for f in "$GD"/lib/*.so*; do defined "$f"; done
+  for f in "$GD"/lib/*.so*; do [ "$(basename "$f")" = libmega_stubs.so ] || defined "$f"; done   # stubs are placeholders, not answers
   for f in "$P"/shared/runtime/*.so* "$P"/shared/runtime/pulseaudio/*.so*; do [ -f "$f" ] && defined "$f"; done
   defined "$P/shared/bin/megatouch-host"
 } | sort -u > "$T/def"
 
 # Strong undefined references, with the library that needs each.
 for f in "$GD"/lib/*.so; do
+  [ "$(basename "$f")" = libmega_stubs.so ] && continue
   nm -D --undefined-only "$f" 2>/dev/null | awk -v lib="$(basename "$f")" '$1=="U" {print $2" "lib}'
 done | sed 's/@[^ ]*//' | sort -u > "$T/undef"
 
@@ -34,5 +35,7 @@ join -v1 "$T/undef" "$T/def" > "$T/missing"
   echo "# symbol | needed by"
   while read -r sym lib; do printf '%s | %s\n' "$(echo "$sym" | c++filt)" "$lib"; done < "$T/missing"
 } > "$GD/notes/unresolved.txt"
+# raw (mangled) names for tools/stubgen.py
+mkdir -p "$P/build/unresolved" && awk '{print $1}' "$T/missing" | sort -u > "$P/build/unresolved/$(basename "$GD").txt"
 n=$(wc -l < "$T/missing")
 echo "$n unresolved symbol(s) → $GD/notes/unresolved.txt"

@@ -56,9 +56,11 @@ extract_code() {
     # some games list the other backend libraries without using them: empty stand-ins
     local s; for s in libgraphics_sprite libinput_sprite libsound_sprite; do
       ln -sf "../../../shared/bin/stubs/$s.so" "$GD/lib/$s.so"; done
-  elif [ "$FAMILY" = legacy ]; then
+  elif [ "$FAMILY" = legacy ] || [ "$FAMILY" = merit3d ]; then
     # the loader's legacy 2D engine: our stand-in, preloaded by megatouch-host (PRELOAD=)
     ln -sf ../../../shared/bin/libmerit_legacy.so "$GD/lib/libmerit_legacy.so"
+    # Merit3D draws with OpenGL + GLU (GLU from the cabinet, shared with the Unity player)
+    [ "$FAMILY" = merit3d ] && ln -sf ../../../shared/unity/lib/libGLU.so.1 "$GD/lib/libGLU.so.1"
   else
     warn "$FAMILY games are not supported yet (docs/roadmap.md)"
   fi
@@ -67,20 +69,29 @@ extract_code() {
 # Assets + links to shared data; sets ASSET_DIR.
 extract_assets() {
   local part="" src=""
-  if [ "$FAMILY" = legacy ] && cab_exists root "/usr/local/gamedata/gamegraphics/$DIR"; then
+  if { [ "$FAMILY" = legacy ] || [ "$FAMILY" = merit3d ]; } && cab_exists root "/usr/local/gamedata/gamegraphics/$DIR"; then
     ASSET_DIR="usr/local/gamedata/gamegraphics/$DIR"; part=root; src="/usr/local/gamedata/gamegraphics/$DIR"
   elif cab_exists ion "/games/$DIR"; then ASSET_DIR="usr/local/ion_only/games/$DIR"; part=ion; src="/games/$DIR"
   elif cab_exists root "/usr/local/games/$DIR"; then ASSET_DIR="usr/local/games/$DIR"; part=root; src="/usr/local/games/$DIR"
   else ASSET_DIR="usr/local/ion_only/games/$DIR"; warn "no asset folder '$DIR' found — set ASSET_DIR in game.conf"; fi
-  [ -L "$GD/data/usr/local/gamedata" ] && [ "$FAMILY" = legacy ] && rm "$GD/data/usr/local/gamedata"
+  [ -L "$GD/data/usr/local/gamedata" ] && [ "$FAMILY" != gamedevice ] && rm "$GD/data/usr/local/gamedata"
   mkdir -p "$GD/data/$(dirname "$ASSET_DIR")" "$GD/data/usr/local/games" "$GD/data/usr/local/ion_only/games"
   if [ -n "$part" ]; then
     say "extracting assets from $src"
     rm -rf "$GD/data/$ASSET_DIR"
-    cab_rdump "$part" "$src" "$GD/data/$(dirname "$ASSET_DIR")"
+    local link=""
+    [ "$part" = root ] && link=$(cab_readlink root "$src" 2>/dev/null || true)
+    case "$link" in
+      ../../ion_only/*)   # newer games keep their art on the games partition, linked from gamedata
+        local rel=${link#../../ion_only/}
+        mkdir -p "$GD/data/usr/local/ion_only/$(dirname "$rel")"
+        cab_rdump ion "/$rel" "$GD/data/usr/local/ion_only/$(dirname "$rel")"
+        ln -sfn "$link" "$GD/data/$ASSET_DIR" ;;
+      *) cab_rdump "$part" "$src" "$GD/data/$(dirname "$ASSET_DIR")" ;;
+    esac
   fi
   # shared cabinet data (read-only links) + a private, writable /var/merit
-  if [ "$FAMILY" = legacy ]; then
+  if [ "$FAMILY" = legacy ] || [ "$FAMILY" = merit3d ]; then
     # legacy assets live inside /usr/local/gamedata, so that folder is real: shared parts linked
     local sub; for sub in config translations help ttf fonts; do
       ln -sfn "../../../../../../shared/data-common/usr/local/gamedata/$sub" "$GD/data/usr/local/gamedata/$sub"; done
@@ -110,6 +121,7 @@ write_config() {
     *)                     W=800;  H=600 ;;   # unverified default
   esac
   [ "$FAMILY" = legacy ] && { W=640; H=480; RES="legacy 640x480"; }
+  [ "$FAMILY" = merit3d ] && [ "$W" = 800 ] && { W=640; H=480; }
   RES_SRC="declared ${RES:-none}"
   BIGGEST=$(python3 -I "$R/tools/largest-png.py" "$GD/data/$ASSET_DIR")
   case "${BIGGEST%% *}" in   # a full-screen background beats the declaration
@@ -128,7 +140,9 @@ HEIGHT=$H
 LANGUAGE=english
 TITLE=Megatouch $DESC
 EOF
-    if [ "$FAMILY" = legacy ]; then
+    if [ "$FAMILY" = merit3d ]; then
+      printf 'PRELOAD=libGL.so.1 libGLU.so.1 libmerit_legacy.so\nPLAYERS=1\n' >> "$GD/game.conf"
+    elif [ "$FAMILY" = legacy ]; then
       printf 'PRELOAD=libmerit_legacy.so\nPLAYERS=1\n' >> "$GD/game.conf"
     else
       echo "# CARD_FANNING=1" >> "$GD/game.conf"
@@ -140,7 +154,7 @@ EOF
 # notes/scaffold.md (regenerated) and NOTES.md (created once, yours to edit).
 write_notes() {
   local unres="(not analysed: $FAMILY game)" missing newlibs
-  case "$FAMILY" in gamedevice|legacy) unres=$("$R/tools/analyze.sh" "$GD") ;; esac
+  case "$FAMILY" in gamedevice|legacy|merit3d) unres=$("$R/tools/analyze.sh" "$GD") ;; esac
   missing=$(grep -c . "$GD/notes/missing-libs.txt" 2>/dev/null || true)
   newlibs=$(comm -23 <(ls "$GD/lib" | sort) <(ls "$R/shared/engine-sdk" | sort) \
             | grep -vx "$DLL.so" | grep -vx libgame_device_sprite.so | tr '\n' ' ' || true)

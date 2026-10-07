@@ -15,6 +15,7 @@
 //    frames, delay, then run-length frames (src/common/merit_rle.h).
 #include "../common/env.h"
 #include "../common/merit_rle.h"
+#include "legacy_internal.h"
 #include <SDL2/SDL.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -47,8 +48,12 @@ static uint32_t color_of(unsigned idx) {
 }
 
 // ---------------------------------------------------------------------------------- screen
-static const int SW = 640, SH = 480;
+static const int SW = 640, SH = 480;              // the 2D API's screen
 static uint32_t g_screen[SW * SH];
+static bool g_gl = menv("GL") != nullptr;        // Merit3D games: an OpenGL window instead
+static SDL_GLContext g_glctx;
+static int g_mouseX, g_mouseY;
+static bool g_mouseDown;
 static SDL_Window* g_win;
 static SDL_Renderer* g_ren;
 static SDL_Texture* g_tex;
@@ -66,6 +71,25 @@ static void video_init() {
     if (g_win) return;
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER);
     const char* title = menv("TITLE") ? menv("TITLE") : "Megatouch";
+    if (g_gl) {
+        // the cabinet loader set up an AllegroGL mode before starting a Merit3D game
+        int w = menv_int("WIDTH", 1024), h = menv_int("HEIGHT", 768);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+        SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+        SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+        SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+        g_win = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_OPENGL);
+        if (!g_win) { LOG("SDL_CreateWindow: %s", SDL_GetError()); _exit(1); }
+        g_glctx = SDL_GL_CreateContext(g_win);
+        if (!g_glctx) { LOG("SDL_GL_CreateContext: %s", SDL_GetError()); _exit(1); }
+        SDL_GL_MakeCurrent(g_win, g_glctx);
+        SDL_GL_SetSwapInterval(1);
+        g_start = SDL_GetTicks();
+        audio_init();
+        LOG("OpenGL window %dx%d", w, h);
+        return;
+    }
     g_win = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                              SW * 2, SH * 2, SDL_WINDOW_RESIZABLE);
     g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_PRESENTVSYNC);
@@ -123,14 +147,21 @@ static void pump() {
         case SDL_QUIT: g_quit = true; g_quitAt = SDL_GetTicks(); g_pending.push_back("ESCAPE"); break;
         case SDL_KEYDOWN:
             if (e.key.keysym.sym == SDLK_ESCAPE) g_pending.push_back("ESCAPE");
-            if (e.key.keysym.sym == SDLK_F11) {
+            if (e.key.keysym.sym == SDLK_F11 && !g_gl) {
                 bool fs = SDL_GetWindowFlags(g_win) & SDL_WINDOW_FULLSCREEN_DESKTOP;
                 SDL_SetWindowFullscreen(g_win, fs ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
             }
             break;
+        case SDL_MOUSEMOTION:
+            g_mouseX = e.motion.x; g_mouseY = e.motion.y;
+            break;
+        case SDL_MOUSEBUTTONUP:
+            g_mouseDown = false;
+            break;
         case SDL_MOUSEBUTTONDOWN: {
             // SDL already reports mouse positions in logical (640x480) coordinates
             int x = e.button.x, y = e.button.y;
+            g_mouseX = x; g_mouseY = y; g_mouseDown = true;
             const char* hit = nullptr;
             // the most recently added zone wins where zones overlap
             for (auto it = g_zones.rbegin(); it != g_zones.rend(); ++it)
@@ -148,7 +179,7 @@ static void pump() {
     }
     autoclick();
     if (g_quit && SDL_GetTicks() - g_quitAt > 3000) { LOG("window closed"); _exit(0); }
-    if (g_dirty && SDL_GetTicks() - g_lastPresent >= 15) present();
+    if (!g_gl && g_dirty && SDL_GetTicks() - g_lastPresent >= 15) present();
 }
 
 static void sleep_ms(Uint32 ms) {
@@ -255,7 +286,7 @@ static void anim_to(Anim* a, _RADBitmap* b) {
 
 // ---------------------------------------------------------------------------------- sound
 struct Pcm { std::vector<int16_t> s; };             // 44.1 kHz stereo
-struct Voice { int id; const Pcm* pcm; size_t pos; float vol; };
+struct Voice { int id; const short* s; size_t n; size_t pos; float vol; bool loop; };
 static SDL_AudioDeviceID g_audio;
 static std::mutex g_amx;
 static std::map<std::string, Pcm*> g_waves;
@@ -268,10 +299,13 @@ static void audio_cb(void*, Uint8* stream, int len) {
     std::vector<int> mix(n, 0);
     std::lock_guard<std::mutex> lk(g_amx);
     for (auto& v : g_voices)
-        for (int i = 0; i < n && v.pos < v.pcm->s.size(); i++) mix[i] += (int)(v.pcm->s[v.pos++] * v.vol);
+        for (int i = 0; i < n; i++) {
+            if (v.pos >= v.n) { if (!v.loop || !v.n) break; v.pos = 0; }
+            mix[i] += (int)(v.s[v.pos++] * v.vol);
+        }
     for (int i = 0; i < n; i++) out[i] = (int16_t)SDL_clamp(mix[i], -32768, 32767);
     for (size_t i = 0; i < g_voices.size();)
-        if (g_voices[i].pos >= g_voices[i].pcm->s.size()) g_voices.erase(g_voices.begin() + i); else i++;
+        if (!g_voices[i].loop && g_voices[i].pos >= g_voices[i].n) g_voices.erase(g_voices.begin() + i); else i++;
 }
 
 static void audio_init() {
@@ -492,7 +526,7 @@ int PlayPreWave(char* name, unsigned short, bool, int vol, int, int) {
     if (!p || !g_audio) return -1;
     std::lock_guard<std::mutex> lk(g_amx);
     int id = g_nextVoice++;
-    g_voices.push_back({id, p, 0, SDL_clamp(vol, 0, 255) / 255.0f});
+    g_voices.push_back({id, p->s.data(), p->s.size(), 0, SDL_clamp(vol, 0, 255) / 255.0f, false});
     return id;
 }
 // Allegro: sample position of a playing voice, -1 once it has finished.
@@ -502,6 +536,43 @@ extern "C" int voice_get_position(int voice) {
     std::lock_guard<std::mutex> lk(g_amx);
     for (auto& v : g_voices) if (v.id == voice) return (int)(v.pos / 2);
     return -1;
+}
+
+// Allegro: voice volume 0..255
+extern "C" void voice_set_volume(int voice, int vol) { legacy::set_voice_volume(voice, vol); }
+
+// ------------------------------------------------------------------ shared with merit3d.cpp
+namespace legacy {
+void video_init() { ::video_init(); }
+void pump() { ::pump(); }
+bool gl_mode() { return g_gl; }
+SDL_Window* window() { return g_win; }
+int screen_w() { return g_gl ? menv_int("WIDTH", 1024) : SW; }
+int screen_h() { return g_gl ? menv_int("HEIGHT", 768) : SH; }
+int mouse_x() { return g_mouseX; }
+int mouse_y() { return g_mouseY; }
+bool mouse_down() { return g_mouseDown; }
+int play_pcm(const std::string&, const short* s, size_t n, int vol, bool loop) {
+    ::video_init();
+    if (!g_audio || !s || !n) return -1;
+    std::lock_guard<std::mutex> lk(g_amx);
+    int id = g_nextVoice++;
+    g_voices.push_back({id, s, n, 0, SDL_clamp(vol, 0, 255) / 255.0f, loop});
+    return id;
+}
+void stop_voice(int voice) {
+    std::lock_guard<std::mutex> lk(g_amx);
+    for (size_t i = 0; i < g_voices.size(); i++) if (g_voices[i].id == voice) { g_voices.erase(g_voices.begin() + i); break; }
+}
+void set_voice_volume(int voice, int vol) {
+    std::lock_guard<std::mutex> lk(g_amx);
+    for (auto& v : g_voices) if (v.id == voice) v.vol = SDL_clamp(vol, 0, 255) / 255.0f;
+}
+bool voice_playing(int voice) {
+    std::lock_guard<std::mutex> lk(g_amx);
+    for (auto& v : g_voices) if (v.id == voice) return true;
+    return false;
+}
 }
 
 // --- loader objects
