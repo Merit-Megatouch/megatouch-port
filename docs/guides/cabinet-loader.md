@@ -147,6 +147,11 @@ scripts/loader-key.sh --show                          # decode key.bin
 scripts/loader-key.sh --force                         # remake it from the current NVRAM
 ```
 
+**Games that are installed but not on the menu** (Trix, for one): *Games → Game Setup →* the
+category (Trix is a *Cards* game) → tap a slot in the upper list, then the game in the lower list
+(games already placed are shown in red) → *Done* → *Yes*. Hi-Res-only games such as Trix are only
+offered with a key image (see above).
+
 **TournaMAXX**: with *System → Options → Tournament Mode: ON-LINE* (option `TOURNAMAXX_ENABLED`),
 a MegaNet connection, free play off (or `TMAXX_OK_IN_FREEPLAY`), the start screen gets a
 *Competition!* (MegaNet / TournaMAXX) button listing the server's running tournaments.

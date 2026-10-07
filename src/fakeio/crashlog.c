@@ -10,11 +10,14 @@
  *
  * And it makes generated code run: Allegro 4 builds blitters in malloc'd memory and calls them,
  * which needs readable-implies-executable memory (gone from current x86-64 kernels). An
- * instruction fetch from a non-executable page is answered by making that page RWX.
+ * instruction fetch from a non-executable page is answered by making that page RWX, for
+ * anonymous memory only: a jump into a file's data is a real crash.
  *
  * The program installs its own SIGSEGV handler (sig_backtrace.cpp), so sigaction() and
  * signal() are wrapped: for the signals handled here, the program's handler is recorded and
- * called whenever this one does not resolve the fault.
+ * called whenever this one does not resolve the fault. When that handler returns and the same
+ * fault comes straight back, the process is ended as the signal would by default, instead of
+ * spinning (credit_card_reader did, at shutdown, filling the console with [crash] reports).
  */
 #define _GNU_SOURCE
 #include <signal.h>
@@ -102,8 +105,31 @@ static struct sigaction app_action[NSIG_OURS];
 static int ours[NSIG_OURS];
 static int (*real_sigaction)(int, const struct sigaction *, struct sigaction *);
 
+/* Is addr in anonymous memory (heap, mmap'd buffers), where generated code lives? A jump into a
+ * file's data (e.g. a bad function pointer landing in libc's tables) is a real crash. */
+static void read_maps(void) {
+    int fd = open("/proc/self/maps", 0);
+    size_t n = 0;
+    ssize_t r;
+    while (fd >= 0 && n < sizeof maps - 1 && (r = read(fd, maps + n, sizeof maps - 1 - n)) > 0) n += r;
+    maps[n] = 0;
+    if (fd >= 0) close(fd);
+}
+
+static int anonymous(unsigned long addr) {
+    read_maps();
+    for (char *line = maps; line && *line; line = strchr(line, '\n') ? strchr(line, '\n') + 1 : NULL) {
+        unsigned long lo, hi;
+        char path[256] = "";
+        if (sscanf(line, "%lx-%lx %*s %*s %*s %*s %255[^\n]", &lo, &hi, path) >= 2 && addr >= lo && addr < hi)
+            return path[0] != '/';
+    }
+    return 1;
+}
+
 static int make_exec(void *addr) {
     static int warned;
+    if (!anonymous((unsigned long)addr)) return 0;
     long pg = sysconf(_SC_PAGESIZE);
     void *page = (void *)((unsigned long)addr & ~(pg - 1));
     if (mprotect(page, pg * 2, PROT_READ | PROT_WRITE | PROT_EXEC) != 0 &&
@@ -131,14 +157,25 @@ static void handler(int sig, siginfo_t *si, void *uc_) {
     if (sig == SIGSEGV && si->si_code == SEGV_ACCERR &&
         (unsigned long)si->si_addr - (unsigned long)g[REG_EIP] < 16 &&   /* fetch, may straddle pages */
         make_exec(si->si_addr)) return;
-    report(sig, si, uc_);
+    /* The program's handler may return, which re-runs the faulting instruction. If the same
+     * fault keeps coming back, stop: end the process the way the signal would by default. */
+    static unsigned long last_ip;
+    static int last_sig, repeats;
+    if ((unsigned long)g[REG_EIP] == last_ip && sig == last_sig) repeats++;
+    else { last_ip = g[REG_EIP]; last_sig = sig; repeats = 0; }
+    if (repeats < 2) report(sig, si, uc_);
     struct sigaction *a = &app_action[sig];
-    if ((a->sa_flags & SA_SIGINFO) ? a->sa_sigaction != NULL
-                                   : (a->sa_handler != SIG_DFL && a->sa_handler != NULL)) {
+    if (repeats < 3 && ((a->sa_flags & SA_SIGINFO) ? a->sa_sigaction != NULL
+                                   : (a->sa_handler != SIG_DFL && a->sa_handler != NULL))) {
         chain(sig, si, uc_);
         return;
     }
-    signal(sig, SIG_DFL);
+    /* default action (signal() is wrapped above, so go to the real sigaction) */
+    if (!real_sigaction) real_sigaction = dlsym(RTLD_NEXT, "sigaction");
+    struct sigaction dfl;
+    memset(&dfl, 0, sizeof dfl);
+    dfl.sa_handler = SIG_DFL;
+    real_sigaction(sig, &dfl, NULL);
     raise(sig);
 }
 
@@ -170,12 +207,7 @@ sighandler_t signal(int sig, sighandler_t h) {
 
 static void report(int sig, siginfo_t *si, void *uc_) {
     ucontext_t *uc = uc_;
-    int fd = open("/proc/self/maps", 0);
-    size_t n = 0;
-    ssize_t r;
-    while (fd >= 0 && n < sizeof maps - 1 && (r = read(fd, maps + n, sizeof maps - 1 - n)) > 0) n += r;
-    maps[n] = 0;
-    if (fd >= 0) close(fd);
+    read_maps();
     char w[300];
     greg_t *g = uc->uc_mcontext.gregs;
     where(g[REG_EIP], w, sizeof w);
