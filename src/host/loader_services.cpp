@@ -287,6 +287,40 @@ int ustrcmp(const char* a, const char* b) {
     }
     return utf8_decode(p) - utf8_decode(q);
 }
+// Allegro 4 keeps the per-encoding character functions in function-pointer variables
+// (games load the pointer and call through it): uwidth, ugetc, ugetx, ugetxc, usetc, ucwidth, uisok.
+static int a_uwidth(const char* s) { return s && *s ? utf8_len((const unsigned char*)s) : 0; }
+static int a_ugetc(const char* s) { return s && *s ? utf8_decode((const unsigned char*)s) : 0; }
+static int a_ugetx(char** s) { if (!s || !*s || !**s) return 0; int c = utf8_decode((unsigned char*)*s); *s += utf8_len((unsigned char*)*s); return c; }
+static int a_ugetxc(const char** s) { return a_ugetx(const_cast<char**>(s)); }
+static int a_usetc(char* s, int c) {
+    unsigned char* p = (unsigned char*)s;
+    if (c < 0x80) { p[0] = (unsigned char)c; return 1; }
+    if (c < 0x800) { p[0] = 0xc0 | c >> 6; p[1] = 0x80 | (c & 63); return 2; }
+    if (c < 0x10000) { p[0] = 0xe0 | c >> 12; p[1] = 0x80 | (c >> 6 & 63); p[2] = 0x80 | (c & 63); return 3; }
+    p[0] = 0xf0 | c >> 18; p[1] = 0x80 | (c >> 12 & 63); p[2] = 0x80 | (c >> 6 & 63); p[3] = 0x80 | (c & 63); return 4;
+}
+static int a_ucwidth(int c) { return c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4; }
+static int a_uisok(int c) { return c >= 0 && c < 0x110000; }
+int (*uwidth)(const char*) = a_uwidth;
+int (*ugetc)(const char*) = a_ugetc;
+int (*ugetx)(char**) = a_ugetx;
+int (*ugetxc)(const char**) = a_ugetxc;
+int (*usetc)(char*, int) = a_usetc;
+int (*ucwidth)(int) = a_ucwidth;
+int (*uisok)(int) = a_uisok;
+int ustrsize(const char* s) { return s ? (int)strlen(s) : 0; }
+int ustrsizez(const char* s) { return s ? (int)strlen(s) + 1 : 1; }
+// byte offset of character `index` (negative counts from the end)
+int uoffset(const char* s, int index) {
+    if (index < 0) index += ustrlen(s);
+    const unsigned char* p = (const unsigned char*)s;
+    for (; *p && index > 0; index--) p += utf8_len(p);
+    return (int)(p - (const unsigned char*)s);
+}
+int uisspace(int c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v'; }
+int utolower(int c) { return c >= 'A' && c <= 'Z' ? c + 32 : c; }
+int utoupper(int c) { return c >= 'a' && c <= 'z' ? c - 32 : c; }
 // Uppercase in place (ASCII letters; multi-byte characters are left as they are).
 char* ustrupr(char* s) {
     for (unsigned char* p = (unsigned char*)s; *p; p += utf8_len(p))

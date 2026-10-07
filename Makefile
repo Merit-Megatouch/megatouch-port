@@ -44,7 +44,7 @@ all: build
 
 # Empty stand-ins for the cabinet's other backend libraries: some games list them as
 # dependencies without using them (everything they did is in libgame_device_sprite.so).
-STUBS := $(addprefix $(BIN)/stubs/,libgraphics_sprite.so libinput_sprite.so libsound_sprite.so)
+STUBS := $(addprefix $(BIN)/stubs/,libgraphics_sprite.so libinput_sprite.so libsound_sprite.so libgame_device_irrlicht.so)
 
 build: $(BIN)/megatouch-host $(BIN)/libgame_device_sprite.so $(BIN)/gameids $(STUBS) $(BIN)/libmega_unity.so $(BIN)/libmerit_legacy.so $(BIN)/libmerit_gendef.so
 

@@ -66,8 +66,10 @@ extract_code() {
     rm -f "$GD"/lib/{libgame_device_sprite,libgraphics_sprite,libinput_sprite,libsound_sprite,libmerit2d,libmerit3d,libmeritbasegame}.so
     ln -sf ../../../shared/bin/libgame_device_sprite.so "$GD/lib/libgame_device_sprite.so"
     # some games list the other backend libraries without using them: empty stand-ins
-    local s; for s in libgraphics_sprite libinput_sprite libsound_sprite; do
-      ln -sf "../../../shared/bin/stubs/$s.so" "$GD/lib/$s.so"; done
+    # (libgame_device_irrlicht: listed by libkeyboard, and its built-in libpng would shadow the runtime's)
+    local s; for s in libgraphics_sprite libinput_sprite libsound_sprite libgame_device_irrlicht; do
+      [ "$s" = libgame_device_irrlicht ] && [ ! -e "$GD/lib/$s.so" ] && continue
+      rm -f "$GD/lib/$s.so"; ln -sf "../../../shared/bin/stubs/$s.so" "$GD/lib/$s.so"; done
   elif [ "$FAMILY" = legacy ] || [ "$FAMILY" = merit3d ]; then
     # the loader's legacy 2D engine: our stand-in, preloaded by megatouch-host (PRELOAD=)
     ln -sf ../../../shared/bin/libmerit_legacy.so "$GD/lib/libmerit_legacy.so"

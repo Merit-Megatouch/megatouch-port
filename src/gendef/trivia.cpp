@@ -74,6 +74,11 @@ bool DBFClass::OpenDBF(char const* path) {
         st->fields.push_back(f);
     }
     st->cur = -1;
+    if (getenv("MEGA_DEBUG_DBF")) {
+        fprintf(stderr, "[dbf] %s: %d records, header %d, record %d, %zu fields:", path, st->nrec, st->hlen, st->rlen, st->fields.size());
+        for (auto& f : st->fields) fprintf(stderr, " %s(%d)", f.name, f.length);
+        fputc('\n', stderr);
+    }
     return st->rlen > 0 && (size_t)st->hlen <= d.size();
 }
 void DBFClass::CloseDBF() { st->data.clear(); st->fields.clear(); st->nrec = 0; st->cur = -1; }
@@ -104,6 +109,8 @@ bool DBFClass::nGetField(unsigned int idx, char* out, unsigned int size, bool tr
     if (!out || !size) return false;
     std::string s = field(st->cur, (int)idx, trim);
     snprintf(out, size, "%s", s.c_str());
+    static bool dbg = getenv("MEGA_DEBUG_DBF") != nullptr;
+    if (dbg) fprintf(stderr, "[dbf] rec %d field %u size %u -> '%s'\n", st->cur, idx, size, out);
     return st->cur >= 0;
 }
 
