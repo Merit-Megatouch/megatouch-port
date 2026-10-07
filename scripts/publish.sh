@@ -44,7 +44,7 @@ publish_game() {
 }
 
 publish_main() {
-  if [ -n "$(git -C "$R" status --porcelain --ignore-submodules=dirty)" ]; then
+  if [ -n "$(git -C "$R" status --porcelain --ignore-submodules=dirty --untracked-files=no)" ]; then
     echo "main repo has uncommitted changes — commit them first:"; git -C "$R" status --short; exit 1
   fi
   say "main repo → github.com/$GITHUB_ORG/$MAIN_REPO"
