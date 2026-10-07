@@ -151,6 +151,14 @@ high-score tables, help screens (gamedata/help), jukebox, in-game exit/continue 
   (language, volume, free play) written to a settings file that `run` passes as MEGA_* env.
 
 ## Log (newest first)
+- 2026-10-07: Super Boxxi crashed the loader (bad_alloc / free() of junk in LoadCompAnim,
+  intermittent): the cabinet code needs zlib 1.2.3's gz* behaviour. zlibcompat.so routes gz*
+  from cabinet code to a renamed copy of the cabinet's libz; runtime libraries keep the modern one.
+- 2026-10-07: loader sidebar fixed: SDL 1.2 apps had no window titles (GCONV_PATH missing), so the
+  layout manager started duplicates and could not move them; sidebar layout now composed at start
+  like layout_start; `layout` runs without its crashing logging. Left/right switching works.
+  loader-setup dumps the full ion_only partition (content/ packs) and never re-extracts an
+  existing directory (a re-run had overwritten build/loader/var).
 - 2026-10-07: loader stand-ins: `ossmix` → PulseAudio volume (Volume Control works), optional
   joystick (MEGAIO_JOYSTICK=1, arrows/Space/Enter, axes matched to the calibration screen),
   CALIBRATE verified, `layout` startup crash traced to the cabinet's liblogging (harmless),

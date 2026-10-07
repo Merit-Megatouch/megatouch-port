@@ -11,8 +11,11 @@ start_bin=${MEGA_LOADER_BIN:-/usr/local/bin/start}
 /usr/local/bin/db_state >/dev/null 2>&1 &
 
 # layout_daemon manages the cabinet's windows; start pushes its layout through it
-layout_daemon --layout-cmd layout &
+layout_daemon --layout-cmd /opt/fakeio/layout-quiet &
 for i in $(seq 50); do [ -S /dev/merit_ipc/layout_daemon ] && break; sleep 0.1; done
-layout_client --push start_layout --compose loading_layout
+# as /usr/local/bin/layout_start, minus the browser and credit-card layouts (neither runs here)
+EVENTS="--push start_layout"
+IsWidescreen && EVENTS="$EVENTS --clone --compose sidebar_layout"   # side ads + left/right switcher
+layout_client $EVENTS --compose loading_layout
 
 exec $start_bin -name merit-start --videomode F "$@"

@@ -12,7 +12,9 @@ make loader-run       # builds the stand-ins and starts the loader in its own wi
 ```
 
 The loader takes about 20 seconds to start (24 s on the real cabinet), then plays its attract
-loop. Touch the screen (click) to get the menu.
+loop. Touch the screen (click) to get the menu. The 128-pixel strip beside the game is the
+widescreen sidebar (rotating ads); the two buttons under it move it to the other side (the
+orange one is the one that does something).
 
 ## Controls
 
@@ -86,9 +88,11 @@ Logs: the loader's own log is appended to `build/loader/var/merit/logging/logs/*
 
 `make loader-setup` (`scripts/loader-setup.sh`) dumps the image's side-B partitions with
 `debugfs`: root → `build/loader/root`, /var → `var` (plus `var.orig` for resets), /home → `home`.
+The ion_only partition (`ion`, including the `content/` packs some games need) is dumped too.
+A partition directory that already exists is never extracted again, so `/var` keeps its state.
 `scripts/loader.sh` turns them into a rootless sandbox (`bwrap`, user namespaces) and runs what
-`/home/maxx/.xinitrc` ran: `db_state`, `layout_daemon`, the start layout, then
-`/usr/local/bin/start -name merit-start --videomode F`.
+`/home/maxx/.xinitrc` and `layout_start` ran: `db_state`, `layout_daemon`, the start, sidebar
+and loading layouts, then `/usr/local/bin/start -name merit-start --videomode F`.
 
 `start` is the 2021 "Keyless" build of the loader (see `docs/reference/io-board.md`): it needs
 the I/O board, not the security key. Everything below is ours; no cabinet file is modified.
@@ -108,6 +112,9 @@ the I/O board, not the security key. Everything below is ours; no cabinet file i
 | ION 945GC motherboard (platform detection) | a `/proc/bus/pci/devices` listing that board's chipset | `src/fakeio/pci-devices.ion945gc` |
 | X server with RandR (640×480 menu, 768×480 widescreen, 800×600 and 1280×800 games) | Xephyr from Ubuntu's package, its RandR size table patched to include 768×480 and 1280×800 | `scripts/loader-setup.sh` |
 | `/sys` (Unity's graphics-card probe crashes without it) | the host's, read-only | `scripts/loader.sh` |
+| glibc's charset converters (SDL 1.2 needs them to set window titles; the layout manager finds the sidebar and switcher by title) | `GCONV_PATH` → the runtime's `gconv/` | `scripts/loader.sh` |
+| zlib 1.2.3 (the loader's sprite reader relies on its `gzread`/`gzseek`/`gztell` behaviour; on the modern zlib Super Boxxi and others crash) | `gz*` calls from cabinet code go to a private copy of the cabinet's zlib (renamed `libz-cabinet.so`), runtime libraries keep the modern one; `MEGA_ZLIB=modern` turns it off | `src/fakeio/zlibcompat.c` |
+| `layout` logging (crashes in the cabinet's `liblogging` on the modern runtime; the cabinet's own log shows the same bad data, which used not to crash) | `layout` runs with `Logger::Log` turned into a no-op | `src/fakeio/nolog.c`, `layout-quiet` |
 
 What was verified (2026-10-07): volume from Volume Control reaching PulseAudio; CALIBRATE and
 the joystick calibration (all four directions and both buttons); boot to the ION attract loop and menus; Operator Setup with all
@@ -119,9 +126,6 @@ menu when a game's player exits.
 
 ## Known issues
 
-- `layout` (window placement helper) crashes once at startup inside the cabinet's
-  `liblogging.so`, while logging the command line it starts the `loading` overlay with. The
-  overlay and all windows still appear; the `[crash] layout` lines can be ignored.
 - *Hardware Serial Number*, S.M.A.R.T. and network warnings in the log are expected (no disk,
   no MegaNet).
 - `key footer failed checksum` in the log: there is no security-key image; this build of the

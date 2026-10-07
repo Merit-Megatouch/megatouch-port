@@ -9,7 +9,7 @@
 #   root/  the sideB-root partition      → /
 #   var/   the sideB-var partition       → /var       (writable: settings, NVRAM, logs)
 #   home/  the sideB-home partition      → /home
-#   cabinet/ion (snapshot)               → /usr/local/ion_only
+#   ion/   the sideB-ion_only partition  → /usr/local/ion_only (falls back to cabinet/ion)
 #   shared/runtime (modern i386 glibc, Mesa, X11)        → /opt/rt; its ld-linux.so.2 also
 #     replaces /lib/ld-linux.so.2 so every cabinet program runs on the modern glibc
 #   bin/   our fake I/O board (libusb-1.0.so.0), megaio  → /opt/fakeio
@@ -31,6 +31,8 @@ B="$P/build/loader"
 [ -d "$B/root/usr/local/bin" ] || { echo "no cabinet root: run make loader-root" >&2; exit 1; }
 [ -f "$B/bin/libusb-1.0.so.0" ] || { echo "no fake I/O board: run make loader" >&2; exit 1; }
 
+ION="$B/ion"                                   # the full ion_only partition (make loader-setup)
+[ -d "$ION/games" ] || ION="$P/cabinet/ion"     # else the porting snapshot (no content/ packs)
 X11=/tmp/.X11-unix
 [ -L "$X11" ] && X11=$(readlink -f "$X11")
 DISP="${DISPLAY:-:0}"
@@ -58,7 +60,7 @@ args=(
   --bind "$B/root" /
   --bind "${MEGA_LOADER_VAR:-$B/var}" /var
   --bind "$B/home" /home
-  --ro-bind "$P/cabinet/ion" /usr/local/ion_only
+  --ro-bind "$ION" /usr/local/ion_only
   --proc /proc
   --ro-bind "$B/bin/pci-devices.ion945gc" /proc/bus/pci/devices
   --ro-bind /sys /sys
@@ -82,13 +84,14 @@ env=(
   --setenv DISPLAY "$DISP"
   --setenv LD_LIBRARY_PATH "/opt/fakeio:$RT:$RT/pulseaudio:/usr/local/lib:/usr/lib:/lib"
   --setenv LIBGL_DRIVERS_PATH "$RT/dri"
+  --setenv GCONV_PATH "$RT/gconv"
   --setenv GLIBC_TUNABLES "glibc.rtld.execstack=2:glibc.malloc.tcache_count=0"
   --setenv PULSE_SERVER unix:/tmp/pulse-native
   --setenv MEGAIO_DIR /var/merit/fakeio
   --setenv MEGAIO_TRACE "${MEGAIO_TRACE:-0}"
   --setenv MEGAIO_JOYSTICK "${MEGAIO_JOYSTICK:-0}"
   --setenv TERM "${TERM:-xterm}"
-  --setenv LD_PRELOAD "/opt/fakeio/startfix.so /opt/fakeio/crashlog.so /opt/fakeio/ossfake.so"
+  --setenv LD_PRELOAD "/opt/fakeio/startfix.so /opt/fakeio/crashlog.so /opt/fakeio/ossfake.so /opt/fakeio/zlibcompat.so"
 )
 # MEGA_EXTRA_ENV="A=1 B=2": extra variables for debugging
 for kv in ${MEGA_EXTRA_ENV:-}; do env+=(--setenv "${kv%%=*}" "${kv#*=}"); done

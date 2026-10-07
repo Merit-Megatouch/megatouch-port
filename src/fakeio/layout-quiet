@@ -1,0 +1,3 @@
+#!/bin/sh
+# layout_daemon runs this instead of `layout` (xinit.sh): the real layout, without its logging.
+LD_PRELOAD="${LD_PRELOAD:+$LD_PRELOAD }/opt/fakeio/nolog.so" exec layout "$@"

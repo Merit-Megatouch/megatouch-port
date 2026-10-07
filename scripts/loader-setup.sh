@@ -1,7 +1,7 @@
 #!/bin/bash
 # Prepare the cabinet's own loader to run (make loader-setup). Nothing is installed system-wide.
 #
-#   1. build/loader/{root,var,home}: the image's sideB root, var and home partitions (debugfs),
+#   1. build/loader/{root,var,home,ion}: the image's sideB root, var, home and ion_only partitions,
 #      plus var.orig, a pristine copy of /var for `make loader-reset`
 #   2. toolchain/debug: Xephyr (+ xkbcomp) downloaded with apt-get download, its RandR size table
 #      patched to offer the cabinet's widescreen modes (768x480, 1280x800); pactl for checking sound
@@ -21,16 +21,18 @@ done
 step "Cabinet partitions → build/loader"
 [ -n "$IMG" ] && [ -f "$IMG" ] || { echo "set IMG in cabinet.local.conf" >&2; exit 1; }
 mkdir -p "$B"
-dump() {   # dump <partition offset> <dir>
-  [ -e "$B/$2/.done" ] && { echo "  $2: present"; return; }
-  rm -rf "${B:?}/$2"; mkdir -p "$B/$2"
-  debugfs -R "rdump / $B/$2" "$IMG?offset=$1" 2>&1 | grep -v "changing ownership\|^debugfs" || true
-  touch "$B/$2/.done"
+dump() {   # dump <partition offset> <dir>; an existing directory is never touched (var holds
+           # the loader's settings, NVRAM and books: `make loader-reset` restores it on purpose)
+  if [ -d "$B/$2" ] && [ -n "$(ls -A "$B/$2")" ]; then echo "  $2: present"; return; fi
+  mkdir -p "$B/$2.partial"
+  debugfs -R "rdump / $B/$2.partial" "$IMG?offset=$1" 2>&1 | grep -v "changing ownership\|^debugfs" || true
+  rm -rf "${B:?}/$2" && mv "$B/$2.partial" "$B/$2"
   echo "  $2: $(du -sh "$B/$2" | cut -f1)"
 }
 dump "$ROOT_OFF" root
 dump "$VAR_OFF" var
 dump "$HOME_OFF" home
+dump "$ION_OFF" ion      # /usr/local/ion_only, including content/ (the snapshot leaves that out)
 rm -f "$B/var/merit/swapfile"
 [ -d "$B/var.orig" ] || cp -a "$B/var" "$B/var.orig"
 
