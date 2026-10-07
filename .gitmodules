@@ -154,3 +154,6 @@
 [submodule "games/g_wordy_birds"]
 	path = games/g_wordy_birds
 	url = https://github.com/Merit-Megatouch/g_wordy_birds.git
+[submodule "games/g_monster_madness"]
+	path = games/g_monster_madness
+	url = https://github.com/Merit-Megatouch/g_monster_madness.git
