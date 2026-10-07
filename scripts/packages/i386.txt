@@ -94,3 +94,4 @@ libzstd1
 mesa-libgallium
 zlib1g
 zlib1g-dev
+libcrypt1

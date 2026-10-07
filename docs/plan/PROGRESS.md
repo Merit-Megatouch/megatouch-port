@@ -50,6 +50,14 @@ Per-game state lives in each `games/<name>/NOTES.md` and in `docs/reference/game
   loads; each logs its first call → implement in call order.
 - **Merit3D**: as legacy plus `GL=1` (OpenGL window), GL/GLU preloaded.
 
+## Decision: no running of the cabinet's own loader (2026-10-07)
+
+The cabinet loader is protected (packed, security key on the USB I/O board, anti-tamper code).
+Running it would mean defeating that protection, so this project does not do it. Legacy and
+Merit3D games run on our own reconstruction of the engine API (`src/legacy`), as Fourplay does,
+and phase 2 is our own front end (menu, settings, high scores) that launches games through the
+existing routes.
+
 ## In progress
 
 ### Beer Pong 21 (`games/beer_pong_challenge`, Merit3D) — not committed as a game repo yet
@@ -73,9 +81,10 @@ Per-game state lives in each `games/<name>/NOTES.md` and in `docs/reference/game
   operator: `/usr/local/gamedata/opsetup`, settings `/var/merit/settings.xml`, attract videos
   `/usr/local/ion_only/games/idle/*.mov`, `g_menu` game folder, `opsetup.so`, `sixstars.so`,
   `volumecontrol.so` (legacy-API system modules, ~670 loader functions each).
-- Plan: our loader = a front end that reads settings.xml/gamedata.xml, shows the categories and
-  game icons, launches games through the existing routes, handles credits/free play, high scores,
-  operator setup. Investigate whether g_menu / opsetup.so can run on the reconstructed engine.
+- Plan: our loader = our own front end that reads settings.xml/gamedata.xml, shows the categories
+  and game icons (menugraphics art), launches games through the existing routes, handles free
+  play, high scores and an operator settings screen. Written from scratch; the cabinet's
+  protected loader is not run or modified.
 
 ## Log (newest first)
 

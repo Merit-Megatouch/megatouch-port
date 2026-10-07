@@ -16,6 +16,9 @@ ALL=${1:-}
 say() { printf '\033[1m==>\033[0m %s\n' "$*"; }
 mkdir -p "$SNAP"/{root,ion,var,home}
 
+say "cabinet programs (/usr/local/bin: loader, daemons, helpers)"
+cab_rdump root /usr/local/bin "$SNAP/root/usr/local"
+
 say "engine and game libraries (/usr/local/lib)"
 cab_rdump root /usr/local/lib "$SNAP/root/usr/local"
 
