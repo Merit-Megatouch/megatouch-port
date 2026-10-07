@@ -60,7 +60,9 @@ To charge for games: Operator Setup → *Credits/Pricing* → *Options* → unti
 | Command | |
 |---|---|
 | `make loader-run` | start the loader (window "Megatouch ION (cabinet loader)") |
-| `make loader-reset` | put the loader's `/var` (settings, NVRAM, books, high scores, logs) back as it was on the image |
+| `make loader-reset` | put the loader's `/var` (settings, NVRAM, books, high scores, logs) back as it was on the image (a backup is taken first) |
+| `make loader-backup` / `make loader-restore BACKUP=<file>` | snapshot / restore the loader's state (see *Settings and backups*) |
+| `scripts/loader-option.sh --list` | the 120 game options: value and what the key allows (see *Game options and the security key*) |
 | `scripts/loader.sh shell` | a shell inside the cabinet userland |
 | `scripts/loader.sh run <cmd>` | run a command inside it; joins the running loader's display |
 | `scripts/loader.sh run /opt/fakeio/shots.sh /var/merit/shot` | screenshot every window to `build/loader/var/merit/shot-*.png` |
@@ -73,7 +75,9 @@ The joystick is off by default because a present joystick changes the attract lo
 games. With it on, *CALIBRATE* (F2) continues into the joystick calibration after the
 touchscreen one.
 
-Settings (environment): `MEGA_LOADER_VAR=<dir>` uses another directory as `/var` (a second,
+Settings (environment): `MEGA_LOADER_NET=host` shares the desktop's network instead of giving the
+loader its own (the cabinet then shows no network), `MEGA_LOADER_KEY=none` runs without a
+security-key image, `MEGA_LOADER_VAR=<dir>` uses another directory as `/var` (a second,
 throwaway session: copy `build/loader/var.orig`, pick another `MEGA_LOADER_DISPLAY`), `MEGA_LOADER_X=host` draws on the desktop's X server instead of
 Xephyr (no resolution changes), `MEGA_LOADER_DISPLAY` (default 55), `MEGAIO_TRACE=1` logs every
 board command, `OSSFAKE_TRACE=1` every sound ioctl, `MEGA_EXTRA_ENV="A=1 B=2"` passes variables
@@ -83,6 +87,69 @@ Logs: the loader's own log is appended to `build/loader/var/merit/logging/logs/*
 (fields separated by `|`, records by `\x03`); crash reports land in
 `build/loader/var/merit/logging/crashes/`; the stand-ins print to the terminal (`[fakeio]`,
 `[twfake]`, `[ossfake]`, `[nx]`, `[crash]`).
+
+## Settings and backups
+
+Everything the cabinet keeps (settings, NVRAM, books, high scores, MegaNet registration, the
+TournaMAXX databases, the fake board's EEPROM and key) lives in `build/loader/var/merit`. Every
+`make loader-run` first snapshots it to `build/loader/backups/<date>-auto.tar.gz` (the newest 20
+are kept); `make loader-backup` takes a named one, `make loader-reset` takes one before resetting.
+
+```bash
+make loader-backup                                    # build/loader/backups/<date>-manual.tar.gz
+scripts/loader-backup.sh before-tournament            # … with a label
+scripts/loader-backup.sh --list
+make loader-restore BACKUP=20261007-203741-before-meganet.tar.gz   # loader stopped; the current
+                                                      # state is kept as var/merit.before-restore-<date>
+```
+
+Logs and the swap file are left out of snapshots.
+
+## Network and MegaNet
+
+The loader gets its own network: a virtual wired `eth0` (slirp4netns: NAT through the PC, DHCP
+gives 10.0.2.15, DNS 10.0.2.3). The cabinet's own network manager and DHCP client configure it
+as on a real machine, so its Network menu, Connection Wizard and MegaNet updates work.
+
+The image's settings are for wireless. To connect once: **F1** → *Network* → *Connection Wizard*
+→ *Next* → *Skip* → *Skip* → *Wired Ethernet* → *Wired Ethernet Network* → *Accept Settings and
+Connect* → *Save Settings*. To use a community MegaNet server: *Network Options* → *MegaNet
+Server* → *Set* (e.g. `us.oerinet.net`) → *Enter*, then *Connect to MegaNet/Update from Server*.
+
+A MegaNet connection sends the server the machine's books, logs and crash dumps (as the real
+cabinet did) and can change settings, menus and tournaments. `/var/merit/fakeio/net.txt` shows
+the network as the cabinet sees it 25 s after start.
+
+## Game options and the security key
+
+The cabinet's behaviour is driven by 120 game options in NVRAM (free play, TournaMAXX, Six Stars,
+languages, attract sound, …). On a real cabinet the security key (an iButton inside, read through
+the I/O board) decides, per option, whether it is locked off, locked on, or the operator's choice;
+Operator Setup only shows the operator's choices. Without a key everything reads as locked off:
+key-gated menus disappear (no TournaMAXX, no MegaNet setup page) and Hi-Res-only games are left
+out of the menu.
+
+So the fake board serves a key image, `var/merit/fakeio/key.bin`, made by `scripts/loader-key.sh`
+the first time the loader starts with this `/var`. It carries the cabinet's own identity from
+NVRAM (`SA362801 R00`; a different part number would make the loader wipe NVRAM) and leaves every
+option to the operator, defaulting to its current value, except options for hardware we don't
+have (MindSpark mode, TouchTunes, credit card, the Rowe download selector), which stay locked
+off. Prices, coin values, country and languages stay as the loader saw them without a key.
+
+Change options in Operator Setup (*System → Options*, *Games → Options*, *Credits/Pricing*, …).
+From a terminal, with the loader stopped:
+
+```bash
+scripts/loader-option.sh --list                       # index, name, value, key licence
+scripts/loader-option.sh TOURNAMAXX_ENABLED           # one option
+scripts/loader-option.sh ENABLE_SOUND_IN_IDLE_MODE 1  # set it (backup taken first)
+scripts/loader-key.sh --show                          # decode key.bin
+scripts/loader-key.sh --force                         # remake it from the current NVRAM
+```
+
+**TournaMAXX**: with *System → Options → Tournament Mode: ON-LINE* (option `TOURNAMAXX_ENABLED`),
+a MegaNet connection, free play off (or `TMAXX_OK_IN_FREEPLAY`), the start screen gets a
+*Competition!* (MegaNet / TournaMAXX) button listing the server's running tournaments.
 
 ## How it works
 
@@ -114,6 +181,9 @@ the I/O board, not the security key. Everything below is ours; no cabinet file i
 | `/sys` (Unity's graphics-card probe crashes without it) | the host's, read-only | `scripts/loader.sh` |
 | glibc's charset converters (SDL 1.2 needs them to set window titles; the layout manager finds the sidebar and switcher by title) | `GCONV_PATH` → the runtime's `gconv/` | `scripts/loader.sh` |
 | zlib 1.2.3 (the loader's sprite reader relies on its `gzread`/`gzseek`/`gztell` behaviour; on the modern zlib Super Boxxi and others crash) | `gz*` calls from cabinet code go to a private copy of the cabinet's zlib (renamed `libz-cabinet.so`), runtime libraries keep the modern one; `MEGA_ZLIB=modern` turns it off | `src/fakeio/zlibcompat.c` |
+| Ethernet port, DHCP | its own network namespace with a virtual `eth0` from slirp4netns (user-mode NAT); the cabinet's `network_manager` and `dhclient` configure it. Network admin rights exist only inside that namespace | `scripts/loader.sh`, `src/fakeio/xinit.sh` |
+| Programs started with an empty environment (`dhclient` runs its script that way) found the 2013 libc | the runtime is mounted at `/lib32` (the modern loader's first default directory) and the cabinet's `/etc/ld.so.cache` is hidden | `scripts/loader.sh` |
+| Security key (licence iButton) | a key image of this cabinet's own key, made from NVRAM; served block by block by the fake board | `scripts/loader-key.sh`, `src/fakeio/fakeio.c` |
 | `layout` logging (crashes in the cabinet's `liblogging` on the modern runtime; the cabinet's own log shows the same bad data, which used not to crash) | `layout` runs with `Logger::Log` turned into a no-op | `src/fakeio/nolog.c`, `layout-quiet` |
 
 What was verified (2026-10-07): volume from Volume Control reaching PulseAudio; CALIBRATE and
@@ -126,9 +196,10 @@ menu when a game's player exits.
 
 ## Known issues
 
-- *Hardware Serial Number*, S.M.A.R.T. and network warnings in the log are expected (no disk,
-  no MegaNet).
-- `key footer failed checksum` in the log: there is no security-key image; this build of the
-  loader does not need one.
+- *Hardware Serial Number* and S.M.A.R.T. warnings in the log are expected (no disk). `wlan0`
+  errors too: there is no wireless card.
+- `key footer failed checksum` in the log means the loader ran without a key image
+  (`MEGA_LOADER_KEY=none`, or a `/var` from before key images): it still runs, but key-gated
+  options are locked off. `scripts/loader-key.sh` makes one.
 - The shell helpers (`scripts/loader.sh run …`) join display `:55` only while a loader runs;
   otherwise they use the desktop's display.

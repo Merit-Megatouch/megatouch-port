@@ -61,7 +61,8 @@ still call, and redirects the cabinet's file paths into a per-game `data/` folde
 The cabinet's own loader also runs, unmodified, in a sandbox built from the image
 (`make loader-setup`, `make loader-run`). Stand-ins replace the hardware it expects: a fake USB
 I/O board (coins, buttons, operator and player keys on F-keys), a fake touchscreen controller,
-OSS sound through PulseAudio, and a nested X server that can change resolution.
+OSS sound through PulseAudio, a virtual wired network (MegaNet and TournaMAXX work), a
+security-key image of the cabinet's own licence, and a nested X server that can change resolution.
 [Cabinet loader](docs/guides/cabinet-loader.md).
 
 ## Commands
@@ -80,7 +81,9 @@ make publish GAME=<dll>|all      push to GitHub; games are submodules
 make docs | make survey          regenerate the game catalogue | the porting survey
 make loader-setup                the cabinet's own loader: extract its partitions, fetch Xephyr (once)
 make loader-run                  run it (F1 setup, F5-F8 coins, F9 operator key, F10 player key)
-make loader-reset                put its /var (settings, NVRAM, books) back as on the image
+make loader-reset                put its /var (settings, NVRAM, books) back as on the image (backed up first)
+make loader-backup               snapshot its settings (every run also keeps one)
+scripts/loader-option.sh --list  its game options (TournaMAXX, free play, …)
 ```
 
 All options and environment variables: [docs/reference/commands.md](docs/reference/commands.md).

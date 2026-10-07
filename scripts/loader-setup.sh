@@ -41,7 +41,7 @@ mkdir -p "$D/debs"
 PKGS="xserver-xephyr libxfont2 libfontenc1 libxcb-shape0 libxcb-render-util0 libxcb-util1
       libxcb-image0 libxcb-icccm4 libxcb-keysyms1 libxcb-xkb1 libxcb-xv0 x11-xkb-utils libxkbfile1
       pulseaudio-utils libpulse0 libsndfile1 libflac14 libvorbisenc2 libvorbis0a libogg0 libopus0
-      libmpg123-0t64 libmp3lame0 libasyncns0 libapparmor1 libpulse-dev"
+      libmpg123-0t64 libmp3lame0 libasyncns0 libapparmor1 libpulse-dev slirp4netns libslirp0"
 (cd "$D/debs" && for p in $PKGS; do
    ls "${p}"_*.deb >/dev/null 2>&1 || apt-get download "$p" >/dev/null 2>&1 || echo "  (skip $p)"; done)
 for d in "$D"/debs/*.deb; do dpkg-deb -x "$d" "$D/root"; done

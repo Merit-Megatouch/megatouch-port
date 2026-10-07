@@ -14,7 +14,8 @@
 #   make docs                      regenerate the game catalogue; make survey for the porting survey (slow)
 #   make loader-setup              the cabinet's own loader: extract its partitions, fetch Xephyr (once)
 #   make loader / loader-run       build our stand-in devices / run the original loader (Xephyr window)
-#   make loader-reset              put the loader's /var back as it was on the image
+#   make loader-reset              put the loader's /var back as it was on the image (backed up first)
+#   make loader-backup / loader-restore BACKUP=<file>   snapshot / restore the loader's settings
 #   make help                      this text
 
 R        := $(abspath .)
@@ -42,7 +43,7 @@ GENDEF_SRC  := $(wildcard src/gendef/*.cpp)
 GENDEF_OBJ  := $(GENDEF_SRC:src/%.cpp=$(OUT)/%.o)
 HEADERS     := $(wildcard src/*/*.h)
 
-.PHONY: loader loader-setup loader-run loader-reset all build setup new run analyze decompile package snapshot games publish stubs docs survey clean help
+.PHONY: loader loader-setup loader-run loader-reset loader-backup loader-restore all build setup new run analyze decompile package snapshot games publish stubs docs survey clean help
 all: build
 
 # Empty stand-ins for the cabinet's other backend libraries: some games list them as
@@ -161,14 +162,14 @@ clean:
 	rm -rf "$(OUT)/loader/bin"
 
 help:
-	@sed -n '3,18p' Makefile | sed 's/^# \{0,1\}//'
+	@sed -n '3,19p' Makefile | sed 's/^# \{0,1\}//'
 
 # ---- The cabinet's own loader, run unmodified in a sandbox (docs/guides/cabinet-loader.md) ----
 LB      := $(OUT)/loader/bin
 LOADER  := $(LB)/libusb-1.0.so.0 $(LB)/libTwDrvFifo.so $(LB)/startfix.so $(LB)/crashlog.so \
-           $(LB)/ossfake.so $(LB)/xshot $(LB)/xtouch $(LB)/megaio $(LB)/xinit.sh $(LB)/shots.sh \
+           $(LB)/ossfake.so $(LB)/xshot $(LB)/xtouch $(LB)/enumtag $(LB)/megaio $(LB)/xinit.sh $(LB)/shots.sh \
            $(LB)/pci-devices.ion945gc $(LB)/bin/ossmix $(LB)/bin/savemixer $(LB)/nolog.so $(LB)/layout-quiet \
-           $(LB)/zlibcompat.so $(LB)/libz-cabinet.so
+           $(LB)/zlibcompat.so $(LB)/libz-cabinet.so $(LB)/empty
 I386EXE := -Wl,--dynamic-linker=/lib/ld-linux.so.2
 
 loader: $(LOADER)
@@ -176,7 +177,12 @@ loader-setup:
 	scripts/loader-setup.sh
 loader-run: loader
 	scripts/loader.sh
+loader-backup:
+	scripts/loader-backup.sh
+loader-restore:
+	scripts/loader-backup.sh --restore "$(BACKUP)"
 loader-reset:
+	scripts/loader-backup.sh before-reset
 	rm -rf "$(OUT)/loader/var" && cp -a "$(OUT)/loader/var.orig" "$(OUT)/loader/var"
 
 $(LB)/libusb-1.0.so.0: src/fakeio/fakeio.c src/fakeio/megaio.h
@@ -210,6 +216,9 @@ $(LB)/xshot: src/fakeio/xshot.c
 $(LB)/xtouch: src/fakeio/xtouch.c
 	@mkdir -p $(LB)
 	$(CC) -O2 -o $@ $< -ldl $(I386EXE)
+$(LB)/enumtag: src/fakeio/enumtag.c
+	@mkdir -p $(LB)
+	$(CC) -O2 -o $@ $< -ldl $(I386EXE)
 $(LB)/megaio: src/fakeio/megaio.c src/fakeio/megaio.h
 	@mkdir -p $(LB)
 	gcc -O2 -Wall -o $@ $<
@@ -220,6 +229,9 @@ $(LB)/bin/ossmix: src/fakeio/ossmix.c
 $(LB)/bin/savemixer: src/fakeio/savemixer
 	@mkdir -p $(LB)/bin
 	cp $< $@
+$(LB)/empty:   # mounted over the cabinet's /etc/ld.so.cache
+	@mkdir -p $(LB)
+	: > $@
 $(LB)/%: src/fakeio/%
 	@mkdir -p $(LB)
 	cp $< $@

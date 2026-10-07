@@ -7,6 +7,13 @@ cd /home/maxx
 rm -f /var/config/commandline
 start_bin=${MEGA_LOADER_BIN:-/usr/local/bin/start}
 
+# network daemon (normally /etc/init.d/merit-networkmanager, started by .xinitrc); with the
+# default slirp network, wait for the virtual eth0 first
+for i in $(seq 40); do grep -q "eth0:" /proc/net/dev && break; sleep 0.1; done
+nice -n 19 /usr/local/bin/network_manager >/dev/null 2>&1 &
+# what the cabinet's network looks like once configured (troubleshooting: /var/merit/fakeio/net.txt)
+(sleep 25; { /sbin/ifconfig -a; cat /proc/net/route; cat /etc/resolv.conf; ps -e -o pid,args | grep -i "dhc\|network"; } > /var/merit/fakeio/net.txt 2>&1) &
+
 # database health daemon (normally /etc/init.d/merit-checkdb)
 /usr/local/bin/db_state >/dev/null 2>&1 &
 

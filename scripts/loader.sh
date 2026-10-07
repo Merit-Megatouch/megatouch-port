@@ -23,6 +23,8 @@
 #   MEGA_LOADER_X=host   draw straight on the desktop's X server instead of a nested Xephyr
 #                        (the cabinet changes resolution per game, which only Xephyr allows)
 #   MEGA_LOADER_DISPLAY  nested display number (default 55)
+#   MEGA_LOADER_KEY=none no security-key image (scripts/loader-key.sh makes one when missing)
+#   MEGA_LOADER_NET      slirp (default: own network namespace + virtual eth0) or host
 #   MEGA_LOADER_VAR      directory used as /var (default build/loader/var); a second session
 #                        needs its own (e.g. a copy of build/loader/var.orig) and display
 set -euo pipefail
@@ -71,7 +73,30 @@ args=(
   --ro-bind "$P/shared/runtime" /opt/rt
   --ro-bind "$B/bin" /opt/fakeio
   --ro-bind "$P/shared/runtime/ld-linux.so.2" /lib/ld-linux.so.2
+  --ro-bind "$P/shared/runtime" /lib32
+  --ro-bind "$B/bin/empty" /etc/ld.so.cache
 )
+# (/lib32 is the modern ld.so's first default library directory, and the cabinet's ld.so.cache,
+#  which points libc.so.6 at the 2007 /lib/libc.so.6, is hidden: programs started with a cleared
+#  environment, e.g. dhclient's script, still get the modern libc)
+# Network. The loader (start) gets its own network namespace with a virtual eth0 from
+# slirp4netns (user-mode networking: NAT to the host, DHCP 10.0.2.15, DNS 10.0.2.3), so the
+# cabinet's network_manager and DHCP client configure it as on the real machine.
+# MEGA_LOADER_NET=host shares the host's network instead (the cabinet then reports it as down);
+# helpers (run/shell) always share the host's network.
+NET="${MEGA_LOADER_NET:-slirp}"
+SLIRP="$P/toolchain/debug/root/usr/bin/slirp4netns"
+case "${1:-}" in run|shell) NET=host ;; esac
+[ "$NET" = slirp ] && [ ! -x "$SLIRP" ] && { echo "no slirp4netns (make loader-setup); network shared with the host" >&2; NET=host; }
+if [ "$NET" = host ]; then
+  # the cabinet's /etc/resolv.conf links to /var/merit/etc/resolv.conf: give it the host's resolver
+  VR="${MEGA_LOADER_VAR:-$B/var}/merit/etc/resolv.conf"
+  [ -e "$VR" ] || { mkdir -p "$(dirname "$VR")"; : > "$VR"; }
+  args+=(--ro-bind "$(readlink -f /etc/resolv.conf)" /var/merit/etc/resolv.conf)
+else
+  # network admin rights apply only inside the sandbox's own network namespace
+  args+=(--unshare-net --cap-add CAP_NET_ADMIN --cap-add CAP_NET_RAW --cap-add CAP_NET_BIND_SERVICE)
+fi
 for d in /dev/dri /dev/dxg /usr/lib/wsl /mnt/wslg; do [ -e "$d" ] && args+=(--dev-bind "$d" "$d"); done
 [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -S "$XDG_RUNTIME_DIR/pulse/native" ] && \
   args+=(--bind "$XDG_RUNTIME_DIR/pulse/native" /tmp/pulse-native)
@@ -98,6 +123,24 @@ for kv in ${MEGA_EXTRA_ENV:-}; do env+=(--setenv "${kv%%=*}" "${kv#*=}"); done
 [ -n "${WAYLAND_DISPLAY:-}" ] && env+=(--setenv XDG_RUNTIME_DIR /mnt/wslg/runtime-dir)
 
 run() {
+  if [ "$NET" = slirp ]; then
+    # start the sandbox, then plug slirp4netns into its network namespace as eth0
+    local info="$B/bwrap-info.$$"
+    rm -f "$info"
+    bwrap "${args[@]}" "${env[@]}" --info-fd 9 --chdir /home/maxx "$@" 9>"$info" &
+    local bw=$! pid=""
+    for i in $(seq 100); do
+      pid=$(sed -n 's/.*"child-pid": *\([0-9]*\).*/\1/p' "$info" 2>/dev/null); [ -n "$pid" ] && break; sleep 0.05
+    done
+    rm -f "$info"
+    LD_LIBRARY_PATH="$P/toolchain/debug/root/usr/lib/x86_64-linux-gnu" "$SLIRP" --mtu 1500 \
+      --disable-host-loopback "$pid" eth0 > "$B/slirp.log" 2>&1 &
+    SLIRP_PID=$!
+    # slirp4netns outlives a killed sandbox: stop it (and Xephyr) however this script ends
+    trap 'kill $SLIRP_PID 2>/dev/null; [ -n "$XEPHYR_PID" ] && kill -- -$XEPHYR_PID 2>/dev/null' EXIT
+    trap 'exit 143' INT TERM
+    wait "$bw"; exit $?
+  fi
   if [ -n "$XEPHYR_PID" ]; then
     bwrap "${args[@]}" "${env[@]}" --chdir /home/maxx "$@"
     local rc=$?
@@ -111,5 +154,9 @@ case "${1:-}" in
   run) shift; run "$@" ;;
   *)
     env+=(--setenv MEGA_LOADER_BIN "${MEGA_LOADER_BIN:-/usr/local/bin/start}")
+    # every start keeps a snapshot of the loader's state (build/loader/backups, newest 20)
+    [ -z "${MEGA_LOADER_VAR:-}" ] && "$P/scripts/loader-backup.sh" --auto || true
+    # the security-key image the fake board serves, made once from this /var's NVRAM
+    [ "${MEGA_LOADER_KEY:-make}" = none ] || "$P/scripts/loader-key.sh" >/dev/null || true
     run /opt/fakeio/xinit.sh "$@" ;;
 esac

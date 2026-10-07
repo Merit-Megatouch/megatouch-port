@@ -32,7 +32,10 @@ the game's DLLName, for example `g_trix`.
 | `make loader-setup` | The cabinet's own loader: dump its partitions to `build/loader/`, download and patch Xephyr ([guide](../guides/cabinet-loader.md)) | 3–10 min |
 | `make loader` | Build the loader's stand-ins into `build/loader/bin/` | seconds |
 | `make loader-run` | Run the cabinet's loader in a Xephyr window | — |
-| `make loader-reset` | Restore the loader's `/var` from `build/loader/var.orig` | seconds |
+| `make loader-reset` | Restore the loader's `/var` from `build/loader/var.orig` (backed up first) | seconds |
+| `make loader-backup` / `make loader-restore BACKUP=<file>` | Snapshot / restore the loader's `/var/merit` (`build/loader/backups`) | seconds |
+| `scripts/loader-option.sh --list` / `NAME 0\|1` | Show / set the loader's game options (loader stopped) | seconds |
+| `scripts/loader-key.sh [--show\|--force]` | Make / decode the fake board's security-key image | seconds |
 | `make clean` | Delete `build/` (object files) except `build/loader/` (extracted cabinet, loader settings); the loader's stand-ins are rebuilt by `make loader` | — |
 | `make help` | Command summary | — |
 

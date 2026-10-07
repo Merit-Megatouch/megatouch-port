@@ -189,6 +189,18 @@ This cabinet's `/var/merit/.kf` lists two keys over its lifetime, `8c694a0200400
   `+0xF5` 8-byte cabinet/laser code compared by `KeyManager::Check`, `+0x2DD..` 120 game-option
   bytes (which games and features are licensed), `+0x3BF..` 300 language/feature bits,
   `+0x3EF` one more flag.
+- *Option bytes* (`ParseOptionData`; `KeyManager::Option(i)`): 0 = locked off, 1 = locked on,
+  2 / 3 = the operator's choice, default off / on. `NVRAMMap::IsOptionOn` uses the NVRAM value only
+  for 2/3; Operator Setup shows an option only if `IsOptionSelectable` (2 or 3); a settings reset
+  (`InitVars`) sets NVRAM to `value & 1`. A few are read straight from the key: 0x37 Hi-Res (game
+  buttons for Hi-Res-only games are skipped when 0), 0x43 MindSpark and 0x72 download selector
+  (platform/hardware checks: 0x72 licensed without the matching amplifier/board stops the loader
+  with "invalid key with the current hardware configuration"), 0x16/0x51 languages, 0x5C coin
+  table editing. If the 300 per-game bits at `+0x3BF` are all 0, every game counts as licensed.
+- At boot the key's part number and revision are compared with the ones stored in NVRAM
+  (`nvram.dat` +0x01, +0x38); a different key resets NVRAM.
+- `scripts/loader-key.sh` writes such an image for the fake board (`key.bin`: data in block 5,
+  footer in block 7) from the cabinet's own NVRAM; see `docs/guides/cabinet-loader.md`.
 - `read_header` also tries a 22-byte header XORed with one of six ROM-ID-derived masks and
   accepts it when it decodes to `SA3…`.
 
