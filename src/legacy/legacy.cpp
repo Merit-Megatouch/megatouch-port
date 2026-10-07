@@ -50,8 +50,9 @@ static void frames_to_px(std::vector<MeritFrame>& fr) { for (auto& f : fr) for (
 static uint32_t color_of(unsigned idx) {
     switch (idx) {
     case 5:   return kKey;
-    case 0:   return 0x00000000;
-    case 255: return 0x00ffffff;
+    // 0 and 254/255 were the transparent entries of the 8-bit palettes; the true-colour
+    // conversion of the art left those pixels black (airhockey key 0, tennis keys 0xfe/0xff)
+    case 0: case 254: case 255: return 0x00000000;
     default:  return idx * 0x010101u;                 // unknown palette: grey ramp
     }
 }
