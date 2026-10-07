@@ -40,6 +40,9 @@ Sprite* parent_of(const Sprite* s) { auto it = parents().find(s); return it == p
 namespace legacy {
 WorldClass* current_world() { return world_slot(); }
 }
+// games sometimes pass small integers as a bitmap (cardbandits SCard: 1); the original engine
+// never dereferenced the bitmap in the constructor
+static inline bool valid_bmp(const Bitmap* b) { return reinterpret_cast<uintptr_t>(b) >= 0x10000; }
 
 struct WorldState {
     Bitmap* back = nullptr;                      // background (owned when back_owned)
@@ -304,7 +307,8 @@ Sprite::Sprite(Bitmap* b, unsigned long fl, Sprite* parent) : Group(nullptr, par
     events84 = new List(static_cast<List*>(nullptr));
     timed_events = new List(static_cast<List*>(nullptr));
     sig_handlers = new List(static_cast<List*>(nullptr));
-    if (b) { bmp = b; w = (float)b->w; h = (float)b->h; }
+    bmp = b;
+    if (valid_bmp(b)) { w = (float)b->w; h = (float)b->h; }
     if (WorldClass* wd = W()) wd->sprites->insert(this);
     else orphans().insert(this);
     if (parent) {
@@ -364,7 +368,7 @@ void Sprite::Enable(unsigned long delay) { at(this, K_ENABLE, delay, [](Sprite* 
 void Sprite::Disable(unsigned long delay, bool) { at(this, K_ENABLE, delay, [](Sprite* s) { s->flags |= F_DISABLED; }); }
 static void set_bmp_now(Sprite* s, Bitmap* b) {
     s->bmp = b;
-    if (b && !s->st->sized) { s->w = (float)b->w; s->h = (float)b->h; }
+    if (valid_bmp(b) && !s->st->sized) { s->w = (float)b->w; s->h = (float)b->h; }
     s->flags |= F_DIRTY;
 }
 void Sprite::SetBmp(Bitmap* b, unsigned long delay) { at(this, K_MISC, delay, [b](Sprite* s) { set_bmp_now(s, b); }); }
@@ -673,7 +677,7 @@ void draw_self(Sprite* s, BITMAP* dst, float ox, float oy) {
     float px = s->x + ox, py = s->y + oy;
     if (s->flags & F_CENTER_X) px -= dw / 2.0f;
     if (s->flags & F_CENTER_Y) py -= dh / 2.0f;
-    if (s->bmp && s->bmp->ready()) {
+    if (valid_bmp(s->bmp) && s->bmp->ready()) {
         int bw = (int)std::lround(s->bmp->w * sx), bh = (int)std::lround(s->bmp->h * sy);
         blit_sprite(s->bmp->al, dst, (int)std::lround(px), (int)std::lround(py), bw, bh, s->transparency, s->st, nullptr,
                     s->bmp->flags & 0x02);

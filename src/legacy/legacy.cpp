@@ -1116,3 +1116,70 @@ public:
 ScreenInfo* ScreenInfo::GetInstance() { static unsigned char inst[0x100]; return reinterpret_cast<ScreenInfo*>(inst); }
 void ScreenInfo::SwitchVideoMode(xml_screencontrol::Resolution, xml_screencontrol::Engine, xml_screencontrol::FullScreenMode,
                                  xml_screencontrol::WindowStackPosition, xml_screencontrol::DisplayColorDepth) {}
+
+// ------------------------------------------------------------------------------ FLIC player
+// open_sprfli(path) / next_sprfli_frame(path, loop) / get_sprfli_bitmap(path) / ..._palette /
+// close_sprfli(path): Allegro-style FLIC playback keyed by file name (cardbandits deals its deck
+// from cards.flc). Frames come out as 32-bit Allegro bitmaps; palette index 0 is transparent.
+struct RGB_ { unsigned char r, g, b, filler; };   // Allegro RGB
+namespace {
+struct SprFli { std::vector<FlicFrame> frames; int cur = -1; BITMAP* bmp = nullptr; RGB_ pal[256]; };
+std::map<std::string, SprFli*> g_flis;
+}
+int open_sprfli(char const* path) {
+    if (!path) return -1;
+    std::vector<uint8_t> d;
+    std::string p = path;
+    auto* f = new SprFli;
+    bool ok = merit_read_gz(p.c_str(), d) && flic_decode(d, f->frames);
+    if (!ok) {
+        // the ION build converted the .flc art to .dlt/.spr: same frames, same name
+        std::string base = p;
+        size_t dot = base.rfind('.');
+        size_t slash = base.rfind('/');
+        if (dot != std::string::npos && (slash == std::string::npos || dot > slash)) base.resize(dot);
+        if (Anim* a = ::anim_load(base.c_str(), false)) {
+            for (size_t i = 0; i < a->frames.size(); i++) {
+                ::anim_seek(a, (int)i);
+                FlicFrame fr; fr.w = a->w; fr.h = a->h; fr.argb.resize(a->canvas.size());
+                // black was palette index 0, the FLIC's transparent colour
+                for (size_t k = 0; k < a->canvas.size(); k++)
+                    fr.argb[k] = (a->canvas[k] == kKey || !(a->canvas[k] & 0xffffff)) ? 0 : (a->canvas[k] | 0xff000000);
+                f->frames.push_back(std::move(fr));
+            }
+            delete a;
+            ok = !f->frames.empty();
+        }
+    }
+    if (!ok) { delete f; return -1; }
+    f->bmp = create_bitmap_ex(32, f->frames[0].w, f->frames[0].h);
+    memset(f->pal, 0, sizeof f->pal);
+    delete g_flis[p];
+    g_flis[p] = f;
+    return 0;                                       // FLI_OK
+}
+int next_sprfli_frame(char const* path, int loop) {
+    auto it = g_flis.find(path ? path : "");
+    if (it == g_flis.end()) return -1;
+    SprFli* f = it->second;
+    if (f->cur + 1 >= (int)f->frames.size()) { if (!loop) return 1; f->cur = -1; }   // FLI_EOF
+    const FlicFrame& fr = f->frames[++f->cur];
+    uint32_t* px = static_cast<uint32_t*>(f->bmp->dat);
+    for (size_t i = 0; i < fr.argb.size(); i++) px[i] = to_px(fr.argb[i]);
+    return 0;
+}
+BITMAP* get_sprfli_bitmap(char const* path) {
+    auto it = g_flis.find(path ? path : "");
+    return it == g_flis.end() ? nullptr : it->second->bmp;
+}
+RGB_* get_sprfli_palette(char const* path) {
+    auto it = g_flis.find(path ? path : "");
+    return it == g_flis.end() ? nullptr : it->second->pal;
+}
+void close_sprfli(char const* path) {
+    auto it = g_flis.find(path ? path : "");
+    if (it == g_flis.end()) return;
+    destroy_bitmap(it->second->bmp);
+    delete it->second;
+    g_flis.erase(it);
+}
