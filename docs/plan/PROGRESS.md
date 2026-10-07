@@ -87,6 +87,13 @@ game refuses to run because of them, list it here for the owner instead of worki
 - File formats added: archive records (`LoadCompressedData(name, FILE*)`), FLIC (.flc/.fli).
 - `tools/legacy-batch.sh [secs]` smoke-tests every legacy game (stubs regenerated) →
   build/smoke/legacy-batch.txt. Host crash reports now print pc, frame walk and a stack scan.
+- `libmerit_gendef.so` (src/gendef) implements the loader's gendef classes from
+  `docs/reference/gendef-records.md`; legacy-preload adds it (after libgendef_xml/common) for games
+  that import them. Built with the old std::string ABI like the rest of the project.
+- Loader globals: MegacGlobals+0xc is a std::map<GameId, gamedata_record(0x24c)> (host fills the
+  current game's entry; +0xb0 = folder name), +0x207c the world (a default world is installed).
+- `merit_services.cpp`: SystemInfo (ION), MeritInput/MeritSound managers, Push/PopWorld.
+- Anti-tamper hooks `t_i_l`/`u_m_m_s` are left as plain stubs on purpose (see the decision above).
 - Running (2026-10-07): fourplay conquest nine bgammon airhockey quickcell puckshot goal tennis
   checkerz royal chug21 battle31 strippoker funkymonkey wildapes moondrop chess qbzone brickbreaker.
 
