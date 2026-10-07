@@ -97,11 +97,27 @@ int main(int argc, char** argv) {
                 setenv((std::string("MEGA_") + k).c_str(), (std::string(cwd) + "/" + v).c_str(), 1);
     if (chdir(gameDir.c_str()) != 0) { perror(gameDir.c_str()); return 1; }
 
+    // PRELOAD=a.so b.so: libraries from lib/ the cabinet loader had already loaded (the legacy
+    // engine stand-in, libsettings.so...), so the game's imports resolve against them.
+    if (const char* pre = menv("PRELOAD")) {
+        std::string list(pre), name;
+        for (size_t i = 0; i <= list.size(); i++) {
+            if (i < list.size() && list[i] != ' ' && list[i] != ',') { name += list[i]; continue; }
+            if (name.empty()) continue;
+            std::string p = base + "/lib/" + name;
+            if (!dlopen(p.c_str(), RTLD_NOW | RTLD_GLOBAL)) { fprintf(stderr, "failed to preload %s: %s\n", p.c_str(), dlerror()); return 1; }
+            name.clear();
+        }
+    }
+
     std::string game = base + "/lib/" + lib;
     void* h = dlopen(game.c_str(), RTLD_NOW | RTLD_GLOBAL);
     if (!h) { fprintf(stderr, "failed to load %s: %s\n", game.c_str(), dlerror()); return 1; }
     trix_profile_start();
-    auto gameMain = reinterpret_cast<int (*)(int, char**)>(dlsym(h, "main"));
-    if (!gameMain) { fprintf(stderr, "%s has no main\n", lib); return 1; }
-    return gameMain(argc, argv) ? 0 : 1;
+    if (auto gameMain = reinterpret_cast<int (*)(int, char**)>(dlsym(h, "main")))
+        return gameMain(argc, argv) ? 0 : 1;
+    // legacy games export only the loader's entry point
+    if (auto entry = reinterpret_cast<void (*)()>(dlsym(h, "__EntryPointV12"))) { entry(); return 0; }
+    fprintf(stderr, "%s has neither main nor __EntryPointV12\n", lib);
+    return 1;
 }

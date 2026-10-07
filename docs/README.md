@@ -2,7 +2,7 @@
 
 The goal is every game from the Megatouch ION cabinet running on a normal PC (Linux or WSL2),
 using the original game and engine binaries, and in the end a replacement for the cabinet's
-loader itself. Three GameDevice games and one Unity game are playable today; the [roadmap](roadmap.md) covers
+loader itself. Three GameDevice games, one Unity game and one legacy game are playable today; the [roadmap](roadmap.md) covers
 the remaining 200-odd.
 
 ## Start here
@@ -36,6 +36,7 @@ the remaining 200-odd.
 | [engine-abi](reference/engine-abi.md) | Classes, sizes, field offsets, vtable slots; which slots our backend fills; adding a class |
 | [loader-services](reference/loader-services.md) | Every loader stand-in with behaviour and the game that needed it; what unported games still need |
 | [cabinet](reference/cabinet.md) | Disk image partitions, directory map, gamedata.xml, settings.xml, GameIds, engine libraries |
+| [legacy](reference/legacy.md) | The legacy route: reconstructed loader API, `.dlt` delta animations, touch zones, next games |
 | [unity](reference/unity.md) | The Unity route: shared player, game folder layout, launcher.xml keys, sound shim, cabinet .NET code |
 | [file-formats](reference/file-formats.md) | `.spr` (fully decoded), images, sound, layouts, fonts, translations |
 | [known-bugs](reference/known-bugs.md) | Open issues; every bug fixed so far by category; diagnosing a new crash |

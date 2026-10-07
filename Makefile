@@ -30,8 +30,10 @@ LINKPATH := -L$(SDK) -L$(I386LIB) -Wl,-rpath-link,$(SDK):$(I386LIB):$(I386LIB)/p
 
 BACKEND_SRC := $(wildcard src/backend/*.cpp)
 HOST_SRC    := $(wildcard src/host/*.cpp)
+LEGACY_SRC  := $(wildcard src/legacy/*.cpp)
 BACKEND_OBJ := $(BACKEND_SRC:src/%.cpp=$(OUT)/%.o) $(OUT)/third_party/stb_vorbis.o
 HOST_OBJ    := $(HOST_SRC:src/%.cpp=$(OUT)/%.o)
+LEGACY_OBJ  := $(LEGACY_SRC:src/%.cpp=$(OUT)/%.o)
 HEADERS     := $(wildcard src/*/*.h)
 
 .PHONY: all build setup new run analyze decompile package snapshot games publish docs survey clean help
@@ -41,7 +43,7 @@ all: build
 # dependencies without using them (everything they did is in libgame_device_sprite.so).
 STUBS := $(addprefix $(BIN)/stubs/,libgraphics_sprite.so libinput_sprite.so libsound_sprite.so)
 
-build: $(BIN)/megatouch-host $(BIN)/libgame_device_sprite.so $(BIN)/gameids $(STUBS) $(BIN)/libmega_unity.so
+build: $(BIN)/megatouch-host $(BIN)/libgame_device_sprite.so $(BIN)/gameids $(STUBS) $(BIN)/libmega_unity.so $(BIN)/libmerit_legacy.so
 
 $(BIN)/stubs/%.so:
 	@mkdir -p $(dir $@)
@@ -64,6 +66,11 @@ $(BIN)/libgame_device_sprite.so: $(BACKEND_OBJ)
 $(BIN)/megatouch-host: $(HOST_OBJ)
 	@mkdir -p $(BIN)
 	$(CXX) -rdynamic -o $@.new $^ -ldl -lrt -lpthread && mv $@.new $@
+
+# The cabinet loader's legacy 2D engine, for pre-2009 games (preloaded by megatouch-host).
+$(BIN)/libmerit_legacy.so: $(LEGACY_OBJ)
+	@mkdir -p $(BIN)
+	$(CXX) -shared -o $@.new $^ $(LINKPATH) -lSDL2 -lz && mv $@.new $@
 
 # Preloaded into the Unity player (Unity-family games): routes FMOD's sound output to PulseAudio.
 $(BIN)/libmega_unity.so: src/unity/fmod_output.cpp src/common/env.h

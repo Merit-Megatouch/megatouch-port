@@ -50,6 +50,13 @@ loaded afterwards bind to them: a definition in the main program beats any libra
 versioned references like `glob@GLIBC_2.0`. That one fact makes both the shim and the stand-ins
 possible.
 
+## Legacy games
+
+Pre-2009 games have no engine libraries. `megatouch-host` preloads `libmerit_legacy.so`
+(`PRELOAD=`), our reconstruction of the loader's 2D engine, then calls the game's
+`__EntryPointV12`. The game runs its own loop and the engine presents its 640×480 screen
+whenever the game waits. Details: [legacy.md](legacy.md).
+
 ## Unity games
 
 Unity-family games skip all of the above: `run` sees `ENGINE=unity`, writes `var/launcher.xml`

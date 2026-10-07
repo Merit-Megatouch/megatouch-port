@@ -135,6 +135,13 @@ if [ ! -d "$S/data-common/usr/local/games/default" ]; then
   cab_rdump root /usr/local/games/default "$S/data-common/usr/local/games"
 fi
 
+# shared assets of the legacy games (sounds, fonts, common images): gamegraphics/misc
+if [ ! -d "$S/data-common/usr/local/gamedata/gamegraphics/misc" ]; then
+  step "shared legacy game assets (shared/data-common/.../gamegraphics/misc)"
+  mkdir -p "$S/data-common/usr/local/gamedata/gamegraphics"
+  cab_rdump root /usr/local/gamedata/gamegraphics/misc "$S/data-common/usr/local/gamedata/gamegraphics"
+fi
+
 # ------------------------------------------------------------------ shared runtime
 step "assembling the 32-bit runtime (shared/runtime)"
 if ! done_mark "$S/runtime"; then

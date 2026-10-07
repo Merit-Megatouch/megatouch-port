@@ -14,7 +14,7 @@ tools, docs) lives here. A fix made for one game helps every game of its family.
 | GameDevice (2009+) | 22 | **3 playable** (Trix, Word Dojo 2, Boxxi Blitz); 1 more with 0 missing symbols | Shared SDL2 backend (done). A few loader stand-ins per game: see the [survey](reference/gamedevice-survey.md). |
 | Unity 3.2 | 30 | **route works**: Tri Towers 2 plays with sound | `make new GAME=<folder>`; per game, find the launcher settings it misses ([unity](reference/unity.md)) |
 | Merit3D | 13 | not started | The loader's 3D services: ODE, OpenGL, Allegro |
-| Legacy sprite | 143 | not started | **The loader's 2D engine**: `Sprite`, `Bitmap`, `WorldClass`, Allegro |
+| Legacy sprite | 143 | **Fourplay playable** on `libmerit_legacy.so` (44 of 2,099 loader functions) | Grow the reconstructed engine game by game ([legacy](reference/legacy.md)) |
 | Service entries | 3 | — | Menu, ads, online: not games |
 
 Per-game list: [reference/games.md](reference/games.md).
@@ -47,7 +47,7 @@ Next: scaffold and play-test the other 29, find the remaining launcher keys
 (`AllPlayersLoggedIn`), and high scores, which went through the loader's messaging. Patching the
 cabinet's .NET plugins (Mono.Cecil) is the fallback where settings aren't enough.
 
-### 3. The loader, part 1: the legacy 2D engine (143 games)
+### 3. The loader, part 1: the legacy 2D engine (143 games) — started 2026-10-07
 
 Legacy games import the loader's engine directly: Allegro 4 calls, `Sprite`, `Bitmap`,
 `WorldClass`, `VideoClass`, `MegacGlobals`, `NVRAMData`, `PlrScore`… (about 600 symbols across
@@ -61,8 +61,10 @@ the closure of a typical game). Two routes, which can be combined:
   the original engine code and reuse it. This needs unpacking first. If it works it is the
   shortest path to exact behaviour.
 
-Start with one simple legacy game, keep a list of the symbols each new game adds, and grow the
-library the way loader services grew.
+Started with the reimplementation route: `src/legacy/legacy.cpp` covers Fourplay's C API (bitmaps,
+delta `.dlt` animations, touch zones, timers, sounds). Next, in order of missing symbols: Conquest
+(46), Back Jammin (51), Pharaohs Nine (53), Puckshot, Tennis, Air Hockey, Chess. The C++ layer
+(`Bitmap`, `WorldClass`, `VideoClass`, `MouseManager`, `BmpFont`) comes in with the larger games.
 
 ### 4. Merit3D (13 games)
 

@@ -53,6 +53,8 @@ triggering the free, as with `StopSound`.
 | — | TGA images missing (Word Dojo 2) | `IMG_Load_RW` can't detect TGA | `IMG_LoadTyped_RW` with the type from the extension |
 | — | Game-over screen blank (Word Dojo 2) | Art lives in the fallback game `/usr/local/games/default` | Part of shared data, linked into every game |
 | — | `Failed to find resource [gfx/end_tile_explosion]` (Boxxi Blitz); Trix fire animations missing | Animations stored as a folder of frames are listed by the locator's wildcard search, which builds `//usr/local/...` paths; the shim only matched one leading slash | Shim collapses repeated leading slashes |
+| — | Fourplay: the right-hand columns need a tap past the board, worse in bigger windows | Mouse positions converted to logical coordinates twice; SDL already does it when a logical size is set | Use event coordinates as they are |
+| — | Fourplay: opponent animations mangled | `.dlt` frames after the first are deltas | Composite frames in order |
 | — | `libinput_sprite.so: cannot open shared object` (Word Dojo 2) | Listed as NEEDED but unused | Empty stub libraries |
 | 18 | Profiled windowed run dies with no trace | `backtrace()` in the SIGPROF handler unwound into llvmpipe JIT code | `sigsetjmp` guard, recovered from the crash handler |
 | 19 | `MEGA_FPS=60` makes AI turns very slow | Game logic counts ticks | Keep 30 |

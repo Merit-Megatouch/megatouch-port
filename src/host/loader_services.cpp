@@ -84,6 +84,10 @@ public:
     int Winner() const;
     int HighestScore(int);
     char const* HighestName(int);
+    // newer overloads with the game's id first (legacy games and later GameDevice games)
+    bool HighEnough(xml_gameinfo::GameIds, int, int, int);
+    int HighestScore(xml_gameinfo::GameIds, int);
+    char const* HighestName(xml_gameinfo::GameIds, int);
 };
 // High scores. Games keep the running score in PlrScore[player]; at game over they call
 // Winner() and HighEnough(winner, ...). On the cabinet "true" opened the loader's name-entry
@@ -131,6 +135,11 @@ bool HighScoresManager::HighEnough(int player, int) {
 int HighScoresManager::Winner() const { return 0; }
 int HighScoresManager::HighestScore(int) { return best().score; }
 char const* HighScoresManager::HighestName(int) { return best().name.c_str(); }
+// The id is the running game's (one best score per game), so these share the file above.
+// Fourplay calls HighEnough(id, 0, 0, -1): the second argument is the player index.
+bool HighScoresManager::HighEnough(xml_gameinfo::GameIds, int player, int, int) { return HighEnough(player, 0); }
+int HighScoresManager::HighestScore(xml_gameinfo::GameIds, int) { return best().score; }
+char const* HighScoresManager::HighestName(xml_gameinfo::GameIds, int) { return best().name.c_str(); }
 
 // The cabinet's language setting. Locale::Languages: 0 = English, 3 = French, 4 = Spanish, ...
 // (same order as LanguagesSupported in gamedata.xml). Games pick dictionaries/help by it.

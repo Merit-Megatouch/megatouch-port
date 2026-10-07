@@ -76,7 +76,7 @@ with open(out, 'w', encoding='utf-8') as f:
     what = {'gamedevice': 'shared SDL2 backend + a few loader stand-ins ([survey](gamedevice-survey.md))',
             'unity': 'the cabinet\'s Unity 3.2 player + launcher.xml + FMOD→PulseAudio shim ([unity](unity.md))',
             'merit3d': 'reimplement the loader\'s engine services (not started)',
-            'legacy': 'reimplement the loader\'s legacy sprite engine (not started)',
+            'legacy': 'the loader\'s 2D engine, reconstructed in src/legacy ([legacy](legacy.md))',
             'service': 'not a game: ads, online services, jukebox links',
             'unknown': 'library not found in /usr/local/lib'}
     for fam in sorted(counts, key=lambda k: fam_order.get(k, 9)):

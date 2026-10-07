@@ -47,6 +47,7 @@ folder to redo its step.
 | 2008 libraries | `shared/cabinet-libs/` | From the image: libexpat.so.0, libsqlite.so.0, libsqlite3.so.0, libssl.so.6 (and crypto, krb5…), Pango 1.14, glib, fontconfig, freetype |
 | Engine SDK | `shared/engine-sdk/` | From the image: libgame_device, libgraphics, libcore, libinput, libmerit_sound, libenums plus their closure (the backend links against these) |
 | Shared data | `shared/data-common/` | gamedata `config translations help ttf fonts`, var/merit `locale settings`, `.fonts.conf`, Pango modules, `usr/local/games/default` |
+| Legacy shared assets | `shared/data-common/usr/local/gamedata/gamegraphics/misc` | From the image: sounds, images and databases shared by legacy games (216 MB) |
 | Unity player | `shared/unity/` | From the image: `LinuxPlayer` and libGLU, libcurl.so.3, libfmodex, libtheora, libgthread with their closure |
 | Runtime | `shared/runtime/` | glibc, libstdc++, libgcc from the sysroot; i386 libs; the 2008 libraries last. Never the image's libz. |
 | Build | `shared/bin/` | `make build` |
@@ -151,6 +152,8 @@ always wins.
 | `TITLE` | no | Window title | `Megatouch TRIX` |
 | `CARD_FANNING` | no | Operator option for card games (default 0; Trix doesn't ship the art) | `1` |
 | `HOME`, `DATA` | no | Override the game folder or the data root (normally derived) | — |
+| `PRELOAD` | no | Libraries in `lib/` to load before the game, space-separated (the loader had them loaded) | `libmerit_legacy.so` |
+| `PLAYERS` | legacy | Player count in `MegacGlobals` (1 or 2) | `1` |
 | `ENGINE` | Unity only | `unity`: `run` starts the shared Unity player instead of megatouch-host | `unity` |
 | `GAME` | Unity only | The game's folder, written to `launcher.gameid` | `g_tri_towers_2` |
 
@@ -174,6 +177,7 @@ All are read with the `MEGA_` prefix. The old `TRIX_` prefix still works for eac
 | Variable | Effect |
 | --- | --- |
 | `MEGA_TRACE_FILES=1` | `[file] <path>` for every path through the shim; `[glob] pattern -> n` for globs |
+| `MEGA_DEBUG_TOUCH=1` | Legacy games: log touch zones, touches and when the game reads them |
 | `MEGA_TRACE_IPC=1` | Log every connection attempt to the cabinet loader's `/dev/merit_ipc/` sockets. Without it, each endpoint is logged once as `[ipc] connect <path> -> <error>`. |
 | `MEGA_DEBUG_SOUND=1` | Timestamped sound calls: play (file, loop, volume → voice id and sample count), stop, volume, pause, is-playing |
 | `MEGA_SHOT_DIR=<dir>` | Save `frameNNNNN.png` there… |

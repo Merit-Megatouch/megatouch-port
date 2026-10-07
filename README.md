@@ -3,14 +3,14 @@
 The Megatouch ION (2014) cabinet games, running on Linux and WSL2 using the cabinet's real game
 and engine binaries. The goal is **every game on the platform**, and in the end **the cabinet's
 loader itself**. Today the cabinet backend for the 2009+ "GameDevice" engine is replaced by SDL2,
-and the cabinet's Unity player runs on the same runtime. Four games are playable so far.
+and the cabinet's Unity player runs on the same runtime. A reconstruction of the loader's own 2D engine runs the first pre-2009 game. Five games are playable so far.
 
 | | Games | Status |
 | --- | ---: | --- |
 | GameDevice engine | 22 | **Trix, Word Dojo 2, Boxxi Blitz playable**; the rest need a few stand-ins each ([survey](docs/reference/gamedevice-survey.md)) |
 | Unity 3.2 | 30 | **Tri Towers 2 playable**; the cabinet's own Unity player runs them ([unity](docs/reference/unity.md)) |
 | Merit3D | 13 | needs the loader's 3D services |
-| Legacy sprite engine | 143 | needs the loader's 2D engine, the big milestone |
+| Legacy sprite engine | 143 | **Fourplay playable** on a reconstruction of the loader's 2D engine ([legacy](docs/reference/legacy.md)) |
 
 Every title: [docs/reference/games.md](docs/reference/games.md).
 
@@ -82,6 +82,7 @@ All options and environment variables: [docs/reference/commands.md](docs/referen
 | `scripts/` | yes | `setup`, `new-game`, `publish`, `snapshot-cabinet`, `launch`; `lib/` helpers; `packages/` lists |
 | `src/backend/` | yes | SDL2 backend: `device` `textures` `sprites` `input` `sound` `net` `spr` |
 | `src/host/` | yes | `megatouch-host`: `main`, `fs_shim`, `loader_services`, `profiler` |
+| `src/legacy/` | yes | `libmerit_legacy.so`: the loader's legacy 2D engine, reconstructed |
 | `src/unity/` | yes | `libmega_unity.so`, preloaded into the Unity player (FMOD → PulseAudio) |
 | `tools/` | yes | `analyze` `decompile` `package` `catalog` `survey` `vtdump` `sprdump` `profreport` `gameinfo` `largest-png` `gameids` |
 | `docs/` | yes | `guides/`, `reference/`, `history/`, `roadmap.md`, `data/` |
@@ -97,3 +98,4 @@ All options and environment variables: [docs/reference/commands.md](docs/referen
 | Word Dojo 2 | [g_word_dojo_2](https://github.com/Merit-Megatouch/g_word_dojo_2) | 258 | Playable |
 | Boxxi Blitz | [g_boxxi_template](https://github.com/Merit-Megatouch/g_boxxi_template) | 257 | Playable |
 | Tri Towers 2 (Unity) | [g_tri_towers_2](https://github.com/Merit-Megatouch/g_tri_towers_2) | 286 | Playable |
+| Fourplay (legacy) | [fourplay](https://github.com/Merit-Megatouch/fourplay) | 7 | Playable |
