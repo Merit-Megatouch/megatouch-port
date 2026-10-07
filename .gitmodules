@@ -10,3 +10,6 @@
 [submodule "games/g_tri_towers_2"]
 	path = games/g_tri_towers_2
 	url = https://github.com/Merit-Megatouch/g_tri_towers_2.git
+[submodule "games/fourplay"]
+	path = games/fourplay
+	url = https://github.com/Merit-Megatouch/fourplay.git
