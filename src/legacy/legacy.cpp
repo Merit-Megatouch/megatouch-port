@@ -901,6 +901,7 @@ void GetTouchCoord(int* x, int* y, int* down) {
     if (down) *down = g_mouseDown;
 }
 bool ScreenIsTouched() { pump(); return g_mouseDown; }
+bool IsScreenTouched() { pump(); return g_mouseDown; }
 void MouseRemoveAllNoFlush() { g_zones.clear(); }
 void QueFlush(bool) { pump(); g_pending.clear(); }
 // PlayWave("name", flags, vol 0..255, freq, pan, bool): like PlayPreWave without preloading

@@ -1020,5 +1020,5 @@ __attribute__((constructor(200))) static void install_loader_world() {
     if (!world_slot()) world_slot() = new DOSLinuxWorld();
 }
 
-GameClass::GameClass() : Group(nullptr, nullptr) { memset(raw, 0, sizeof raw); }
+GameClass::GameClass() : Group(nullptr, nullptr), field0c(0) {}
 GameClass::~GameClass() {}

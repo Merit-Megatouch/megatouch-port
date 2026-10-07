@@ -236,10 +236,21 @@ class LanguageManager {
 public:
     static LanguageManager* GetInstance();
     int Active() const;
+    int Base() const;
+    int LegacyFallback(Languages);
+    int IndexOf(Languages);
 };
 LanguageManager* LanguageManager::GetInstance() { static char inst[64]; return reinterpret_cast<LanguageManager*>(inst); }
 int LanguageManager::Active() const { return 0; }
+int LanguageManager::Base() const { return 0; }
+int LanguageManager::LegacyFallback(Languages l) { return (int)l; }
+int LanguageManager::IndexOf(Languages l) { return (int)l; }
+enum LocaleMasks : int {};
 }
+// Language-specific file/folder suffixes: English (the only language set up) has none.
+void Menu_AppendLangExt(Locale::Languages, char (&)[255]) {}
+void AppendLangExt(char (&)[255], Locale::LocaleMasks) {}
+bool LangDirExist(char const* path) { struct stat st; return path && stat(path, &st) == 0 && S_ISDIR(st.st_mode); }
 
 // Allegro 4 Unicode string helpers (the loader linked Allegro; its default text format is
 // UTF-8). Word Dojo 2 uses them on dictionary words.

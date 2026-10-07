@@ -317,12 +317,12 @@ namespace legacy {
 WorldClass* current_world();
 }
 
-// GameClass: base of some games' main objects (cardbandits family...). A Group with no virtuals of
-// its own; subclasses put their fields from +0xd5 on.
+// GameClass: base of some games' main objects (cardbandits, wordzap...). A Group with no virtuals of
+// its own; 0x10 bytes (wordzap: new(0x40), its own members from +0x10).
 class GameClass : public Group {
 public:
     GameClass();
     ~GameClass() override;
-    unsigned char raw[0xd4 - 0xc];
+    int field0c;
 };
-static_assert(sizeof(GameClass) == 0xd4, "GameClass");
+static_assert(sizeof(GameClass) == 0x10, "GameClass");
