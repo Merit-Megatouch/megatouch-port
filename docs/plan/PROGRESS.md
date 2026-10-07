@@ -58,6 +58,13 @@ Merit3D games run on our own reconstruction of the engine API (`src/legacy`), as
 and phase 2 is our own front end (menu, settings, high scores) that launches games through the
 existing routes.
 
+### Decision: games' anti-tamper / key hooks (2026-10-07)
+About 41 legacy games import `t_i_l()` and `u_m_m_s(...)` from the loader: integrity checks
+(scanning loader code for NOP patches) and an obfuscated "Key System I.O. has stopped" message
+decoder. These are part of the cabinet's copy protection. The port does not implement anything
+aimed at satisfying or bypassing them — they only get the generic `make stubs` placeholder. If a
+game refuses to run because of them, list it here for the owner instead of working around it.
+
 ## In progress
 
 ### Legacy engine (2026-10-07)
