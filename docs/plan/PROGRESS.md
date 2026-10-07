@@ -19,8 +19,8 @@ each working game or shared fix.
 | --- | ---: | ---: | --- | --- |
 | GameDevice | 21 games | 20 run (3 played by hand; 17 smoke-tested) | SDL2 backend + loader stand-ins | g_mystery_phraze_hd deferred: needs DBFClass (dBase reader), RandomizedArrayClass and the gendef record xml_gamerandom::MystPICRAND_record (abstract_xml_record subclass) — 18 symbols |
 | Unity 3.2 | 30 | 30 run (1 played by hand) | cabinet LinuxPlayer + launcher.xml (real format) + FMOD shim + fs shim | hand play-tests; clocker/close-the-clock washed out |
-| Legacy 2D | 128 scaffolded (`games/*` untracked dirs) | 7 run (fourplay, conquest, nine, bgammon, airhockey plays, quickcell, puckshot) | `src/legacy`: C API + C++ layer + native Allegro 4.0 subset (`allegro.cpp`) + TTF (`ttf.cpp`) | sprite engine (WorldClass/Sprite/Group/List/EventO/String) — top blocker, see below |
-| Merit3D | ~13 | 0 | GL window + `src/legacy` + 3D-side stand-ins | beer pong 21 in progress (see below) |
+| Legacy 2D | 128 scaffolded | 105 run in the batch smoke test; 89 published (render + take touches) | `src/legacy` (C API, sprite engine, Bitmap, Allegro subset, TTF) + `src/gendef` | 22 crashing: GL group (pool, nineball, bowling, golf), Gash/LinuxWorldClass (breakout, motormatch, racepoker), SObj (euchre, hearts, spades, snubble), misc; hand play-tests |
+| AllegroGL / Merit3D | 19 (7 scaffolded) | 0 | GL window + `src/legacy` + 3D-side stand-ins | scaffold the 12 others (luxor, chainz2, snake, racing, shooter, stickerbook, beer_pong, luxor2, triviawhiz2/jr, monkeybusiness, VideoSales); GL context; beer pong notes below |
 
 Per-game state lives in each `games/<name>/NOTES.md` and in `docs/reference/games.md` (`make docs`).
 
@@ -125,6 +125,8 @@ game refuses to run because of them, list it here for the owner instead of worki
 
 ## Log (newest first)
 
+- 2026-10-07 — Legacy: sprite engine, Bitmap rewrite, gendef library, translations; 105/128 run,
+  89 published as game repos. `tools/legacy-batch.sh` is the regression check.
 - 2026-10-07 — 17 more GameDevice games run headless (smoke.sh + contact sheets); fixes: libsettings preload, v4 .spr, content packs (2 GB shared), absolute links in assets, g_ prefix, window sizes for fight_the_landlord/text_twist2 (800x600), stunt_squirrel (640x480), g_space_farmer (1024x768). All published.
 
 - 2026-10-07 — Owner asleep; autonomous run started. Merit3D groundwork committed.
