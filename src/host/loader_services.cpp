@@ -400,3 +400,28 @@ int Books::Credits(xml_gameinfo::GameIds, enums::Span) { return 0; }
 void Books::LogCategoryPlays(xml_gameinfo::GameIds, int, int) {}
 bool Books::ContinueGame(xml_gameinfo::GameIds, int, int) { return true; }
 
+
+// The operator settings table. +0x350 is a std::map<GameIds, db_config::GameInfo_record> of
+// per-game options (pool/nineball read field +0x18); empty: games get default (zero) records.
+namespace db_config {
+class GameInfo_record {
+public:
+    GameInfo_record();
+    GameInfo_record(GameInfo_record const&);
+    ~GameInfo_record();
+    unsigned char raw[0x28];                       // size from the games' map node (0x3c)
+};
+GameInfo_record::GameInfo_record() { memset(raw, 0, sizeof raw); }
+GameInfo_record::GameInfo_record(GameInfo_record const& o) { memcpy(raw, o.raw, sizeof raw); }
+GameInfo_record::~GameInfo_record() {}
+}
+class SettingsTable { public: static SettingsTable* Instance(); };
+SettingsTable* SettingsTable::Instance() {
+    alignas(16) static unsigned char t[0x1000];
+    static bool init;
+    if (!init) {
+        init = true;
+        new (t + 0x350) std::map<int, db_config::GameInfo_record>;
+    }
+    return reinterpret_cast<SettingsTable*>(t);
+}
