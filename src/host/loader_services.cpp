@@ -272,3 +272,18 @@ void Profiler::DumpResults() {}
 // libmerit_threads: the loader's main-thread handle
 extern "C" { unsigned long MainThread; }
 
+
+// Bookkeeping (cabinet libbooks: credits, plays, meters). Not loaded — it depends on the
+// loader's key manager and tournament code; home play has no money, so the counts are 0.
+namespace enums { enum Span : int {}; }
+class Books {
+public:
+    static Books* Instance();
+    int Credits(xml_gameinfo::GameIds, enums::Span);
+    void LogCategoryPlays(xml_gameinfo::GameIds, int, int);
+    bool ContinueGame(xml_gameinfo::GameIds, int, int);
+};
+Books* Books::Instance() { static char inst[64]; return reinterpret_cast<Books*>(inst); }
+int Books::Credits(xml_gameinfo::GameIds, enums::Span) { return 0; }
+void Books::LogCategoryPlays(xml_gameinfo::GameIds, int, int) {}
+bool Books::ContinueGame(xml_gameinfo::GameIds, int, int) { return true; }

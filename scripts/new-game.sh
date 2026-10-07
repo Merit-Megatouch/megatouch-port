@@ -223,8 +223,7 @@ preload_cabinet_libs() {
     legacy)
       # cabinet service libraries (settings, gendef xml records, books, system_info...) that
       # define what the game imports and src/legacy does not implement
-      [ -s "$R/build/index/cabinet-syms.tsv" ] || "$R/tools/cabinet-providers.py" --index
-      for l in $("$R/tools/cabinet-providers.py" "$DLL"); do add="$add $l"; done ;;
+      "$R/scripts/lib/legacy-preload.sh" "$DLL" >/dev/null; return 0 ;;
   esac
   [ -n "$add" ] || return 0
   for l in $add; do

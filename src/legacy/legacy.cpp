@@ -20,6 +20,7 @@
 #include "allegro.h"
 #include "legacy_ttf.h"
 #include <SDL2/SDL.h>
+#include <dlfcn.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <cstdio>
@@ -1173,7 +1174,13 @@ bool UniversalTranslator::nTrans(char* out, char const* key, int len, bool) {
     snprintf(out, len, "%s", t);
     return t != key;
 }
-class TextSystem { public: void LoadTranslations(char const*, bool); void SetCurrentLanguage(Locale::Languages); };
+class TextSystem {
+public:
+    void LoadTranslations(char const*, bool);
+    void LoadTranslations(xml_gameinfo::GameIds);
+    void SetCurrentLanguage(Locale::Languages);
+};
+void TextSystem::LoadTranslations(xml_gameinfo::GameIds) {}
 void TextSystem::LoadTranslations(char const* name, bool) { Translator::LoadTranslations(name, false); }
 void TextSystem::SetCurrentLanguage(Locale::Languages) {}
 TextSystem textSystem;
@@ -1308,14 +1315,15 @@ void BitmapColorize(_RADBitmap* b, int r, int g, int bl, int amount) {
 void BitmapText(_RADBitmap* b, unsigned long x, unsigned long y, char* text) {
     if (b && text) legacy::ttf_draw(b->bmp, text, x, y, 0, 0, 255, 255, 255, 12, 0, false, "bureau", 0, 0);
 }
-// BitmapTextTTF(bmp, text, x, y, w, h, c1, c2, c3, size, align, bool, family, spacing)
-// c1..c3: colour adjustments (0,0,-255 / 0,-100,-255 / 0,0,0 seen); drawn white for now.
+// BitmapTextTTF(bmp, text, x, y, w, h, dr, dg, db, size, align, bool, family, spacing)
+// dr..db: colour as offsets from white (255 + d): (0,0,-255) yellow, (0,0,0) white.
 void BitmapTextTTF(_RADBitmap* b, char const* text, int x, int y, int w, int h, int c1, int c2, int c3,
                    int size, int align, bool bold, char* family, int spacing) {
     if (!b || !text) return;
     static bool dbg = menv("DEBUG_TEXT") != nullptr;
     if (dbg) LOG("BitmapTextTTF '%s' box %d,%d %dx%d c %d,%d,%d size %d align %d %d %s %d", text, x, y, w, h, c1, c2, c3, size, align, bold, family ? family : "-", spacing);
-    legacy::ttf_draw(b->bmp, text, x, y, w, h, 255, 255, 255, size, align, bold, family, 0, 0);
+    legacy::ttf_draw(b->bmp, text, x, y, w, h, SDL_clamp(255 + c1, 0, 255), SDL_clamp(255 + c2, 0, 255),
+                     SDL_clamp(255 + c3, 0, 255), size, align, bold, family, 0, 0);
 }
 
 // Head-to-head cabinet linking: never linked here (one cabinet, player 0, we are the master)
@@ -1345,3 +1353,77 @@ bool GetHelpFileName(char (&out)[255], char const* game, Locale::Languages, char
     struct stat st;
     return stat(out, &st) == 0;
 }
+
+// ------------------------------------------------------------------------------ linked play
+// Cabinet-to-cabinet linking (head-to-head, card tournaments). Not linked: NetGlob is null and
+// MegacGlobals+0x30 (link mode) is 0, so games skip most of this; the rest are no-ops.
+static unsigned char g_cardG[0x10000];
+extern "C" {
+void* NetGlob;                                   // NetGlobals*; null = not linked
+void* CardG = g_cardG;                           // card-link state block (read only when linked)
+unsigned char LocalGameOverFlag, DLLReady, ISRDone;
+}
+class NetGlobals {
+public:
+    static unsigned long GetLeaderScore();
+    static unsigned char GetRank(unsigned char);
+    static int GetTrueLinkCount();
+    static int GetState(int);
+    static int GetHeadIdx(unsigned char);
+    static void ProcNetClicks();
+};
+extern "C" int PlrScore[8];                      // megatouch-host
+unsigned long NetGlobals::GetLeaderScore() { return PlrScore[0]; }
+unsigned char NetGlobals::GetRank(unsigned char) { return 1; }
+int NetGlobals::GetTrueLinkCount() { return 1; }
+int NetGlobals::GetState(int) { return 0; }
+int NetGlobals::GetHeadIdx(unsigned char) { return 0; }
+void NetGlobals::ProcNetClicks() { pump(); }
+void Card_PollLinks() { pump(); }
+void Card_ActiveDelay(int ms) { sleep_ms(ms); }  // delay while servicing the links
+void Card_ProcessInfo() {}
+void Card_LinkWaitForAll(unsigned long) {}
+void Card_ProcessRTPackets(unsigned char) {}
+bool Card_ParseGameOverFlag() { return false; }
+void LinkWait_Advance(int) { pump(); }
+void LinkWait_End() {}
+// WatchDog::GetInstance() returns LockingProxy<WatchDog> (by hidden pointer): { WatchDog* }, with
+// the WatchDog's DebugMutex (libdebug_shared) at +4 locked; the game's inline ~LockingProxy
+// unlocks it (checkerz).
+struct WatchDogProxy { unsigned char* obj; };
+class WatchDog { public: static WatchDogProxy GetInstance(); void IncHeartbeat(); };
+WatchDogProxy WatchDog::GetInstance() {
+    alignas(16) static unsigned char inst[4 + 512];
+    static bool init;
+    using Ctor = void (*)(void*);
+    using Lock = void (*)(void*, const char*, const char*, unsigned long);
+    static auto ctor = reinterpret_cast<Ctor>(dlsym(RTLD_DEFAULT, "_ZN10DebugMutexC1Ev"));
+    static auto lock = reinterpret_cast<Lock>(dlsym(RTLD_DEFAULT, "_ZN10DebugMutex4LockEPKcS1_m"));
+    static auto initf = reinterpret_cast<void (*)(void*, const char*)>(dlsym(RTLD_DEFAULT, "_ZN10DebugMutex4InitEPKc"));
+    if (!init) { init = true; if (ctor) ctor(inst + 4); if (initf) initf(inst + 4, "WatchDog"); }
+    if (lock) lock(inst + 4, "watchdog", "GetInstance", 0);
+    return WatchDogProxy{inst};
+}
+void WatchDog::IncHeartbeat() {}
+
+// Slides bitmap g from (x1, y1) to (x2, y2) in `steps` frames over what is on the screen
+// (royal: a card flying to the pile), leaving it drawn at the end.
+void GAME_MoveGraphic(void* g, unsigned char steps, unsigned long x1, unsigned long y1,
+                      unsigned long x2, unsigned long y2, unsigned char key) {
+    auto* b = static_cast<_RADBitmap*>(g);
+    if (!b || b->tag != kTag) return;
+    std::vector<uint32_t> saved(g_screen, g_screen + SW * SH);
+    int n = steps ? steps : 1;
+    for (int i = 1; i <= n; i++) {
+        memcpy(g_screen, saved.data(), (size_t)SW * SH * 4);
+        int x = (int)x1 + ((int)x2 - (int)x1) * i / n, y = (int)y1 + ((int)y2 - (int)y1) * i / n;
+        blit(b->px, b->w, b->h, 0, 0, g_screen, SW, SH, x, y, b->w, b->h, true, color_of(key));
+        g_dirty = true;
+        sleep_ms(20);
+    }
+}
+
+void AnimationBackToStart(_MSmack* m) { AnimationGoto(m, 1); }   // frames are 1-based
+extern "C" void voice_start(int) {}
+// Seniors-edition help overlay: not shown
+void SeniorsHelp(int, bool) {}

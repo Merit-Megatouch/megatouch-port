@@ -12,9 +12,9 @@ import collections, glob, os, subprocess, sys
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 IDX = f'{R}/build/index/cabinet-syms.tsv'
 SERVICE_LIBS = ['libsettings.so', 'libgendef_xml.so', 'libgendef_common.so', 'libgendef_db.so',
-                'libbooks.so', 'libsystem_info.so', 'liblocale.so', 'libenums.so', 'liblayout.so',
-                'libmoney.so', 'libdebug_shared.so', 'libami.so', 'libttiface.so', 'libmvideo.so',
-                'libcontent.so', 'libads.so']
+                'libsystem_info.so', 'liblocale.so', 'libenums.so', 'liblayout.so',
+                'libdebug_shared.so', 'libmvideo.so',
+                'libcontent.so', 'libads.so', 'libdebug_mock.so']
 
 def nm(path, defined):
     flag = '--defined-only' if defined else '--undefined-only'
@@ -40,8 +40,6 @@ for lib in [f'{R}/shared/bin/libmerit_legacy.so', f'{R}/shared/bin/megatouch-hos
 miss = set()
 own = [so for so in glob.glob(f'{R}/games/{g}/lib/*.so') if not os.path.islink(so) and 'libmega_stubs' not in so]
 main = f'{R}/games/{g}/lib/{g}.so'
-for so in own:
-    if os.path.basename(so) in SERVICE_LIBS: provided |= nm(so, True)
 miss = nm(main, False) if os.path.exists(main) else set()
 miss -= provided
 idx = collections.defaultdict(set)
@@ -56,6 +54,42 @@ for s, fs in idx.items():
     if svc: count[svc[0]] += 1
     else:
         for n in names: other[n] += 1
-for lib, n in count.most_common(): print(lib)
+chosen = [lib for lib, n in count.most_common()]
+
+# The chosen libraries' own imports that nothing else provides (e.g. libdebug_shared needs
+# libdebug_mock's ExtendedCrashInfo): add their providers, loaded first.
+def lib_path(name):
+    for f in (f'{R}/games/{g}/lib/{name}', f'{R}/shared/engine-sdk/{name}', f'{R}/cabinet/root/usr/local/lib/{name}'):
+        if os.path.exists(f): return f
+full = {}
+for l in open(IDX):
+    s_, f_ = l.rstrip('\n').split('\t')
+    if os.path.basename(f_) in SERVICE_LIBS: full.setdefault(s_, set()).add(os.path.basename(f_))
+# Close over the chosen libraries' own imports, then order so providers load before users.
+order = list(chosen)
+deps = {}
+i = 0
+while i < len(order):
+    lib = order[i]; i += 1
+    p_ = lib_path(lib)
+    if not p_: deps[lib] = set(); continue
+    d = set()
+    for sym in nm(p_, False) - provided:
+        cands = sorted(full.get(sym, ()))
+        if cands and lib not in cands:
+            d.add(cands[0])
+            if cands[0] not in order: order.append(cands[0])
+    deps[lib] = d
+out, state = [], {}
+def visit(l):
+    if state.get(l) == 2: return
+    if state.get(l) == 1: return               # cycle: leave as is
+    state[l] = 1
+    for d in sorted(deps.get(l, ())): visit(d)
+    state[l] = 2
+    out.append(l)
+for l in order: visit(l)
+order = out
+for lib in order: print(lib)
 if '--all' in sys.argv:
     for lib, n in other.most_common(): print(f'  (other provider) {lib}: {n}', file=sys.stderr)
