@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "engine.h"
+extern "C" int stb_vorbis_decode_memory(const unsigned char* mem, int len, int* channels, int* sample_rate, short** output);
 #include "../common/flic.h"
 #include <algorithm>
 
@@ -356,7 +357,31 @@ static Pcm* wave_load(const char* name) {
     if (it != g_waves.end()) return it->second;
     std::string path;
     Pcm* p = nullptr;
-    if (find_asset(name, false, ".wav", path) || find_asset(name, false, "", path)) {
+    bool found = find_asset(name, false, ".wav", path) || find_asset(name, false, "", path) || find_asset(name, false, ".ogg", path);
+    if (found && path.size() > 4 && (path.compare(path.size() - 4, 4, ".ogg") == 0 || path.find(".ogg.") != std::string::npos)) {
+        // Ogg Vorbis (Merit2d/Merit3d games) through stb_vorbis, resampled to 44.1 kHz stereo
+        std::vector<uint8_t> d;
+        if (merit_read_gz(path.c_str(), d)) {
+            int ch = 0, rate = 0;
+            short* out = nullptr;
+            int frames = stb_vorbis_decode_memory(d.data(), (int)d.size(), &ch, &rate, &out);
+            if (frames > 0 && out) {
+                SDL_AudioCVT cvt;
+                int need = SDL_BuildAudioCVT(&cvt, AUDIO_S16SYS, ch, rate, AUDIO_S16SYS, 2, 44100);
+                size_t blen = (size_t)frames * ch * 2;
+                std::vector<Uint8> tmp(blen * (cvt.len_mult > 0 ? cvt.len_mult : 1));
+                memcpy(tmp.data(), out, blen);
+                cvt.buf = tmp.data(); cvt.len = (int)blen;
+                if (need > 0) SDL_ConvertAudio(&cvt);
+                int outLen = need > 0 ? cvt.len_cvt : (int)blen;
+                p = new Pcm;
+                p->s.assign(reinterpret_cast<int16_t*>(tmp.data()), reinterpret_cast<int16_t*>(tmp.data() + outLen));
+            }
+            free(out);
+        }
+        found = false;
+    }
+    if (found) {
         std::vector<uint8_t> d;
         if (merit_read_gz(path.c_str(), d)) {
             SDL_AudioSpec ws; Uint8* buf; Uint32 blen;
@@ -1138,7 +1163,8 @@ void ScreenInfo::SwitchVideoMode(xml_screencontrol::Resolution, xml_screencontro
 struct RGB_ { unsigned char r, g, b, filler; };   // Allegro RGB
 namespace {
 struct SprFli { std::vector<FlicFrame> frames; int cur = -1; BITMAP* bmp = nullptr; RGB_ pal[256]; };
-std::map<std::string, SprFli*> g_flis;
+std::map<std::string, SprFli*>& g_flis_() { static auto* m = new std::map<std::string, SprFli*>; return *m; }   // never destroyed: no exit-time teardown
+#define g_flis g_flis_()
 }
 int open_sprfli(char const* path) {
     if (!path) return -1;

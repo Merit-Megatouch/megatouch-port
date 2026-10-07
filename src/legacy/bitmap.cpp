@@ -822,7 +822,20 @@ Bitmap* load_bitmap_chain(const char* name, bool lang, int max_frames) {
     if (find_asset(name, lang, ".spr", path)) delta = false;
     else if (find_asset(name, lang, ".dlt", path)) delta = true;
     else if (find_asset(name, lang, "", path)) delta = path.find(".dlt") != std::string::npos;
-    else { LOG("LoadBmp: missing %s", name); return nullptr; }
+    else {
+        // a plain picture (switcheroo LoadBmp("infobox") -> infobox.pcx) as a one-frame chain
+        for (const char* ext : {".pcx", ".jpg", ".png", ".tga", ".img"})
+            if (find_asset(name, lang, ext, path)) {
+                auto* b = new Bitmap(0, 0, 1, 16);
+                char buf[512]; snprintf(buf, sizeof buf, "%s", path.c_str());
+                bool ok = !strcmp(ext, ".pcx") ? b->LoadPCX(buf, -1, 8, 0) : !strcmp(ext, ".tga") ? b->LoadTGA(buf, 0)
+                        : !strcmp(ext, ".img") ? b->LoadData(buf, 0, -1) : b->LoadJPEG(buf, -1, 0, 0);
+                if (ok) return b;
+                delete b;
+            }
+        LOG("LoadBmp: missing %s", name);
+        return nullptr;
+    }
     std::vector<uint8_t> d;
     size_t off, count;
     if (!merit_read_gz(path.c_str(), d) || !merit_container(d, off, count)) {

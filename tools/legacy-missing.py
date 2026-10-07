@@ -27,10 +27,15 @@ games = args or sorted(os.path.basename(os.path.dirname(c)) for c in glob.glob(f
 need = {}
 for g in games:
     miss = set()
-    # what the game's own library imports (the preloaded cabinet libraries' own imports are
-    # resolved among themselves and by the runtime)
-    main = f'{R}/games/{g}/lib/{g}.so'
-    if os.path.exists(main): miss |= syms(main, False)
+    # what the game's own libraries import: its .so and the helper libraries it ships
+    # (libmerit3d, libmeritbasegame, libmerit2d...), not the preloaded cabinet service libraries
+    SERVICE = ('libsettings.so', 'libgendef_xml.so', 'libgendef_common.so', 'libgendef_db.so', 'libsystem_info.so',
+               'liblocale.so', 'libenums.so', 'libdebug_shared.so', 'libdebug_mock.so', 'libmvideo.so',
+               'libcontent.so', 'libads.so', 'libGL.so.1', 'libGLU.so.1')
+    for so in glob.glob(f'{R}/games/{g}/lib/*.so'):
+        b = os.path.basename(so)
+        if os.path.islink(so) or 'libmega_stubs' in so or b in SERVICE: continue
+        miss |= syms(so, False)
     for so in glob.glob(f'{R}/games/{g}/lib/*.so'):
         if not os.path.islink(so) and 'libmega_stubs' not in so: miss -= syms(so, True)
     need[g] = sorted(s for s in miss - provided if s not in ('__gmon_start__', '_Jv_RegisterClasses'))

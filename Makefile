@@ -71,7 +71,7 @@ $(BIN)/megatouch-host: $(HOST_OBJ)
 	$(CXX) -rdynamic -o $@.new $^ -ldl -lrt -lpthread && mv $@.new $@
 
 # The cabinet loader's legacy 2D engine, for pre-2009 games (preloaded by megatouch-host).
-$(BIN)/libmerit_legacy.so: $(LEGACY_OBJ)
+$(BIN)/libmerit_legacy.so: $(LEGACY_OBJ) $(OUT)/third_party/stb_vorbis.o
 	@mkdir -p $(BIN)
 	$(CXX) -shared -o $@.new $^ $(LINKPATH) -lSDL2 -lSDL2_image -lz -ldl && mv $@.new $@
 
