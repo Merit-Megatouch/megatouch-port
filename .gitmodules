@@ -175,3 +175,6 @@
 [submodule "games/goal"]
 	path = games/goal
 	url = https://github.com/Merit-Megatouch/goal.git
+[submodule "games/avalanche_jack"]
+	path = games/avalanche_jack
+	url = https://github.com/Merit-Megatouch/avalanche_jack.git
