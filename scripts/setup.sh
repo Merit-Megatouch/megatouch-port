@@ -126,6 +126,11 @@ if ! done_mark "$S/data-common"; then
   # (the root copies are symlinks to /usr/local/ion_only/..., dangling here: replace them)
   find "$D/usr/local/gamedata/translations" "$D/usr/local/gamedata/help" -xtype l -delete
   for d in translations help; do cab_rdump ion "/$d" "$D/usr/local/gamedata"; done
+  # the front end's artwork (menu, game logos, attract screens): root, then the ION-only logos
+  mkdir -p "$D/usr/local/gamedata/menugraphics"
+  for d in main game idle; do cab_rdump root "/usr/local/gamedata/menugraphics/$d" "$D/usr/local/gamedata/menugraphics"; done
+  find "$D/usr/local/gamedata/menugraphics" -xtype l -delete
+  cab_rdump ion /menugraphics/game "$D/usr/local/gamedata/menugraphics"
   for d in locale settings; do cab_rdump var "/merit/$d" "$D/var-template/merit"; done
   cab_dump home /maxx/.fonts.conf "$D/etc/fonts.conf"
   for m in $(cab_ls root /usr/lib/pango/1.5.0/modules | grep '\.so$' | grep -v basic-x); do

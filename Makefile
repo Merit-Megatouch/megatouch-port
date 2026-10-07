@@ -46,7 +46,7 @@ all: build
 # dependencies without using them (everything they did is in libgame_device_sprite.so).
 STUBS := $(addprefix $(BIN)/stubs/,libgraphics_sprite.so libinput_sprite.so libsound_sprite.so libgame_device_irrlicht.so libagl.so)
 
-build: $(BIN)/megatouch-host $(BIN)/libgame_device_sprite.so $(BIN)/gameids $(STUBS) $(BIN)/libmega_unity.so $(BIN)/libmerit_legacy.so $(BIN)/libmerit_gendef.so
+build: $(BIN)/megatouch-menu $(BIN)/megatouch-host $(BIN)/libgame_device_sprite.so $(BIN)/gameids $(STUBS) $(BIN)/libmega_unity.so $(BIN)/libmerit_legacy.so $(BIN)/libmerit_gendef.so
 
 $(BIN)/stubs/%.so:
 	@mkdir -p $(dir $@)
@@ -65,6 +65,11 @@ $(BIN)/libgame_device_sprite.so: $(BACKEND_OBJ)
 	@mkdir -p $(BIN)
 	$(CXX) -shared -o $@.new $^ $(LINKPATH) -lgame_device -lgraphics -lcore -linput -lmerit_sound \
 	    -lSDL2 -lSDL2_image -lz -ldl && mv $@.new $@
+
+# Our own front end (phase 2): menu, attract, high scores, operator settings; launches games.
+$(BIN)/megatouch-menu: $(OUT)/frontend/menu.o
+	@mkdir -p $(BIN)
+	$(CXX) -o $@.new $^ $(LINKPATH) -lSDL2 -lSDL2_image -lz && mv $@.new $@
 
 $(BIN)/megatouch-host: $(HOST_OBJ)
 	@mkdir -p $(BIN)

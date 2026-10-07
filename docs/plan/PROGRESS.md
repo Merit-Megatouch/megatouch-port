@@ -17,7 +17,7 @@ each working game or shared fix.
 
 | Family | Games (libs) | Working | Route | Next |
 | --- | ---: | ---: | --- | --- |
-| GameDevice | 21 games | 20 run (3 played by hand; 17 smoke-tested) | SDL2 backend + loader stand-ins | g_mystery_phraze_hd deferred: needs DBFClass (dBase reader), RandomizedArrayClass and the gendef record xml_gamerandom::MystPICRAND_record (abstract_xml_record subclass) — 18 symbols |
+| GameDevice | 21 games | 21 run (3 played by hand; 18 smoke-tested) | SDL2 backend + loader stand-ins | hand play-tests |
 | Unity 3.2 | 30 | 30 run (1 played by hand) | cabinet LinuxPlayer + launcher.xml (real format) + FMOD shim + fs shim | hand play-tests; clocker/close-the-clock washed out |
 | Legacy 2D | 133 scaffolded | 132 of 135 run in the batch (2026-10-07 late); all but a few published | `src/legacy` (C API, sprite engine incl. SObj and Gash worlds, Bitmap, BmpFont, Allegro subset, TTF) + `src/gendef` | safari (flagged); golf (8-bit software 3D, BMAP layer: renders little); missing content packs (cepixmix, chpixmix, chboxxi, chlookout, celookout, comboxxi, pomboxxi, locboxxi, pixmix: g_chip_*/g_chain_*/g_com_*/g_pom_* lists not on the image); ginrummy hangs; hand play-tests |
 | AllegroGL / Merit3D | 19 scaffolded | 18 run (+ snake, racing, shooter, beer_pong from the ion partition) | GL window + `src/legacy` + 3D-side stand-ins + AllegroGL extension pointers | luxor2: its embedded libjpeg fails on the splash screen (cinfo->inputctl NULL); hand play-tests |
@@ -124,7 +124,12 @@ run. idle (attract mode) belongs to the front end, not the games list.
   SoundOGG via stb_vorbis, singletons/no-ops, Allegro globals `screen`/`key`, allegro_gl_flip),
   set `GL=1` in game.conf, iterate on crashes.
 
-## Loader (phase 2) — notes for later
+## Loader (phase 2) — started 2026-10-07
+
+**First version done: `./menu`** (src/frontend/menu.cpp, docs/guides/frontend.md): attract,
+categories, game grid with the cabinet's logos, game info + player count, launch and return,
+high scores, operator setup (free play/credits/language/volume). Next: apply volume, per-game
+high-score tables, help screens (gamedata/help), jukebox, in-game exit/continue overlay.
 
 - Real loader: `/usr/local/bin/loader` (2.9 MB, packed). Menu art: `/usr/local/gamedata/menugraphics`,
   operator: `/usr/local/gamedata/opsetup`, settings `/var/merit/settings.xml`, attract videos

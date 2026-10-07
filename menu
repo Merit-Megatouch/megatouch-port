@@ -1,0 +1,7 @@
+#!/bin/sh
+# Start the Megatouch front end (shared/bin/megatouch-menu) with the games' 32-bit runtime.
+R=$(cd "$(dirname "$0")" && pwd)
+RT="$R/shared/runtime"
+export LD_LIBRARY_PATH="$RT:$RT/pulseaudio"
+export LIBGL_DRIVERS_PATH="$RT/dri"
+exec "$RT/ld-linux.so.2" "$R/shared/bin/megatouch-menu" --repo "$R" "$@"
