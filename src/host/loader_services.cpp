@@ -225,6 +225,31 @@ void Logger::Log(char const* file, char const*, unsigned long line, unsigned lon
 //   +0x24 player count (MEGA_PLAYERS)       +0x2038 current GameId
 //   +0x22dc SystemClass object               +0x22e0 MouseManager object
 //   +0x5ae4 name of the last touched zone    +0x5b70 VideoClass*    +0x5b74 text buffer
+// The catalogue record kept in MegacGlobals+0x0c (0x24c bytes, from the games' map node size).
+// Known field: +0xb0 the game's folder name (run21 builds gamegraphics/<it>_new/...).
+namespace db_gamedata {
+class gamedata_record {
+public:
+    gamedata_record();
+    gamedata_record(gamedata_record const&);
+    ~gamedata_record();
+    unsigned char raw[0x24c];
+};
+gamedata_record::gamedata_record() { memset(raw, 0, sizeof raw); }
+gamedata_record::gamedata_record(gamedata_record const& o) { memcpy(raw, o.raw, sizeof raw); }
+gamedata_record::~gamedata_record() {}
+}
+static void init_catalogue(unsigned char* at, int gid) {
+    using Catalogue = std::map<int, db_gamedata::gamedata_record>;
+    static_assert(sizeof(Catalogue) == 0x18, "std::map layout");
+    auto* m = new (at) Catalogue;
+    db_gamedata::gamedata_record r;
+    std::string lib = getenv("MEGA_LIB") ? getenv("MEGA_LIB") : "";
+    if (lib.size() > 3 && lib.compare(lib.size() - 3, 3, ".so") == 0) lib.resize(lib.size() - 3);
+    snprintf(reinterpret_cast<char*>(r.raw + 0xb0), 0x40, "%s", lib.c_str());
+    (*m)[gid] = r;
+}
+
 class MegacGlobals { public: static MegacGlobals* GetInstance(); };
 MegacGlobals* MegacGlobals::GetInstance() {
     static unsigned char g[0x8000];
@@ -239,6 +264,10 @@ MegacGlobals* MegacGlobals::GetInstance() {
         const char* id = getenv("MEGA_GAME_ID");
         int gid = id ? atoi(id) : 0;
         memcpy(g + 0x2038, &gid, 4);
+        // +0x0c: std::map<xml_gameinfo::GameIds, db_gamedata::gamedata_record> (game catalogue),
+        // indexed by games with their GameId (run21). Same libstdc++ _Rb_tree layout as the
+        // games' own template code; holds the current game's entry.
+        init_catalogue(g + 0x0c, gid);
     }
     return reinterpret_cast<MegacGlobals*>(g);
 }
@@ -287,3 +316,4 @@ Books* Books::Instance() { static char inst[64]; return reinterpret_cast<Books*>
 int Books::Credits(xml_gameinfo::GameIds, enums::Span) { return 0; }
 void Books::LogCategoryPlays(xml_gameinfo::GameIds, int, int) {}
 bool Books::ContinueGame(xml_gameinfo::GameIds, int, int) { return true; }
+

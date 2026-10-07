@@ -79,6 +79,14 @@ int rename(const char* a, const char* b) { REAL(rename); RPATH(a); RPATH(b); ret
 int symlink(const char* a, const char* b) { REAL(symlink); RPATH(b); return real_symlink(a, b); }
 char* realpath(const char* path, char* out) { REAL(realpath); RPATH(path); return real_realpath(path, out); }
 int stat64(const char* path, struct stat64* st) { REAL(stat64); RPATH(path); return real_stat64(path, st); }
+// glibc >= 2.33 exports stat/lstat directly (our own libraries call these)
+int stat(const char* path, struct stat* st) { REAL(stat); RPATH(path); return real_stat(path, st); }
+int lstat(const char* path, struct stat* st) {
+    REAL(lstat); REAL(stat);
+    const char* orig = path;
+    RPATH(path);
+    return path != orig ? real_stat(path, st) : real_lstat(path, st);
+}
 // Inside data/ the links are ours (sharing files with shared/), not the cabinet's: a redirected
 // lstat follows them, so the game sees a folder where the cabinet had a folder.
 int lstat64(const char* path, struct stat64* st) {

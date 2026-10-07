@@ -819,3 +819,15 @@ void free_bitmap_chain(Bitmap* b) {
     while (b) { Bitmap* n = b->next; delete b; b = n; }
 }
 }  // namespace legacy
+
+// VideoClass::ShowPCX(name, x, y, flag): a picture straight onto the open buffer (run21, tritowers)
+class VideoClass { public: static void ShowPCX(char const*, short, short, unsigned char); };
+void VideoClass::ShowPCX(char const* name, short x, short y, unsigned char) {
+    if (!name) return;
+    Bitmap b(0, 0, 0, 16);
+    char buf[512];
+    snprintf(buf, sizeof buf, "%s", name);
+    if (b.LoadPCX(buf, -1, 8, 0)) b.Display(x, y, 0);
+}
+namespace TextUtils { bool ContainsArabic(char const*); }
+bool TextUtils::ContainsArabic(char const*) { return false; }
