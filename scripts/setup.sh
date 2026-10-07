@@ -122,6 +122,10 @@ if ! done_mark "$S/data-common"; then
   D=$S/data-common
   mkdir -p "$D/usr/local/gamedata" "$D/var-template/merit" "$D/etc" "$D/pango/modules"
   for d in config translations help ttf fonts; do cab_rdump root "/usr/local/gamedata/$d" "$D/usr/local/gamedata"; done
+  # the ION-only games keep their translations and help on the ion partition
+  # (the root copies are symlinks to /usr/local/ion_only/..., dangling here: replace them)
+  find "$D/usr/local/gamedata/translations" "$D/usr/local/gamedata/help" -xtype l -delete
+  for d in translations help; do cab_rdump ion "/$d" "$D/usr/local/gamedata"; done
   for d in locale settings; do cab_rdump var "/merit/$d" "$D/var-template/merit"; done
   cab_dump home /maxx/.fonts.conf "$D/etc/fonts.conf"
   for m in $(cab_ls root /usr/lib/pango/1.5.0/modules | grep '\.so$' | grep -v basic-x); do
