@@ -29,7 +29,11 @@ the game's DLLName, for example `g_trix`.
 | `make publish GAME=<name>\|all` | Push to GitHub, creating repos and submodules as needed | seconds |
 | `make docs` | Regenerate [games.md](games.md) | 30 s |
 | `make survey` | Regenerate [gamedevice-survey.md](gamedevice-survey.md) | 5–10 min |
-| `make clean` | Delete `build/` (object files) | — |
+| `make loader-setup` | The cabinet's own loader: dump its partitions to `build/loader/`, download and patch Xephyr ([guide](../guides/cabinet-loader.md)) | 3–10 min |
+| `make loader` | Build the loader's stand-ins into `build/loader/bin/` | seconds |
+| `make loader-run` | Run the cabinet's loader in a Xephyr window | — |
+| `make loader-reset` | Restore the loader's `/var` from `build/loader/var.orig` | seconds |
+| `make clean` | Delete `build/` (object files) except `build/loader/` (extracted cabinet, loader settings); the loader's stand-ins are rebuilt by `make loader` | — |
 | `make help` | Command summary | — |
 
 ### make setup

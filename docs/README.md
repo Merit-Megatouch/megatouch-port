@@ -10,6 +10,7 @@ the remaining 200-odd.
 | I want to… | Read |
 | --- | --- |
 | Play Trix or Word Dojo 2 | [Quick start](guides/quick-start.md) |
+| Run the cabinet's original loader (menus, operator setup, coins, keys) | [Cabinet loader](guides/cabinet-loader.md) |
 | Port another game | [Porting a game](guides/porting-a-game.md), then the [survey](reference/gamedevice-survey.md) to pick one |
 | Fix something that doesn't work | [Troubleshooting](guides/troubleshooting.md) |
 | Find out why a game crashes or lags | [Debugging](guides/debugging.md) |
@@ -25,6 +26,7 @@ the remaining 200-odd.
 | [porting-a-game](guides/porting-a-game.md) | Scaffold → stand-ins → first run → play-through → commit, worked through on Word Dojo 2 |
 | [debugging](guides/debugging.md) | Symptom → tool table; crash traces, screenshots, autoclick, paths, sound, profiler, ABI questions |
 | [troubleshooting](guides/troubleshooting.md) | Setup, launch, gameplay and git problems with fixes |
+| [cabinet-loader](guides/cabinet-loader.md) | The original loader in a sandbox: setup, controls (F1 setup, F5-F8 coins, F9/F10 keys), operator key, stand-ins, known issues |
 | [contributing](guides/contributing.md) | Main repo vs game repos, everyday git, publishing, credentials, what to update, testing |
 
 ## Reference (look things up)
@@ -42,6 +44,7 @@ the remaining 200-odd.
 | [known-bugs](reference/known-bugs.md) | Open issues; every bug fixed so far by category; diagnosing a new crash |
 | [games](reference/games.md) | All 194 cabinet games: GameId, library, family, resolution, port status *(generated: `make docs`)* |
 | [gamedevice-survey](reference/gamedevice-survey.md) | Each GameDevice game's missing loader symbols, easiest first *(generated: `make survey`)* |
+| [io-board](reference/io-board.md) | USB I/O board protocol, encrypted loader, security key and operator fob (iButton) formats |
 | [glossary](reference/glossary.md) | Terms used throughout |
 
 ## History

@@ -151,6 +151,17 @@ high-score tables, help screens (gamedata/help), jukebox, in-game exit/continue 
   (language, volume, free play) written to a settings file that `run` passes as MEGA_* env.
 
 ## Log (newest first)
+- 2026-10-07: loader stand-ins: `ossmix` → PulseAudio volume (Volume Control works), optional
+  joystick (MEGAIO_JOYSTICK=1, arrows/Space/Enter, axes matched to the calibration screen),
+  CALIBRATE verified, `layout` startup crash traced to the cabinet's liblogging (harmless),
+  MEGA_LOADER_VAR for parallel test sessions.
+- 2026-10-07: the cabinet's own loader runs unmodified (2021 `start`): `make loader-setup`,
+  `make loader-run`, docs/guides/cabinet-loader.md. Stand-ins in src/fakeio (fake USB I/O board as
+  libusb-1.0.so.0, MicroTouch TwDrvFifo, OSS→PulseAudio, startfix/crashlog preloads, ION PCI list),
+  nested Xephyr with patched RandR sizes. Verified: attract, menus, Operator Setup + I/O test,
+  coins/credits, operator key + PIN, player key, classic and Unity games with sound. Hotkeys F1
+  setup, F2 calibrate, F5-F8 coins, F9 operator key, F10 player key.
+- 2026-10-07: I/O board + security key + operator fob reverse-engineered from the decrypted loader and the FX1 firmware: docs/reference/io-board.md (tools + decompiles in reference/loader/, git-ignored). The 2021 `start` is the crack (KeyManager::Check, USBConfirmKeyID = return 1); it still needs the board.
 - 2026-10-07 late: Random(n) is 0..n inclusive (ginrummy plays); 16-bit allocframe frames for
   golf (course thumbnails right; golf still crashes later: its BMAP layer asks for frames with
   garbage sizes); destroy_bitmap ignores bitmaps it never made. Batch: 140 of 145 without a crash.

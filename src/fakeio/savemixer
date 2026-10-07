@@ -1,0 +1,3 @@
+#!/bin/sh
+# savemixer stand-in: ossmix already keeps its values in $MEGAIO_DIR/mixer.
+exit 0

@@ -39,6 +39,8 @@ used to extract files; ported games never read it. Cabinet code and assets are n
 | --- | --- |
 | [Quick start](docs/guides/quick-start.md) | From nothing to playing |
 | [Porting a game](docs/guides/porting-a-game.md) | The workflow, worked through on Word Dojo 2 |
+| [Cabinet loader](docs/guides/cabinet-loader.md) | Run the cabinet's own, unmodified loader: menus, Operator Setup, coins, keys, every game |
+| [I/O board](docs/reference/io-board.md) | The USB I/O board, security key and operator key, as read from the image |
 | [Debugging](docs/guides/debugging.md) · [Troubleshooting](docs/guides/troubleshooting.md) | When something goes wrong |
 | [Contributing](docs/guides/contributing.md) | Repos, submodules, publishing |
 | [Roadmap](docs/roadmap.md) | Every family, and the loader |
@@ -56,6 +58,12 @@ slots. Our host program, `megatouch-host`, stands in for the dozen loader functi
 still call, and redirects the cabinet's file paths into a per-game `data/` folder.
 [Architecture](docs/reference/architecture.md).
 
+The cabinet's own loader also runs, unmodified, in a sandbox built from the image
+(`make loader-setup`, `make loader-run`). Stand-ins replace the hardware it expects: a fake USB
+I/O board (coins, buttons, operator and player keys on F-keys), a fake touchscreen controller,
+OSS sound through PulseAudio, and a nested X server that can change resolution.
+[Cabinet loader](docs/guides/cabinet-loader.md).
+
 ## Commands
 
 ```
@@ -70,6 +78,9 @@ make snapshot                    copy what porting needs out of the image
 make games                       regenerate every game's lib/ + data/ (after a clone)
 make publish GAME=<dll>|all      push to GitHub; games are submodules
 make docs | make survey          regenerate the game catalogue | the porting survey
+make loader-setup                the cabinet's own loader: extract its partitions, fetch Xephyr (once)
+make loader-run                  run it (F1 setup, F5-F8 coins, F9 operator key, F10 player key)
+make loader-reset                put its /var (settings, NVRAM, books) back as on the image
 ```
 
 All options and environment variables: [docs/reference/commands.md](docs/reference/commands.md).
@@ -79,11 +90,12 @@ All options and environment variables: [docs/reference/commands.md](docs/referen
 | Path | In git | What |
 | --- | --- | --- |
 | `Makefile`, `cabinet.conf`, `repos.conf` | yes | Commands; image settings (your path goes in `cabinet.local.conf`, ignored); GitHub org |
-| `scripts/` | yes | `setup`, `new-game`, `publish`, `snapshot-cabinet`, `launch`; `lib/` helpers; `packages/` lists |
+| `scripts/` | yes | `setup`, `new-game`, `publish`, `snapshot-cabinet`, `launch`, `loader`, `loader-setup`; `lib/` helpers; `packages/` lists |
 | `src/backend/` | yes | SDL2 backend: `device` `textures` `sprites` `input` `sound` `net` `spr` |
 | `src/host/` | yes | `megatouch-host`: `main`, `fs_shim`, `loader_services`, `profiler` |
 | `src/legacy/` | yes | `libmerit_legacy.so`: the loader's legacy 2D engine, reconstructed |
 | `src/unity/` | yes | `libmega_unity.so`, preloaded into the Unity player (FMOD → PulseAudio) |
+| `src/fakeio/` | yes | Stand-ins for running the cabinet's loader: fake I/O board (`libusb-1.0.so.0`, `megaio`), touchscreen driver, OSS sound, `ossmix`, startup/crash preloads, test tools |
 | `tools/` | yes | `analyze` `decompile` `package` `catalog` `survey` `vtdump` `sprdump` `profreport` `gameinfo` `largest-png` `gameids` |
 | `docs/` | yes | `guides/`, `reference/`, `history/`, `roadmap.md`, `data/` |
 | `games/<dll>/` | own repo | `Merit-Megatouch/<dll>` as a submodule: `game.conf`, `NOTES.md`, `notes/`; `lib/` + `data/` regenerated |

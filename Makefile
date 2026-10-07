@@ -12,6 +12,9 @@
 #   make publish GAME=...          push a game repo to GitHub (submodule of this repo); GAME=all for everything
 #   make stubs GAME=...            placeholder loader functions so a game loads (each logs its first call)
 #   make docs                      regenerate the game catalogue; make survey for the porting survey (slow)
+#   make loader-setup              the cabinet's own loader: extract its partitions, fetch Xephyr (once)
+#   make loader / loader-run       build our stand-in devices / run the original loader (Xephyr window)
+#   make loader-reset              put the loader's /var back as it was on the image
 #   make help                      this text
 
 R        := $(abspath .)
@@ -39,7 +42,7 @@ GENDEF_SRC  := $(wildcard src/gendef/*.cpp)
 GENDEF_OBJ  := $(GENDEF_SRC:src/%.cpp=$(OUT)/%.o)
 HEADERS     := $(wildcard src/*/*.h)
 
-.PHONY: all build setup new run analyze decompile package snapshot games publish stubs docs survey clean help
+.PHONY: loader loader-setup loader-run loader-reset all build setup new run analyze decompile package snapshot games publish stubs docs survey clean help
 all: build
 
 # Empty stand-ins for the cabinet's other backend libraries: some games list them as
@@ -152,8 +155,60 @@ docs:
 survey:
 	tools/survey.sh
 
+# keeps build/loader (the extracted cabinet and the loader's /var); only its compiled stand-ins go
 clean:
-	rm -rf $(OUT)
+	@[ -d "$(OUT)" ] && find "$(OUT)" -mindepth 1 -maxdepth 1 ! -name loader -exec rm -rf {} + || true
+	rm -rf "$(OUT)/loader/bin"
 
 help:
-	@sed -n '3,15p' Makefile | sed 's/^# \{0,1\}//'
+	@sed -n '3,18p' Makefile | sed 's/^# \{0,1\}//'
+
+# ---- The cabinet's own loader, run unmodified in a sandbox (docs/guides/cabinet-loader.md) ----
+LB      := $(OUT)/loader/bin
+LOADER  := $(LB)/libusb-1.0.so.0 $(LB)/libTwDrvFifo.so $(LB)/startfix.so $(LB)/crashlog.so \
+           $(LB)/ossfake.so $(LB)/xshot $(LB)/xtouch $(LB)/megaio $(LB)/xinit.sh $(LB)/shots.sh \
+           $(LB)/pci-devices.ion945gc $(LB)/bin/ossmix $(LB)/bin/savemixer
+I386EXE := -Wl,--dynamic-linker=/lib/ld-linux.so.2
+
+loader: $(LOADER)
+loader-setup:
+	scripts/loader-setup.sh
+loader-run: loader
+	scripts/loader.sh
+loader-reset:
+	rm -rf "$(OUT)/loader/var" && cp -a "$(OUT)/loader/var.orig" "$(OUT)/loader/var"
+
+$(LB)/libusb-1.0.so.0: src/fakeio/fakeio.c src/fakeio/megaio.h
+	@mkdir -p $(LB)
+	$(CC) -O2 -g -fPIC -shared -Wall -Wno-unused-result -Wl,-soname,libusb-1.0.so.0 -o $@ $<
+$(LB)/libTwDrvFifo.so: src/fakeio/twdrvfifo.c
+	@mkdir -p $(LB)
+	$(CC) -O2 -g -fPIC -shared -Wall -Wl,-soname,libTwDrvFifo.so -o $@ $<
+$(LB)/startfix.so: src/fakeio/startfix.c
+	@mkdir -p $(LB)
+	$(CC) -O2 -g -fPIC -shared -Wall -o $@ $< -ldl
+$(LB)/crashlog.so: src/fakeio/crashlog.c
+	@mkdir -p $(LB)
+	$(CC) -O1 -g -fPIC -shared -Wall -o $@ $< -ldl
+$(LB)/ossfake.so: src/fakeio/ossfake.c
+	@mkdir -p $(LB)
+	$(CC) -O2 -g -fPIC -shared -Wall -o $@ $< -ldl -lpthread
+$(LB)/xshot: src/fakeio/xshot.c
+	@mkdir -p $(LB)
+	$(CC) -O2 -I$(I386)/usr/include -o $@ $< -L$(I386LIB) -lz -ldl $(I386EXE)
+$(LB)/xtouch: src/fakeio/xtouch.c
+	@mkdir -p $(LB)
+	$(CC) -O2 -o $@ $< -ldl $(I386EXE)
+$(LB)/megaio: src/fakeio/megaio.c src/fakeio/megaio.h
+	@mkdir -p $(LB)
+	gcc -O2 -Wall -o $@ $<
+# programs that replace cabinet tools: /opt/fakeio/bin comes first in the sandbox's PATH
+$(LB)/bin/ossmix: src/fakeio/ossmix.c
+	@mkdir -p $(LB)/bin
+	$(CC) -O2 -Wall -I$(T)/debug/root/usr/include -o $@ $< -x none $(R)/shared/runtime/libpulse.so.0 -Wl,--allow-shlib-undefined $(I386EXE)
+$(LB)/bin/savemixer: src/fakeio/savemixer
+	@mkdir -p $(LB)/bin
+	cp $< $@
+$(LB)/%: src/fakeio/%
+	@mkdir -p $(LB)
+	cp $< $@
