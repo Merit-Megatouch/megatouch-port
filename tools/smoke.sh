@@ -15,7 +15,7 @@ W=$(sed -n 's/^WIDTH=//p' "$GD/game.conf"); H=$(sed -n 's/^HEIGHT=//p' "$GD/game
 cx=$(( ${W:-800} / 2 )); cy=$(( ${H:-600} / 2 ))
 if grep -q '^ENGINE=unity' "$GD/game.conf"; then
   # Unity: needs the real display; screenshots come from libmega_unity.so's glXSwapBuffers hook
-  MEGA_SHOT_DIR="$O" MEGA_SHOT_EVERY=180 timeout "$SECS" "$GD/run" > "$O/log.txt" 2>&1
+  MEGA_SHOT_DIR="$O" MEGA_SHOT_EVERY=180 timeout -k 5 "$SECS" "$GD/run" > "$O/log.txt" 2>&1
   rc=$?
   shots=$(ls "$O" | grep -c '^frame')
   printf '%-28s rc=%-3s shots=%-3s crash=%s\n' "$G" "$rc" "$shots" "$(grep -cE 'Segmentation|SIGSEGV|Crash!!!' "$O/log.txt")"
@@ -31,7 +31,7 @@ else
   every=150
 fi
 SDL_VIDEODRIVER=offscreen SDL_AUDIODRIVER=dummy MEGA_SHOT_DIR="$O" MEGA_SHOT_EVERY=$every \
-  MEGA_AUTOCLICK="$clicks" timeout "$SECS" "$GD/run" > "$O/log.txt" 2>&1
+  MEGA_AUTOCLICK="$clicks" timeout -k 5 "$SECS" "$GD/run" > "$O/log.txt" 2>&1
 rc=$?
 shots=$(ls "$O" | grep -c '^frame')
 crash=$(grep -c '^\*\*\* signal' "$O/log.txt")
