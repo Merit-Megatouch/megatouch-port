@@ -236,8 +236,13 @@ preload_cabinet_libs() {
       grep -q '^_ZN8Settings\|^_ZTI8Settings' "$R/build/unresolved/$(basename "$GD").txt" 2>/dev/null && add=" libsettings.so" ;;
     legacy)
       # cabinet service libraries (settings, gendef xml records, books, system_info...) that
-      # define what the game imports and src/legacy does not implement
-      "$R/scripts/lib/legacy-preload.sh" "$DLL" >/dev/null; return 0 ;;
+      # define what the game imports and src/legacy does not implement; then placeholders
+      # (libmega_stubs.so, logged on first call) for whatever is still unimplemented
+      "$R/scripts/lib/legacy-preload.sh" "$DLL" >/dev/null
+      if [ -n "$("$R/tools/legacy-missing.py" "$DLL" | sed -n '/^# top/,$p' | tail -n +2)" ]; then
+        make -C "$R" -s stubs GAME="$DLL" >/dev/null 2>&1 && say "unimplemented loader functions stubbed (lib/libmega_stubs.so)"
+      fi
+      return 0 ;;
   esac
   [ -n "$add" ] || return 0
   for l in $add; do
