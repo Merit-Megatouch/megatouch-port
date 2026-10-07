@@ -92,6 +92,9 @@ if [ "$(conf ENGINE)" = unity ]; then
 fi
 
 export LD_LIBRARY_PATH="$D/lib:$R:$R/pulseaudio"
+# some 2008-era libraries (libdb.so.2) have no PT_GNU_STACK header, i.e. they ask for an
+# executable stack; glibc >= 2.41 refuses to dlopen them unless allowed
+export GLIBC_TUNABLES="${GLIBC_TUNABLES:+$GLIBC_TUNABLES:}glibc.rtld.execstack=2"
 export LIBGL_DRIVERS_PATH="$R/dri"
 export FONTCONFIG_FILE="$D/data/etc/fonts.conf"
 # Pango 1.14 loads its shaping engines from absolute paths listed in pango.modules.
@@ -101,6 +104,6 @@ sed "s|/usr/lib/pango/1.5.0/modules|$D/data/pango/modules|" "$D/data/pango/pango
 printf '[Pango]\nModuleFiles = %s\n' "$PR/pango.modules" > "$PR/pangorc"
 export PANGO_RC_FILE="$PR/pangorc"
 # The 2008 engine has a few use-after-free patterns that the old allocator tolerated.
-export GLIBC_TUNABLES=glibc.malloc.tcache_count=0
+export GLIBC_TUNABLES="$GLIBC_TUNABLES:glibc.malloc.tcache_count=0"
 export MEGA_HOME="$D"
 exec "$R/ld-linux.so.2" "$D/megatouch-host" "$@"

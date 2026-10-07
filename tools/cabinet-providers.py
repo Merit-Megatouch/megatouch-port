@@ -12,7 +12,7 @@ import collections, glob, os, subprocess, sys
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 IDX = f'{R}/build/index/cabinet-syms.tsv'
 SERVICE_LIBS = ['libsettings.so', 'libgendef_xml.so', 'libgendef_common.so', 'libgendef_db.so',
-                'libsystem_info.so', 'liblocale.so', 'libenums.so', 'liblayout.so',
+                'libsystem_info.so', 'liblocale.so', 'libenums.so',
                 'libdebug_shared.so', 'libmvideo.so',
                 'libcontent.so', 'libads.so', 'libdebug_mock.so']
 
@@ -40,8 +40,16 @@ for lib in [f'{R}/shared/bin/libmerit_legacy.so', f'{R}/shared/bin/megatouch-hos
 miss = set()
 own = [so for so in glob.glob(f'{R}/games/{g}/lib/*.so') if not os.path.islink(so) and 'libmega_stubs' not in so]
 main = f'{R}/games/{g}/lib/{g}.so'
-miss = nm(main, False) if os.path.exists(main) else set()
-miss -= provided
+# imports of the game's own libraries: its .so plus helper libraries it ships (libmerit2d.so,
+# libmeritbasegame.so...), less what they define for each other
+miss = set()
+gamedefs = set()
+for so in own:
+    b = os.path.basename(so)
+    if b in SERVICE_LIBS: continue
+    miss |= nm(so, False)
+    gamedefs |= nm(so, True)
+miss -= provided | gamedefs
 idx = collections.defaultdict(set)
 for l in open(IDX):
     s, f = l.rstrip('\n').split('\t')

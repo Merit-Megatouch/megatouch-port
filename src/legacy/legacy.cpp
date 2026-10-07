@@ -1100,3 +1100,19 @@ void AnimationBackToStart(_MSmack* m) { AnimationGoto(m, 1); }   // frames are 1
 extern "C" void voice_start(int) {}
 // Seniors-edition help overlay: not shown
 void SeniorsHelp(int, bool) {}
+
+// Screen mode queries (the loader's liblayout talks to a layout daemon over IPC; not loaded).
+// ScreenInfo::GetInstance() + 0x58 is the layout::ScreenControl games query.
+namespace xml_screencontrol { enum Resolution : int {}; enum Engine : int {}; enum FullScreenMode : int {}; enum WindowStackPosition : int {}; enum DisplayColorDepth : int {}; }
+namespace layout { class ScreenControl { public: int GetCurrentWidth() const; int GetCurrentHeight() const; }; }
+int layout::ScreenControl::GetCurrentWidth() const { return legacy::screen_w(); }
+int layout::ScreenControl::GetCurrentHeight() const { return legacy::screen_h(); }
+class ScreenInfo {
+public:
+    static ScreenInfo* GetInstance();
+    void SwitchVideoMode(xml_screencontrol::Resolution, xml_screencontrol::Engine, xml_screencontrol::FullScreenMode,
+                         xml_screencontrol::WindowStackPosition, xml_screencontrol::DisplayColorDepth);
+};
+ScreenInfo* ScreenInfo::GetInstance() { static unsigned char inst[0x100]; return reinterpret_cast<ScreenInfo*>(inst); }
+void ScreenInfo::SwitchVideoMode(xml_screencontrol::Resolution, xml_screencontrol::Engine, xml_screencontrol::FullScreenMode,
+                                 xml_screencontrol::WindowStackPosition, xml_screencontrol::DisplayColorDepth) {}

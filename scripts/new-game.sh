@@ -122,6 +122,20 @@ extract_assets() {
   # a few catalogue entries name the folder without the g_ prefix it has on disk
   if ! cab_exists ion "/games/$DIR" && ! cab_exists root "/usr/local/games/$DIR" && ! cab_exists root "/usr/local/gamedata/gamegraphics/$DIR" \
      && cab_exists ion "/games/g_$DIR"; then DIR="g_$DIR"; fi
+  # legacy games: the installed version's folder is often <name>_new (run21_new, safari_new,
+  # tritowers_new) or a shorter name (minigolftrackball -> minigolf)
+  if { [ "$FAMILY" = legacy ] || [ "$FAMILY" = merit3d ]; } && ! cab_exists root "/usr/local/gamedata/gamegraphics/$DIR"; then
+    local c alt=""
+    for c in "${DIR}_new" "$DLL" "${DLL}_new"; do
+      cab_exists root "/usr/local/gamedata/gamegraphics/$c" && { alt=$c; break; }
+    done
+    c=$DIR
+    while [ -z "$alt" ] && [ ${#c} -gt 5 ]; do
+      c=${c%?}
+      cab_exists root "/usr/local/gamedata/gamegraphics/$c" && alt=$c
+    done
+    [ -n "$alt" ] && { say "assets in gamegraphics/$alt"; DIR=$alt; }
+  fi
   if { [ "$FAMILY" = legacy ] || [ "$FAMILY" = merit3d ]; } && cab_exists root "/usr/local/gamedata/gamegraphics/$DIR"; then
     ASSET_DIR="usr/local/gamedata/gamegraphics/$DIR"; part=root; src="/usr/local/gamedata/gamegraphics/$DIR"
   elif cab_exists ion "/games/$DIR"; then ASSET_DIR="usr/local/ion_only/games/$DIR"; part=ion; src="/games/$DIR"
