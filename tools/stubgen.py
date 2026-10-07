@@ -33,6 +33,12 @@ for lib in ('shared/bin/libmerit_legacy.so', 'shared/bin/libmerit_gendef.so', 's
     if os.path.exists(path):
         out_ = subprocess.run(['nm', '-D', '--defined-only', path], capture_output=True, text=True).stdout
         provided |= {l.split()[-1] for l in out_.splitlines() if l.strip()}
+# ...nor what the game's other libraries define (preloaded cabinet libraries, helper libraries)
+for name in os.listdir(os.path.join(gd, 'lib')):
+    path = os.path.realpath(os.path.join(gd, 'lib', name))
+    if '.so' in name and 'libmega_stubs' not in name and os.path.isfile(path):
+        out_ = subprocess.run(['nm', '-D', '--defined-only', path], capture_output=True, text=True).stdout
+        provided |= {l.split()[-1].split('@')[0] for l in out_.splitlines() if l.strip()}
 syms = [s for s in syms if s not in provided]
 
 plt = set()
