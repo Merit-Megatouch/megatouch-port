@@ -19,7 +19,7 @@ each working game or shared fix.
 | --- | ---: | ---: | --- | --- |
 | GameDevice | 21 games | 20 run (3 played by hand; 17 smoke-tested) | SDL2 backend + loader stand-ins | g_mystery_phraze_hd deferred: needs DBFClass (dBase reader), RandomizedArrayClass and the gendef record xml_gamerandom::MystPICRAND_record (abstract_xml_record subclass) — 18 symbols |
 | Unity 3.2 | 30 | 30 run (1 played by hand) | cabinet LinuxPlayer + launcher.xml (real format) + FMOD shim + fs shim | hand play-tests; clocker/close-the-clock washed out |
-| Legacy 2D | ~128 games / 143 libs | 4 start (fourplay, conquest, nine, bgammon) | `src/legacy` reconstruction: C API + C++ layer (Bitmap, VideoClass, MouseManager, fonts) | batch scaffold all, implement the union of missing symbols, fix shared visuals |
+| Legacy 2D | 128 scaffolded (`games/*` untracked dirs) | 7 run (fourplay, conquest, nine, bgammon, airhockey plays, quickcell, puckshot) | `src/legacy`: C API + C++ layer + native Allegro 4.0 subset (`allegro.cpp`) + TTF (`ttf.cpp`) | sprite engine (WorldClass/Sprite/Group/List/EventO/String) — top blocker, see below |
 | Merit3D | ~13 | 0 | GL window + `src/legacy` + 3D-side stand-ins | beer pong 21 in progress (see below) |
 
 Per-game state lives in each `games/<name>/NOTES.md` and in `docs/reference/games.md` (`make docs`).
@@ -59,6 +59,23 @@ and phase 2 is our own front end (menu, settings, high scores) that launches gam
 existing routes.
 
 ## In progress
+
+### Legacy engine (2026-10-07)
+- `tools/legacy-missing.py [--per-game] [game…]` ranks what each legacy game still misses (vs
+  libmerit_legacy + megatouch-host). `make stubs GAME=` (now skips what we implement) lets a game load.
+- Allegro: the cabinet liballeg is unusable (its asm drawing core was linked into the loader), so
+  `src/legacy/allegro.cpp` implements the used subset with 4.0 layouts (BITMAP line[] at +0x40,
+  43-slot GFX_VTABLE from __linear_vtable32 relocs, gfx_driver w/h at +0x68/+0x6c).
+  `_RADBitmap` = { BITMAP*; w; h; px; tag } — games blit `*(BITMAP**)rad` directly.
+- `BitmapToBitmap(dst, src, x, y)`: (x,y) = dest position if src fits in dst, else source cut offset.
+- Palette index 0 is transparent black for the *Trans calls with key 0; 5 = magenta key.
+- Autoclick also presses the polled mouse (games use MouseX/Y, GetTouchCoord, mouse_b).
+- BitmapTextTTF(bmp, text, x, y, w, h, c1, c2, c3, size, align, bold, family, spacing): c1..c3
+  meaning unknown (0,0,-255 / 0,-100,-255 / 0,0,0) — drawn white for now. Check against a real
+  screenshot when possible.
+- Next: Sprite/WorldClass engine. Games subclass Sprite (typeinfo for Sprite imported) so its
+  object layout and vtable order must be inferred from game code (start with funkymonkey, goal,
+  moondrop, wildapes, tennis, chess — decompiled in games/*/decomp).
 
 ### Beer Pong 21 (`games/beer_pong_challenge`, Merit3D) — not committed as a game repo yet
 - Loads with `make stubs`; enters `Merit3d::Game::Run`; crashed in `Text2d::Create` because
