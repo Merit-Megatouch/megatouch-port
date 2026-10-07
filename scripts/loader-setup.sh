@@ -3,7 +3,7 @@
 #
 #   1. build/loader/{root,var,home,ion}: the image's sideB root, var, home and ion_only partitions,
 #      plus var.orig, a pristine copy of /var for `make loader-reset`
-#   2. toolchain/debug: Xephyr (+ xkbcomp) downloaded with apt-get download, its RandR size table
+#   2. toolchain/debug: Xephyr (+ xkbcomp), slirp4netns and SDL2 downloaded with apt-get download; Xephyr's RandR size table
 #      patched to offer the cabinet's widescreen modes (768x480, 1280x800); pactl for checking sound
 #   3. build/loader/bin: our stand-ins (make loader builds them)
 # Needs: cabinet.conf / cabinet.local.conf with IMG, debugfs, apt-get, dpkg-deb, bwrap, setsid.
@@ -36,12 +36,13 @@ dump "$ION_OFF" ion      # /usr/local/ion_only, including content/ (the snapshot
 rm -f "$B/var/merit/swapfile"
 [ -d "$B/var.orig" ] || cp -a "$B/var" "$B/var.orig"
 
-step "Xephyr, xkbcomp and pactl → toolchain/debug"
+step "Xephyr, xkbcomp, pactl, slirp4netns and SDL2 (for megaview) → toolchain/debug"
 mkdir -p "$D/debs"
 PKGS="xserver-xephyr libxfont2 libfontenc1 libxcb-shape0 libxcb-render-util0 libxcb-util1
       libxcb-image0 libxcb-icccm4 libxcb-keysyms1 libxcb-xkb1 libxcb-xv0 x11-xkb-utils libxkbfile1
       pulseaudio-utils libpulse0 libsndfile1 libflac14 libvorbisenc2 libvorbis0a libogg0 libopus0
-      libmpg123-0t64 libmp3lame0 libasyncns0 libapparmor1 libpulse-dev slirp4netns libslirp0"
+      libmpg123-0t64 libmp3lame0 libasyncns0 libapparmor1 libpulse-dev slirp4netns libslirp0
+      libsdl2-dev libsdl2-classic libasound2t64 libsamplerate0 libxss1 libdecor-0-0 xvfb"
 (cd "$D/debs" && for p in $PKGS; do
    ls "${p}"_*.deb >/dev/null 2>&1 || apt-get download "$p" >/dev/null 2>&1 || echo "  (skip $p)"; done)
 for d in "$D"/debs/*.deb; do dpkg-deb -x "$d" "$D/root"; done
@@ -63,12 +64,15 @@ else:
     import os; os.chmod(p + '.new', 0o755); os.replace(p + '.new', p)
     print('  Xephyr size table patched at', hex(i))
 EOF
-cat > "$D/Xephyr" <<'EOF'
-#!/bin/sh
-# Xephyr from the downloaded Ubuntu package (toolchain/debug/root). The server runs
-# /usr/bin/xkbcomp, which the host lacks, so inside a bwrap /usr/bin is replaced by a symlink
-# copy of itself (pointing at the real one, mounted at $D/hostbin) plus our xkbcomp.
-#   MEGA_X11_DIR  directory to use as /tmp/.X11-unix (the loader sandbox shares it)
+for server in Xephyr Xvfb; do
+  # $server from the downloaded Ubuntu package (toolchain/debug/root). The server runs
+  # /usr/bin/xkbcomp, which the host lacks, so inside a bwrap /usr/bin is replaced by a symlink
+  # copy of itself (pointing at the real one, mounted at $D/hostbin) plus our xkbcomp.
+  #   MEGA_X11_DIR  directory to use as /tmp/.X11-unix (the loader sandbox shares it)
+  { echo '#!/bin/sh'
+    echo "# $server from toolchain/debug/root, run with our xkbcomp (see scripts/loader-setup.sh)."
+    echo '#   MEGA_X11_DIR  directory to use as /tmp/.X11-unix (the loader sandbox shares it)'
+    cat <<'WRAP'
 D=$(cd "$(dirname "$0")" && pwd)
 B="$D/usrbin"
 mkdir -p "$D/hostbin"
@@ -82,13 +86,15 @@ X11=${MEGA_X11_DIR:?set MEGA_X11_DIR to the socket directory}
 exec bwrap --die-with-parent --dev-bind / / --ro-bind /usr/bin "$D/hostbin" --ro-bind "$B" /usr/bin \
   --tmpfs /tmp --bind "$X11" /tmp/.X11-unix \
   --bind "$(readlink -f /tmp/.X11-unix)/X0" /tmp/.X11-unix/X0 \
-  --setenv LD_LIBRARY_PATH "$D/root/usr/lib/x86_64-linux-gnu" "$D/root/usr/bin/Xephyr" "$@"
-EOF
+  --setenv LD_LIBRARY_PATH "$D/root/usr/lib/x86_64-linux-gnu" "$D/root/usr/bin/SERVER" "$@"
+WRAP
+  } | sed "s#/usr/bin/SERVER\"#/usr/bin/$server\"#" > "$D/$server"
+done
 cat > "$D/pactl" <<'EOF'
 #!/bin/sh
 D=$(cd "$(dirname "$0")" && pwd)
 LD_LIBRARY_PATH="$D/root/usr/lib/x86_64-linux-gnu:$D/root/usr/lib/x86_64-linux-gnu/pulseaudio" exec "$D/root/usr/bin/pactl" "$@"
 EOF
-chmod +x "$D/Xephyr" "$D/pactl"
+chmod +x "$D/Xephyr" "$D/Xvfb" "$D/pactl"
 
 step "Done. Next: make loader && make loader-run"

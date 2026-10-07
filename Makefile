@@ -167,7 +167,7 @@ help:
 # ---- The cabinet's own loader, run unmodified in a sandbox (docs/guides/cabinet-loader.md) ----
 LB      := $(OUT)/loader/bin
 LOADER  := $(LB)/libusb-1.0.so.0 $(LB)/libTwDrvFifo.so $(LB)/startfix.so $(LB)/crashlog.so \
-           $(LB)/ossfake.so $(LB)/xshot $(LB)/xtouch $(LB)/enumtag $(LB)/megaio $(LB)/xinit.sh $(LB)/shots.sh \
+           $(LB)/ossfake.so $(LB)/xshot $(LB)/xtouch $(LB)/enumtag $(LB)/megaview $(LB)/megaio $(LB)/xinit.sh $(LB)/shots.sh \
            $(LB)/pci-devices.ion945gc $(LB)/bin/ossmix $(LB)/bin/savemixer $(LB)/nolog.so $(LB)/layout-quiet \
            $(LB)/zlibcompat.so $(LB)/libz-cabinet.so $(LB)/empty
 I386EXE := -Wl,--dynamic-linker=/lib/ld-linux.so.2
@@ -216,6 +216,18 @@ $(LB)/xshot: src/fakeio/xshot.c
 $(LB)/xtouch: src/fakeio/xtouch.c
 	@mkdir -p $(LB)
 	$(CC) -O2 -o $@ $< -ldl $(I386EXE)
+# megaview runs on the desktop: 64-bit with toolchain/debug's SDL2 (GPU scaling through WSLg's
+# d3d12 Mesa), else 32-bit with the runtime's SDL2 (software OpenGL, more CPU)
+TD := $(R)/toolchain/debug/root
+$(LB)/megaview: src/fakeio/megaview.c
+	@mkdir -p $(LB)
+	if [ -f "$(TD)/usr/include/SDL2/SDL.h" ] && [ -e "$(TD)/usr/lib/x86_64-linux-gnu/sdl2-classic/libSDL2-2.0.so.0" ]; then \
+	  gcc -O2 -Wall -isystem $(TD)/usr/include -isystem $(TD)/usr/include/x86_64-linux-gnu -o $@ $< \
+	    -L$(TD)/usr/lib/x86_64-linux-gnu -Wl,-rpath-link,$(TD)/usr/lib/x86_64-linux-gnu:$(TD)/usr/lib/x86_64-linux-gnu/pulseaudio -l:libSDL2-2.0.so.0 -ldl; \
+	else \
+	  $(CC) -O2 -Wall -isystem $(R)/toolchain/i386/usr/include -isystem $(R)/toolchain/i386/usr/include/i386-linux-gnu \
+	    -o $@ $< -L$(R)/shared/runtime -Wl,-rpath-link,$(R)/shared/runtime:$(R)/shared/runtime/pulseaudio -lSDL2 -ldl; \
+	fi
 $(LB)/enumtag: src/fakeio/enumtag.c
 	@mkdir -p $(LB)
 	$(CC) -O2 -o $@ $< -ldl $(I386EXE)

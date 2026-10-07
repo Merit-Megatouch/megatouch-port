@@ -28,6 +28,11 @@ orange one is the one that does something).
 | Player key on the reader | **F10** |
 | Joystick accessory (only with `MEGAIO_JOYSTICK=1 make loader-run`) | arrow keys; **Space** left button, **Enter** right button |
 
+The window can be resized and maximised; **F11** (or **Alt+Enter**) switches to fullscreen,
+**Ctrl+Alt+S** between keeping the cabinet's shape (black bars) and stretching. The picture
+follows the cabinet's resolution changes (640×480 menus, 768×480 widescreen, 1280×800 games), and
+touches land where you click at any size. Closing the window stops the loader.
+
 The keys are read from the loader's display, so they work while the window has focus. The
 same inputs, and a few more, from a terminal while the loader runs:
 
@@ -76,7 +81,9 @@ games. With it on, *CALIBRATE* (F2) continues into the joystick calibration afte
 touchscreen one.
 
 Settings (environment): `MEGA_LOADER_NET=host` shares the desktop's network instead of giving the
-loader its own (the cabinet then shows no network), `MEGA_LOADER_KEY=none` runs without a
+loader its own (the cabinet then shows no network), `MEGA_LOADER_VIEW=xephyr` uses Xephyr's own window (always the cabinet's exact resolution;
+`MEGAVIEW_STRETCH=1`, `MEGAVIEW_FULLSCREEN=1`, `MEGAVIEW_SCALE=N` set megaview's start-up
+state), `MEGA_LOADER_KEY=none` runs without a
 security-key image, `MEGA_LOADER_VAR=<dir>` uses another directory as `/var` (a second,
 throwaway session: copy `build/loader/var.orig`, pick another `MEGA_LOADER_DISPLAY`), `MEGA_LOADER_X=host` draws on the desktop's X server instead of
 Xephyr (no resolution changes), `MEGA_LOADER_DISPLAY` (default 55), `MEGAIO_TRACE=1` logs every
@@ -182,6 +189,7 @@ the I/O board, not the security key. Everything below is ours; no cabinet file i
 | Touchscreen calibration | the fake controller reports every calibration target as touched; CALIBRATE runs through all resolutions | `src/fakeio/twdrvfifo.c` |
 | Joystick accessory | optional, on the arrow keys, raw values matching the loader's default calibration | `src/fakeio/fakeio.c` |
 | ION 945GC motherboard (platform detection) | a `/proc/bus/pci/devices` listing that board's chipset | `src/fakeio/pci-devices.ion945gc` |
+| The cabinet's monitor | Xephyr runs on an invisible display (Xvfb); `megaview`, an SDL2 window, shows its screen scaled (on the GPU through WSLg when the 64-bit SDL2 from `loader-setup` is there; only changed frames are redrawn) and sends mouse and keys back with XTest. `MEGA_LOADER_VIEW=xephyr` shows Xephyr's own fixed-size window instead | `src/fakeio/megaview.c`, `scripts/loader.sh` |
 | X server with RandR (640×480 menu, 768×480 widescreen, 800×600 and 1280×800 games) | Xephyr from Ubuntu's package, its RandR size table patched to include 768×480 and 1280×800 | `scripts/loader-setup.sh` |
 | `/sys` (Unity's graphics-card probe crashes without it) | the host's, read-only | `scripts/loader.sh` |
 | glibc's charset converters (SDL 1.2 needs them to set window titles; the layout manager finds the sidebar and switcher by title) | `GCONV_PATH` → the runtime's `gconv/` | `scripts/loader.sh` |
