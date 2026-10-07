@@ -8,7 +8,8 @@
 // Model:
 //  * The screen is a 640x480 ARGB buffer, presented through SDL whenever time passes
 //    (Delay, InputCharOrDelay, SystemTimer, AnimationStillDelay, voice polling).
-//  * Bitmaps are _RADBitmap { u32 tag; u32 width; u32 height; ... } — games read +4/+8.
+//  * Bitmaps are _RADBitmap { BITMAP*; u32 width; u32 height; ... } — games read +4/+8 and blit +0
+//    with Allegro (src/legacy/allegro.cpp). The screen is Allegro's `screen` (32-bit memory bitmap).
 //  * Colours are 8-bit "palette indices" from the old API: 0 = black, 5 = the transparency key.
 //    Art is RGB565 (.dlt); pixels the RLE skips are the key colour (stored as 0x00000000).
 //  * Animations (_MSmack, after RAD's Smacker) are .dlt files: u32 version 3, u16 w, h,
@@ -16,6 +17,7 @@
 #include "../common/env.h"
 #include "../common/merit_rle.h"
 #include "legacy_internal.h"
+#include "allegro.h"
 #include <SDL2/SDL.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -30,7 +32,9 @@
 #define LOG(...) do { fprintf(stderr, "[legacy] " __VA_ARGS__); fputc('\n', stderr); } while (0)
 
 // ---------------------------------------------------------------------------------- types
-struct _RADBitmap { uint32_t tag; uint32_t w; uint32_t h; uint32_t* px; };
+// +0 is the Allegro BITMAP (games blit it with Allegro directly), +4/+8 width/height
+struct _RADBitmap { BITMAP* bmp; uint32_t w; uint32_t h; uint32_t* px; uint32_t tag; };
+extern "C" { extern volatile int mouse_x, mouse_y, mouse_b, mouse_pos; }
 struct _MSmack;
 struct SoundBase;
 struct Bitmap;
@@ -71,6 +75,12 @@ static std::vector<std::string> g_pending;       // touched zone names not yet r
 
 static void audio_init();
 static bool touch_debug() { static bool on = menv("DEBUG_TOUCH") != nullptr; return on; }
+
+// Allegro's `screen` is our framebuffer; gfx_driver reports the mode size
+__attribute__((constructor)) static void legacy_screen_ctor() {
+    screen = legacy::al_wrap32(g_fallbackScreen, SW, SH);
+    legacy::al_set_mode(legacy::screen_w(), legacy::screen_h());
+}
 
 static void video_init() {
     if (g_win) return;
@@ -186,6 +196,7 @@ static void pump() {
     if (g_quit && SDL_GetTicks() - g_quitAt > 3000) { LOG("window closed"); _exit(0); }
     // headless checks also re-present a still screen once a second so screenshots keep coming
     static const bool shots = menv("SHOT_DIR");
+    mouse_x = g_mouseX; mouse_y = g_mouseY; mouse_b = g_mouseDown ? 1 : 0; mouse_pos = g_mouseX << 16 | g_mouseY;
     if (!g_gl && (g_dirty || (shots && SDL_GetTicks() - g_lastPresent >= 1000)) && SDL_GetTicks() - g_lastPresent >= 15) present();
 }
 
@@ -198,7 +209,8 @@ static void sleep_ms(Uint32 ms) {
 static _RADBitmap* bmp_new(uint32_t w, uint32_t h, uint32_t fill) {
     auto* b = static_cast<_RADBitmap*>(calloc(1, sizeof(_RADBitmap)));
     b->tag = kTag; b->w = w; b->h = h;
-    b->px = static_cast<uint32_t*>(malloc((size_t)w * h * 4 + 4));
+    b->bmp = create_bitmap_ex(32, (int)w, (int)h);
+    b->px = static_cast<uint32_t*>(b->bmp->dat);
     for (size_t i = 0; i < (size_t)w * h; i++) b->px[i] = fill;
     return b;
 }
@@ -363,7 +375,7 @@ static Pcm* wave_load(const char* name) {
 _RADBitmap* MouseBmp;                                // cursor bitmap passed to MouseAdd; unused
 
 _RADBitmap* BitmapAlloc(unsigned long w, unsigned long h, unsigned char) { video_init(); return bmp_new(w, h, color_of(0)); }
-void BitmapFree(_RADBitmap* b) { if (b && b->tag == kTag) { b->tag = 0; free(b->px); free(b); } }
+void BitmapFree(_RADBitmap* b) { if (b && b->tag == kTag) { b->tag = 0; destroy_bitmap(b->bmp); free(b); } }
 void BitmapClear(_RADBitmap* b, unsigned char c, int, int, int) {
     if (!b) return;
     uint32_t v = color_of(c);
@@ -576,6 +588,8 @@ extern "C" void voice_set_volume(int voice, int vol) { legacy::set_voice_volume(
 namespace legacy {
 void video_init() { ::video_init(); }
 void pump() { ::pump(); }
+void screen_touched() { g_dirty = true; }
+void warp_mouse(int x, int y) { g_mouseX = x; g_mouseY = y; }
 bool gl_mode() { return g_gl; }
 SDL_Window* window() { return g_win; }
 int screen_w() { return g_gl ? menv_int("WIDTH", 1024) : SW; }

@@ -104,10 +104,9 @@ if ! done_mark "$S/cabinet-libs"; then
   # third-party libs the engine was built against whose sonames/ABIs are gone from distros
   scripts/lib/extract-libs.sh "$S/cabinet-libs" libexpat.so.0 libsqlite.so.0 libsqlite3.so.0 \
       libssl.so.6 libpango-1.0.so.0 libpangoft2-1.0.so.0
-  # Allegro 4.0 (open source) for the legacy games, which call it directly; only the library
-  # itself — its X11 dependencies come from the modern runtime
-  cab_dump root /usr/local/lib/liballeg-4.0.0.so "$S/cabinet-libs/liballeg-4.0.0.so"
-  ln -sfn liballeg-4.0.0.so "$S/cabinet-libs/liballeg.so.4.0"
+  # (Allegro 4.0, which legacy games call directly, is not taken from here: the cabinet's
+  # liballeg-4.0.0.so lacks its assembler drawing core, which lived in the loader executable.
+  # src/legacy/allegro.cpp implements the subset the games use.)
   mark "$S/cabinet-libs"
 fi
 

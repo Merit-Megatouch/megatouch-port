@@ -6,6 +6,8 @@
 namespace legacy {
 void video_init();                 // window (+ GL context when MEGA_GL=1), audio
 void pump();                       // events, touches, present / nothing in GL mode
+void screen_touched();             // something drew on Allegro's screen: present soon
+void warp_mouse(int x, int y);
 bool gl_mode();
 SDL_Window* window();
 int screen_w();
