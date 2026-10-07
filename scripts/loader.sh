@@ -151,7 +151,7 @@ env=(
   --setenv MEGAIO_TRACE "${MEGAIO_TRACE:-0}"
   --setenv MEGAIO_JOYSTICK "${MEGAIO_JOYSTICK:-0}"
   --setenv TERM "${TERM:-xterm}"
-  --setenv LD_PRELOAD "/opt/fakeio/startfix.so /opt/fakeio/crashlog.so /opt/fakeio/ossfake.so /opt/fakeio/zlibcompat.so"
+  --setenv LD_PRELOAD "/opt/fakeio/startfix.so /opt/fakeio/crashlog.so /opt/fakeio/ossfake.so /opt/fakeio/zlibcompat.so /opt/fakeio/soundfix.so"
 )
 # MEGA_EXTRA_ENV="A=1 B=2": extra variables for debugging
 for kv in ${MEGA_EXTRA_ENV:-}; do env+=(--setenv "${kv%%=*}" "${kv#*=}"); done

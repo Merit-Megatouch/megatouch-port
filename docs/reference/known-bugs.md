@@ -19,7 +19,7 @@ again. The "#" numbers 1–20 match the original journal ([history/10](../histor
 
 | # | Symptom | Cause | Fix |
 | --- | --- | --- | --- |
-| 15 | Segfault in `_Rb_tree_increment` ← `BaseSoundManager::StopSound` | The engine erases a `std::map` node and keeps iterating from it. The 2008 allocator left freed memory intact. | `ImplementationStopSound` returns 0, so the entry isn't erased (the voice is still silenced). `GLIBC_TUNABLES=glibc.malloc.tcache_count=0` as a general safety net. |
+| 15 | Segfault in `_Rb_tree_increment` ← `BaseSoundManager::StopSound` | The engine erases a `std::map` node and keeps iterating from it. The 2008 allocator left freed memory intact. | `ImplementationStopSound` returns 0, so the entry isn't erased (the voice is still silenced). `GLIBC_TUNABLES=glibc.malloc.tcache_count=0` as a general safety net. In the cabinet loader: `soundfix.so` wraps the cabinet's backends the same way (there it was an endless loop, not a segfault: Trix froze after the first card). |
 
 If a new game crashes inside libstdc++ containers with no obvious cause, suspect the same kind
 of bug. Find the erase in the decompiled engine function and make our side of it avoid
