@@ -215,19 +215,27 @@ EOF
 # Cabinet libraries the loader had already loaded (so games never list them): when the game
 # needs their symbols, extract them and preload them. Settings → libsettings.so.
 preload_cabinet_libs() {
-  [ "$FAMILY" = gamedevice ] || return 0
-  "$R/tools/analyze.sh" "$GD" >/dev/null
-  local raw="$R/build/unresolved/$(basename "$GD").txt" add=""
-  grep -q '^_ZN8Settings\|^_ZTI8Settings' "$raw" 2>/dev/null && add="$add libsettings.so"
+  local add="" l f
+  case "$FAMILY" in
+    gamedevice)
+      "$R/tools/analyze.sh" "$GD" >/dev/null
+      grep -q '^_ZN8Settings\|^_ZTI8Settings' "$R/build/unresolved/$(basename "$GD").txt" 2>/dev/null && add=" libsettings.so" ;;
+    legacy)
+      # cabinet service libraries (settings, gendef xml records, books, system_info...) that
+      # define what the game imports and src/legacy does not implement
+      [ -s "$R/build/index/cabinet-syms.tsv" ] || "$R/tools/cabinet-providers.py" --index
+      for l in $("$R/tools/cabinet-providers.py" "$DLL"); do add="$add $l"; done ;;
+  esac
   [ -n "$add" ] || return 0
-  local l f
   for l in $add; do
+    grep -q "^PRELOAD=.*$l" "$GD/game.conf" 2>/dev/null && continue
     say "preloading cabinet library $l"
     "$R/scripts/lib/extract-libs.sh" "$GD/lib" "$l" 2>/dev/null || true
+    if grep -q '^PRELOAD=' "$GD/game.conf"; then sed -i "s/^PRELOAD=\(.*\)/PRELOAD=\1 $l/" "$GD/game.conf"
+    else echo "PRELOAD=$l" >> "$GD/game.conf"; fi
   done
   for f in "$GD"/lib/*; do [ -e "$R/shared/runtime/$(basename "$f")" ] && rm -f "$f"; done
-  if grep -q '^PRELOAD=' "$GD/game.conf"; then sed -i "s/^PRELOAD=\(.*\)/PRELOAD=\1$add/" "$GD/game.conf"
-  else echo "PRELOAD=${add# }" >> "$GD/game.conf"; fi
+  return 0
 }
 
 # notes/scaffold.md (regenerated) and NOTES.md (created once, yours to edit).

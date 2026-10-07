@@ -27,9 +27,10 @@ games = args or sorted(os.path.basename(os.path.dirname(c)) for c in glob.glob(f
 need = {}
 for g in games:
     miss = set()
-    for so in glob.glob(f'{R}/games/{g}/lib/*.so'):
-        if os.path.islink(so) or 'libmega_stubs' in so: continue
-        miss |= syms(so, False)
+    # what the game's own library imports (the preloaded cabinet libraries' own imports are
+    # resolved among themselves and by the runtime)
+    main = f'{R}/games/{g}/lib/{g}.so'
+    if os.path.exists(main): miss |= syms(main, False)
     for so in glob.glob(f'{R}/games/{g}/lib/*.so'):
         if not os.path.islink(so) and 'libmega_stubs' not in so: miss -= syms(so, True)
     need[g] = sorted(s for s in miss - provided if s not in ('__gmon_start__', '_Jv_RegisterClasses'))
