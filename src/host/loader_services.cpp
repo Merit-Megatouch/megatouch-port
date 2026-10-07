@@ -6,7 +6,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <set>
 #include <string>
+#include <vector>
 #include <cctype>
 #include <sys/stat.h>
 // ---------------------------------------------------------------------------
@@ -19,10 +21,13 @@ namespace xml_gameinfo { enum GameIds : int {}; }
 
 // Translations: /usr/local/gamedata/translations/<name>.utf8 is a '|'-separated table
 // KEYSTRINGID|KEYSTRING|ENGLISH|GERMAN|... Keys (and numeric IDs) map to the English column.
+namespace Locale { enum Languages : int {}; }
 class Translator {
 public:
     static Translator* GetInstance();
     static bool LoadTranslations(char const*, bool);
+    static bool LoadTranslations(xml_gameinfo::GameIds);
+    static void SetCurrentLanguage(Locale::Languages);
     static char const* Translate(char const*);   // static: callers push only the string
 };
 #include <map>
@@ -30,17 +35,33 @@ static std::map<std::string, std::string>& tr_table() { static std::map<std::str
 
 static void tr_load_file(const std::string& path) {
     FILE* f = fopen(path.c_str(), "rb");
+    if (getenv("MEGA_DEBUG_TR")) fprintf(stderr, "[tr] %s %s\n", path.c_str(), f ? "loaded" : "missing");
     if (!f) return;
+    // KEYSTRINGID|KEYSTRING|<languages...>: the language columns are in a different order in
+    // each file, so the column is found by name (MEGA_LANGUAGE, default ENGLISH)
+    std::string want = getenv("MEGA_LANGUAGE") ? getenv("MEGA_LANGUAGE") : "english";
+    for (auto& ch : want) ch = (char)toupper((unsigned char)ch);
     char* line = nullptr; size_t cap = 0; ssize_t n; bool header = true;
+    int col = 2, en_col = 2;
+    auto split = [](const std::string& l) { std::vector<std::string> v; size_t a = 0, b; while ((b = l.find('|', a)) != std::string::npos) { v.push_back(l.substr(a, b - a)); a = b + 1; } v.push_back(l.substr(a)); return v; };
     while ((n = getline(&line, &cap, f)) > 0) {
         std::string l(line, n);
         while (!l.empty() && (l.back() == '\n' || l.back() == '\r')) l.pop_back();
-        if (header) { header = false; if (l.compare(0, 3, "\xef\xbb\xbf") == 0) l.erase(0, 3); if (l.find("KEYSTRING") != std::string::npos) continue; }
-        size_t a = l.find('|'); if (a == std::string::npos) continue;
-        size_t b = l.find('|', a + 1); if (b == std::string::npos) continue;
-        size_t c = l.find('|', b + 1);
-        std::string id = l.substr(0, a), key = l.substr(a + 1, b - a - 1);
-        std::string en = l.substr(b + 1, c == std::string::npos ? std::string::npos : c - b - 1);
+        if (header) {
+            header = false;
+            if (l.compare(0, 3, "\xef\xbb\xbf") == 0) l.erase(0, 3);
+            if (l.find("KEYSTRING") != std::string::npos) {
+                auto h = split(l);
+                for (size_t i = 0; i < h.size(); i++) { if (h[i] == want) col = (int)i; if (h[i] == "ENGLISH") en_col = (int)i; }
+                continue;
+            }
+        }
+        auto v = split(l);
+        if (v.size() < 2) continue;
+        const std::string& id = v[0];
+        const std::string& key = v[1];
+        std::string en = (int)v.size() > col ? v[col] : std::string();
+        if (en.empty() && (int)v.size() > en_col) en = v[en_col];
         if (en.empty()) en = key;
         std::string out;   // the tables escape newlines as a literal backslash-n
         for (size_t i = 0; i < en.size(); i++) {
@@ -54,6 +75,48 @@ static void tr_load_file(const std::string& path) {
     fclose(f);
 }
 
+#include <dirent.h>
+// strings (>= 4 printable chars) in the game's library, as `strings` would list them
+static std::set<std::string> lib_strings() {
+    std::set<std::string> out;
+    const char* home = getenv("MEGA_HOME"); const char* lib = getenv("MEGA_LIB");
+    if (!home || !lib) return out;
+    FILE* f = fopen((std::string(home) + "/lib/" + lib).c_str(), "rb");
+    if (!f) return out;
+    std::string cur; int c;
+    while ((c = fgetc(f)) != EOF) {
+        if (c >= 0x20 && c < 0x7f) cur += (char)c;
+        else { if (cur.size() >= 4) out.insert(cur); cur.clear(); }
+    }
+    fclose(f);
+    return out;
+}
+static std::string tr_guess_table() {
+    std::set<std::string> strs = lib_strings();
+    if (strs.empty()) return std::string();
+    std::string dir = "/usr/local/gamedata/translations/", best;
+    int best_n = 0;
+    DIR* d = opendir(dir.c_str());
+    if (!d) return best;
+    while (dirent* e = readdir(d)) {
+        std::string n = e->d_name;
+        if (n.size() < 6 || n.compare(n.size() - 5, 5, ".utf8") || n == "SupportFiles.utf8") continue;
+        FILE* f = fopen((dir + n).c_str(), "rb");
+        if (!f) continue;
+        char* line = nullptr; size_t cap = 0; ssize_t len; int hits = 0;
+        while ((len = getline(&line, &cap, f)) > 0) {
+            char* a = strchr(line, '|'); if (!a) continue;
+            char* b = strchr(a + 1, '|'); if (!b || b - a - 1 < 4) continue;
+            if (strs.count(std::string(a + 1, b - a - 1))) hits++;
+        }
+        free(line); fclose(f);
+        if (hits > best_n) { best_n = hits; best = dir + n; }
+    }
+    closedir(d);
+    if (getenv("MEGA_DEBUG_TR")) fprintf(stderr, "[tr] best table %s (%d keys)\n", best.c_str(), best_n);
+    return best_n >= 3 ? best : std::string();
+}
+
 Translator* Translator::GetInstance() { static char inst[64]; return reinterpret_cast<Translator*>(inst); }
 bool Translator::LoadTranslations(char const* name, bool) {
     static bool common;
@@ -61,6 +124,26 @@ bool Translator::LoadTranslations(char const* name, bool) {
     if (name) tr_load_file(std::string("/usr/local/gamedata/translations/") + name + ".utf8");
     return true;
 }
+// By GameId (Merit2d / MeritBaseGame games): the current game's table. Its file is named after
+// the library, the asset folder or the support-file name (airhockey -> airshot.utf8 is loaded
+// by the game itself by name).
+bool Translator::LoadTranslations(xml_gameinfo::GameIds) {
+    LoadTranslations(nullptr, false);
+    std::vector<std::string> names;
+    if (const char* l = getenv("MEGA_LIB")) { std::string n = l; if (n.size() > 3 && n.compare(n.size() - 3, 3, ".so") == 0) n.resize(n.size() - 3); names.push_back(n); }
+    if (const char* a = getenv("MEGA_ASSET_DIR")) { std::string n = a; size_t k = n.rfind('/'); if (k != std::string::npos) n = n.substr(k + 1); names.push_back(n); if (n.size() > 4 && n.compare(n.size() - 4, 4, "_new") == 0) names.push_back(n.substr(0, n.size() - 4)); }
+    for (auto& n : names) {
+        struct stat st;
+        std::string path = "/usr/local/gamedata/translations/" + n + ".utf8";
+        if (stat(path.c_str(), &st) == 0) { tr_load_file(path); return true; }
+    }
+    // named differently (trivia -> videowhiz, wordzap -> wordster): the table sharing the most
+    // keys with the strings in the game's library
+    std::string best = tr_guess_table();
+    if (!best.empty()) { tr_load_file(best); return true; }
+    return false;
+}
+void Translator::SetCurrentLanguage(Locale::Languages) {}
 char const* Translator::Translate(char const* s) {
     if (!s) return "";
     auto it = tr_table().find(s);

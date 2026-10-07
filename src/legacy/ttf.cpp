@@ -74,9 +74,30 @@ int next_cp(const unsigned char*& p) {
 
 namespace legacy {
 
-int ttf_measure(const char* text, int px, bool bold, const char* family, int spacing) {
+// Pango markup the games pass ("<b>0</b>", "<span foreground=...>"): tags dropped, entities decoded
+static std::string plain(const char* t) {
+    std::string out;
+    for (const char* p = t; *p; p++) {
+        if (*p == '<' && (isalpha((unsigned char)p[1]) || p[1] == '/')) {
+            const char* e = strchr(p, '>');
+            if (e) { p = e; continue; }
+        }
+        if (*p == '&') {
+            static const struct { const char* ent; char c; } ents[] = {{"&amp;", '&'}, {"&lt;", '<'}, {"&gt;", '>'}, {"&quot;", '"'}, {"&apos;", '\''}};
+            bool hit = false;
+            for (auto& en : ents) if (!strncmp(p, en.ent, strlen(en.ent))) { out += en.c; p += strlen(en.ent) - 1; hit = true; break; }
+            if (hit) continue;
+        }
+        out += *p;
+    }
+    return out;
+}
+
+int ttf_measure(const char* text_in, int px, bool bold, const char* family, int spacing) {
     Font* f = font_for(family, bold);
-    if (!f->ok || !text) return 0;
+    if (!f->ok || !text_in) return 0;
+    std::string clean = plain(text_in);
+    const char* text = clean.c_str();
     float sc = stbtt_ScaleForPixelHeight(&f->info, (float)px);
     float x = 0;
     int prev = 0;
@@ -93,10 +114,12 @@ int ttf_measure(const char* text, int px, bool bold, const char* family, int spa
 
 // Draws `text` in the box (x, y, w, h) of `dst`. align: 0 left, 1 right, 2 centre (vertically
 // centred in the box either way). Anti-aliased edges are blended over what is in the bitmap.
-void ttf_draw(BITMAP* dst, const char* text, int bx, int by, int bw, int bh, int r, int g, int b, int px,
+void ttf_draw(BITMAP* dst, const char* text_in, int bx, int by, int bw, int bh, int r, int g, int b, int px,
               int align, bool bold, const char* family, int spacing, int outline) {
     Font* f = font_for(family, bold);
-    if (!dst || !f->ok || !text || px <= 0) return;
+    if (!dst || !f->ok || !text_in || px <= 0) return;
+    std::string clean = plain(text_in);
+    const char* text = clean.c_str();
     float sc = stbtt_ScaleForPixelHeight(&f->info, (float)px);
     int asc, desc, gap;
     stbtt_GetFontVMetrics(&f->info, &asc, &desc, &gap);

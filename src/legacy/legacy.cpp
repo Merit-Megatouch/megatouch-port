@@ -832,6 +832,7 @@ bool MouseManager::CheckLoc(unsigned char, bool) {
 class Translator {
 public:
     static bool LoadTranslations(char const*, bool);
+    static bool LoadTranslations(xml_gameinfo::GameIds);
     static char const* Translate(char const*);
     static char* nTranslate(char*, unsigned int, char const*);
 };
@@ -864,7 +865,7 @@ public:
     void LoadTranslations(xml_gameinfo::GameIds);
     void SetCurrentLanguage(Locale::Languages);
 };
-void TextSystem::LoadTranslations(xml_gameinfo::GameIds) {}
+void TextSystem::LoadTranslations(xml_gameinfo::GameIds id) { Translator::LoadTranslations(id); }
 void TextSystem::LoadTranslations(char const* name, bool) { Translator::LoadTranslations(name, false); }
 void TextSystem::SetCurrentLanguage(Locale::Languages) {}
 TextSystem textSystem;
@@ -1004,6 +1005,7 @@ void BitmapText(_RADBitmap* b, unsigned long x, unsigned long y, char* text) {
 void BitmapTextTTF(_RADBitmap* b, char const* text, int x, int y, int w, int h, int c1, int c2, int c3,
                    int size, int align, bool bold, char* family, int spacing) {
     if (!b || !text) return;
+    text = Translator::Translate(text);
     static bool dbg = menv("DEBUG_TEXT") != nullptr;
     if (dbg) LOG("BitmapTextTTF '%s' box %d,%d %dx%d c %d,%d,%d size %d align %d %d %s %d", text, x, y, w, h, c1, c2, c3, size, align, bold, family ? family : "-", spacing);
     legacy::ttf_draw(b->bmp, text, x, y, w, h, SDL_clamp(255 + c1, 0, 255), SDL_clamp(255 + c2, 0, 255),

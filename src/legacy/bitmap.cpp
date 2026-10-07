@@ -16,6 +16,11 @@
 
 using legacy::find_asset;
 
+// The loader's text calls take translation keys ("IntroText1", "TransTag_..."): megatouch-host's
+// Translator maps them through the game's .utf8 table (unknown keys come back unchanged).
+class Translator { public: static char const* Translate(char const*); };
+static const char* tr(const char* s) { return s ? Translator::Translate(s) : s; }
+
 static inline uint16_t* row16(BITMAP* b, int y) { return reinterpret_cast<uint16_t*>(b->line[y]); }
 static inline uint32_t* row32(BITMAP* b, int y) { return reinterpret_cast<uint32_t*>(b->line[y]); }
 static inline int depth_of(BITMAP* b) { return b->vtable->color_depth; }
@@ -551,7 +556,17 @@ std::vector<std::string> wrap(GlyphFont* f, const char* text, int max_w, int spa
     return lines;
 }
 // renders wrapped glyph text into b, resizing it to fit (sprite-engine.md §5.4)
-void smack_text(Bitmap* b, const char* text, const void* font, int just, int max_w, int max_h, int dr, int dg, int db) {
+std::string strip_markup(const char* t) {
+    std::string out;
+    for (const char* p = t ? t : ""; *p; p++) {
+        if (*p == '<' && (isalpha((unsigned char)p[1]) || p[1] == '/')) { const char* e = strchr(p, '>'); if (e) { p = e; continue; } }
+        out += *p;
+    }
+    return out;
+}
+void smack_text(Bitmap* b, const char* text_in, const void* font, int just, int max_w, int max_h, int dr, int dg, int db) {
+    std::string clean = strip_markup(tr(text_in));
+    const char* text = clean.c_str();
     FontState& st = state_of(font);
     GlyphFont* f = st.font;
     if (!f) return;
@@ -605,8 +620,9 @@ int font_slot(int slot, void* self, const int* a) {
     case 0x24: st.align = a[0]; return 0;
     case 0x54: case 0x60: st.spacing = a[0] > 4 ? 0 : a[0]; return 0;
     case 0x2c: {                                   // DrawText(text, x, y, width, ...)
-        const unsigned char* t = reinterpret_cast<const unsigned char*>(a[0]);
-        if (!t || !f) return 0;
+        if (!a[0] || !f) return 0;
+        std::string clean = strip_markup(tr(reinterpret_cast<const char*>(a[0])));
+        const unsigned char* t = reinterpret_cast<const unsigned char*>(clean.c_str());
         int x = a[1], y = a[2], w = a[3], tw = text_width(f, t, st.spacing);
         if (w > 0) x += st.align == 1 ? (w - tw) / 2 : st.align == 2 ? w - tw : 0;
         else x -= st.align == 1 ? tw / 2 : st.align == 2 ? tw : 0;
@@ -654,6 +670,7 @@ void Bitmap::CreateColoredSmackTextBox(char const* text, FontBase* font, signed 
 static void ttf_box(Bitmap* bm, char const* text, int x, int y, int w, int h, int r, int g, int b, int size,
                     int align, bool bold, char* font, int spacing, bool shrink) {
     if (!text) return;
+    text = tr(text);
     if (bm->w <= 0 || bm->h <= 0) bm->resize(x + w, y + h);
     int a = align == 2 ? 2 : align == 4 ? 1 : 0;
     int sp = spacing > 0 ? spacing : 0;
@@ -730,7 +747,7 @@ String::String(BmpFont* f, char const* t, int j, signed char sp, int r_, int g_,
     bmpfont = f; just = j; spacing = sp; r = r_; g = g_; b = b_;
     set_text(t);
 }
-void String::set_text(const char* t) { free(text); text = strdup(t ? t : ""); }
+void String::set_text(const char* t) { free(text); text = strdup(t ? tr(t) : ""); }
 void String::ChangeColor(int r_, int g_, int b_, unsigned char) { r = r_; g = g_; b = b_; }
 String* String::Copy() {
     auto* s = static_cast<String*>(operator new(sizeof(String)));
