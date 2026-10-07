@@ -70,3 +70,87 @@
 [submodule "games/g_mystery_phraze_hd"]
 	path = games/g_mystery_phraze_hd
 	url = https://github.com/Merit-Megatouch/g_mystery_phraze_hd.git
+[submodule "games/g_air_guardian_escape"]
+	path = games/g_air_guardian_escape
+	url = https://github.com/Merit-Megatouch/g_air_guardian_escape.git
+[submodule "games/g_angry_bash"]
+	path = games/g_angry_bash
+	url = https://github.com/Merit-Megatouch/g_angry_bash.git
+[submodule "games/g_baseball"]
+	path = games/g_baseball
+	url = https://github.com/Merit-Megatouch/g_baseball.git
+[submodule "games/g_bottle_top_drop"]
+	path = games/g_bottle_top_drop
+	url = https://github.com/Merit-Megatouch/g_bottle_top_drop.git
+[submodule "games/g_boxxi_hd"]
+	path = games/g_boxxi_hd
+	url = https://github.com/Merit-Megatouch/g_boxxi_hd.git
+[submodule "games/g_cardboard_chaos_zombie"]
+	path = games/g_cardboard_chaos_zombie
+	url = https://github.com/Merit-Megatouch/g_cardboard_chaos_zombie.git
+[submodule "games/g_clocker_solitaire"]
+	path = games/g_clocker_solitaire
+	url = https://github.com/Merit-Megatouch/g_clocker_solitaire.git
+[submodule "games/g_close_the_clock"]
+	path = games/g_close_the_clock
+	url = https://github.com/Merit-Megatouch/g_close_the_clock.git
+[submodule "games/g_dino_trivia"]
+	path = games/g_dino_trivia
+	url = https://github.com/Merit-Megatouch/g_dino_trivia.git
+[submodule "games/g_final_table_black_jack"]
+	path = games/g_final_table_black_jack
+	url = https://github.com/Merit-Megatouch/g_final_table_black_jack.git
+[submodule "games/g_final_table_dice_poker"]
+	path = games/g_final_table_dice_poker
+	url = https://github.com/Merit-Megatouch/g_final_table_dice_poker.git
+[submodule "games/g_grimm_photo_hunt"]
+	path = games/g_grimm_photo_hunt
+	url = https://github.com/Merit-Megatouch/g_grimm_photo_hunt.git
+[submodule "games/g_hidden_object_1"]
+	path = games/g_hidden_object_1
+	url = https://github.com/Merit-Megatouch/g_hidden_object_1.git
+[submodule "games/g_hidden_object_2"]
+	path = games/g_hidden_object_2
+	url = https://github.com/Merit-Megatouch/g_hidden_object_2.git
+[submodule "games/g_hidden_object_3"]
+	path = games/g_hidden_object_3
+	url = https://github.com/Merit-Megatouch/g_hidden_object_3.git
+[submodule "games/g_hunks_dice_poker"]
+	path = games/g_hunks_dice_poker
+	url = https://github.com/Merit-Megatouch/g_hunks_dice_poker.git
+[submodule "games/g_ice_rift"]
+	path = games/g_ice_rift
+	url = https://github.com/Merit-Megatouch/g_ice_rift.git
+[submodule "games/g_milky_way_mulligan"]
+	path = games/g_milky_way_mulligan
+	url = https://github.com/Merit-Megatouch/g_milky_way_mulligan.git
+[submodule "games/g_monster_madness_chaos"]
+	path = games/g_monster_madness_chaos
+	url = https://github.com/Merit-Megatouch/g_monster_madness_chaos.git
+[submodule "games/g_mystical_strike"]
+	path = games/g_mystical_strike
+	url = https://github.com/Merit-Megatouch/g_mystical_strike.git
+[submodule "games/g_penthouse_dice_poker"]
+	path = games/g_penthouse_dice_poker
+	url = https://github.com/Merit-Megatouch/g_penthouse_dice_poker.git
+[submodule "games/g_pit_crew_pairem"]
+	path = games/g_pit_crew_pairem
+	url = https://github.com/Merit-Megatouch/g_pit_crew_pairem.git
+[submodule "games/g_play_4_cross"]
+	path = games/g_play_4_cross
+	url = https://github.com/Merit-Megatouch/g_play_4_cross.git
+[submodule "games/g_rock_mahjong"]
+	path = games/g_rock_mahjong
+	url = https://github.com/Merit-Megatouch/g_rock_mahjong.git
+[submodule "games/g_run21_hd"]
+	path = games/g_run21_hd
+	url = https://github.com/Merit-Megatouch/g_run21_hd.git
+[submodule "games/g_sb_clone"]
+	path = games/g_sb_clone
+	url = https://github.com/Merit-Megatouch/g_sb_clone.git
+[submodule "games/g_tri_castles_2"]
+	path = games/g_tri_castles_2
+	url = https://github.com/Merit-Megatouch/g_tri_castles_2.git
+[submodule "games/g_wordy_birds"]
+	path = games/g_wordy_birds
+	url = https://github.com/Merit-Megatouch/g_wordy_birds.git
