@@ -265,6 +265,13 @@ enum LocaleMasks : int {};
 // Language-specific file/folder suffixes: English (the only language set up) has none.
 void Menu_AppendLangExt(Locale::Languages, char (&)[255]) {}
 void AppendLangExt(char (&)[255], Locale::LocaleMasks) {}
+// The game's own data folder, with a trailing slash; games append file names (golf's
+// Aload_LoadPictureToScreen, the bandits games). Every caller passes 0.
+void GetLocation(unsigned char, char (&out)[255]) {
+    const char* d = getenv("MEGA_ASSET_DIR");
+    // ASSET_DIR is the cabinet path without its leading slash (usr/local/gamedata/...)
+    snprintf(out, sizeof out, "%s%s/", d && *d && *d != '/' ? "/" : "", d && *d ? d : ".");
+}
 bool LangDirExist(char const* path) { struct stat st; return path && stat(path, &st) == 0 && S_ISDIR(st.st_mode); }
 
 // Allegro 4 Unicode string helpers (the loader linked Allegro; its default text format is

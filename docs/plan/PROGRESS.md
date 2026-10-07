@@ -19,8 +19,8 @@ each working game or shared fix.
 | --- | ---: | ---: | --- | --- |
 | GameDevice | 21 games | 20 run (3 played by hand; 17 smoke-tested) | SDL2 backend + loader stand-ins | g_mystery_phraze_hd deferred: needs DBFClass (dBase reader), RandomizedArrayClass and the gendef record xml_gamerandom::MystPICRAND_record (abstract_xml_record subclass) — 18 symbols |
 | Unity 3.2 | 30 | 30 run (1 played by hand) | cabinet LinuxPlayer + launcher.xml (real format) + FMOD shim + fs shim | hand play-tests; clocker/close-the-clock washed out |
-| Legacy 2D | 128 scaffolded | 105 run in the batch smoke test; 89 published (render + take touches) | `src/legacy` (C API, sprite engine, Bitmap, Allegro subset, TTF) + `src/gendef` | 22 crashing: GL group (pool, nineball, bowling, golf), Gash/LinuxWorldClass (breakout, motormatch, racepoker), SObj (euchre, hearts, spades, snubble), misc; hand play-tests |
-| AllegroGL / Merit3D | 19 (7 scaffolded) | 0 | GL window + `src/legacy` + 3D-side stand-ins | scaffold the 12 others (luxor, chainz2, snake, racing, shooter, stickerbook, beer_pong, luxor2, triviawhiz2/jr, monkeybusiness, VideoSales); GL context; beer pong notes below |
+| Legacy 2D | 128 scaffolded | 119 of 135 run in the batch (2026-10-07 pm); ~118 published | `src/legacy` (C API, sprite engine, Bitmap, Allegro subset, TTF) + `src/gendef` | Gash/LinuxWorldClass (breakout, motormatch, racepoker; spec docs/reference/gash.md), SObj (euchre, hearts, spades, snubble; docs/reference/sobj.md), golf (8-bit software 3D on allocframe/BMAP), safari (flagged, see below); bitmap-font text garbled everywhere (docs/reference/bmpfont.md); hangs with ~0 frames: cepixmix/chpixmix/pixmix family, ginrummy, locboxxi; early exits: chboxxi |
+| AllegroGL / Merit3D | 19 (14 scaffolded) | 14 run: luxor, chainz2, monkeybusiness, triviawhiz2/jr, VideoSales, minigolf x3, pool, nineball, bowling, beer_pong_challenge, stickerbook | GL window + `src/legacy` + 3D-side stand-ins | hand play-tests; 5 have no art on the image (below) |
 
 Per-game state lives in each `games/<name>/NOTES.md` and in `docs/reference/games.md` (`make docs`).
 
@@ -70,6 +70,12 @@ luxor2, snake, racing, shooter and beer_pong (the original Beer Pong) ship their
 (/usr/local/lib/*.so) but their art is linked to /usr/local/ion_only/gamegraphics/*, which this
 image does not have (the ion partition only holds games/). They cannot run without that content.
 idle (attract mode) belongs to the front end, not the games list.
+
+### Flagged for the owner
+- **safari**: its game loop (`i_g_d_c`, which also calls `mprotect` and `SanityCheck`, beside the
+  t_i_l/u_m_m_s/CheckKey imports) reaches `Bitmap::Display` on a bitmap it has not created yet.
+  It looks protection-related, so it was left alone.
+- luxor's `menu_music.wav` is not on the image (silent menu on the cabinet too).
 
 ## In progress
 
@@ -130,6 +136,10 @@ idle (attract mode) belongs to the front end, not the games list.
   protected loader is not run or modified.
 
 ## Log (newest first)
+- 2026-10-07 pm: GL group all running (TextSystem at Pango's 40 dpi, 32-bit image loaders in GL
+  mode, Allegro poll functions, List+0x14 header, DBGlobals); dominoes/take2/wild8/zenword/golf
+  progress; content-pack links fixed (spotmatch, pe*); 29 newly published. Spec agents writing
+  docs/reference/{sobj,gash,bmpfont}.md.
 
 - 2026-10-07 — Legacy: sprite engine, Bitmap rewrite, gendef library, translations; 105/128 run,
   89 published as game repos. `tools/legacy-batch.sh` is the regression check.

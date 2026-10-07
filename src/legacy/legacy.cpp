@@ -213,6 +213,7 @@ static void sleep_ms(Uint32 ms) {
 // ---------------------------------------------------------------------------------- bitmaps
 static _RADBitmap* bmp_new(uint32_t w, uint32_t h, uint32_t fill) {
     auto* b = static_cast<_RADBitmap*>(calloc(1, sizeof(_RADBitmap)));
+    if (w == 0 || h == 0 || w > 4096 || h > 4096) { LOG("bitmap %ux%u requested; using 1x1", w, h); w = h = 1; }
     b->tag = kTag; b->w = w; b->h = h;
     b->bmp = create_bitmap_ex(32, (int)w, (int)h);
     b->px = static_cast<uint32_t*>(b->bmp->dat);
@@ -415,6 +416,8 @@ static Pcm* wave_load(const char* name) {
 _RADBitmap* MouseBmp;                                // cursor bitmap passed to MouseAdd; unused
 
 _RADBitmap* BitmapAlloc(unsigned long w, unsigned long h, unsigned char) { video_init(); return bmp_new(w, h, color_of(0)); }
+// golf's BMAP_BitmapAlloc: the same frame, read back as {?, w, h} and passed to Bitmap*()
+_RADBitmap* allocframe(unsigned long w, unsigned long h, int) { return BitmapAlloc(w, h, 0); }
 void BitmapFree(_RADBitmap* b) { if (b && b->tag == kTag) { b->tag = 0; destroy_bitmap(b->bmp); free(b); } }
 void BitmapClear(_RADBitmap* b, unsigned char c, int, int, int) {
     if (!b) return;
