@@ -184,7 +184,9 @@ static void pump() {
     }
     autoclick();
     if (g_quit && SDL_GetTicks() - g_quitAt > 3000) { LOG("window closed"); _exit(0); }
-    if (!g_gl && g_dirty && SDL_GetTicks() - g_lastPresent >= 15) present();
+    // headless checks also re-present a still screen once a second so screenshots keep coming
+    static const bool shots = menv("SHOT_DIR");
+    if (!g_gl && (g_dirty || (shots && SDL_GetTicks() - g_lastPresent >= 1000)) && SDL_GetTicks() - g_lastPresent >= 15) present();
 }
 
 static void sleep_ms(Uint32 ms) {

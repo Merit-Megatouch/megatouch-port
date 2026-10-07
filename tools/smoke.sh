@@ -24,7 +24,7 @@ if grep -q '^ENGINE=unity' "$GD/game.conf"; then
 elif grep -q '^PRELOAD=.*libmerit_legacy' "$GD/game.conf"; then
   # legacy: milliseconds, every 1.5 s
   clicks=$(for t in $(seq 2000 1500 $((SECS * 1000))); do printf '%d:%d,%d;' $t $cx $cy; done)
-  every=60
+  every=4
 else
   # GameDevice: update ticks (30/s), every 2 s
   clicks=$(for t in $(seq 60 60 $((SECS * 30))); do printf '%d:%d,%d;' $t $cx $cy; done)
