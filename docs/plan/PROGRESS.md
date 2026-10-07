@@ -134,6 +134,16 @@ idle (attract mode) belongs to the front end, not the games list.
   and game icons (menugraphics art), launches games through the existing routes, handles free
   play, high scores and an operator settings screen. Written from scratch; the cabinet's
   protected loader is not run or modified.
+- Assets found (2026-10-07): `menugraphics/main/2k3` (ionbkg, ionlogo, optionwindow, langwindow,
+  buttons), `menugraphics/game/logos/<lang>/<game>.spr[.gz]` (one logo per game; the ION-only
+  ones in `/usr/local/ion_only/menugraphics/game/logos`), `menugraphics/game/buttons` (p1..p4,
+  play, info, more), `menugraphics/idle` (attract jpgs/dlt), `credit`, `hiscore`, `keyboard`.
+  All readable with `src/common/merit_rle.h` + SDL_image.
+- Build order: (1) `src/frontend/` SDL2 app: catalogue from games/*/game.conf (+ cabinet
+  gameinfo for categories), menu with logos, player-count select, launch `games/<g>/run` as a
+  child and come back; (2) attract loop; (3) free play / credits screen; (4) high scores
+  (/var/merit/highscores per game, already written by megatouch-host); (5) operator settings
+  (language, volume, free play) written to a settings file that `run` passes as MEGA_* env.
 
 ## Log (newest first)
 - 2026-10-07 pm: GL group all running (TextSystem at Pango's 40 dpi, 32-bit image loaders in GL

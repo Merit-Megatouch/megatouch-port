@@ -91,6 +91,7 @@ static void video_init() {
         if (!g_win) { LOG("SDL_CreateWindow: %s", SDL_GetError()); _exit(1); }
         g_glctx = SDL_GL_CreateContext(g_win);
         if (!g_glctx) { LOG("SDL_GL_CreateContext: %s", SDL_GetError()); _exit(1); }
+        legacy::agl_load();                       // AllegroGL extension pointers (agl_ext.cpp)
         SDL_GL_MakeCurrent(g_win, g_glctx);
         SDL_GL_SetSwapInterval(1);
         g_start = SDL_GetTicks();
@@ -626,6 +627,24 @@ int PlayPreWave(char* name, unsigned short, bool, int vol, int, int) {
     g_voices.push_back({id, p->s.data(), p->s.size(), 0, SDL_clamp(vol, 0, 255) / 255.0f, false});
     return id;
 }
+// Merit3D music (luxor2 MeritMJInterface::PlaySong): an Ogg (or wave) played looping; the handle
+// is only given back to StopOGG.
+class SoundOGG {
+public:
+    static SoundOGG* PlayOGG(char* name, unsigned short flags, int vol);
+    static void StopOGG(SoundOGG*);
+};
+SoundOGG* SoundOGG::PlayOGG(char* name, unsigned short, int vol) {
+    video_init();
+    Pcm* p = name ? wave_load(name) : nullptr;
+    if (!p || !g_audio) return nullptr;
+    std::lock_guard<std::mutex> lk(g_amx);
+    int id = g_nextVoice++;
+    g_voices.push_back({id, p->s.data(), p->s.size(), 0, SDL_clamp(vol, 0, 255) / 255.0f, true});
+    return reinterpret_cast<SoundOGG*>(static_cast<intptr_t>(id));
+}
+void SoundOGG::StopOGG(SoundOGG* h) { if (h) legacy::stop_voice((int)reinterpret_cast<intptr_t>(h)); }
+
 // Allegro: sample position of a playing voice, -1 once it has finished.
 extern "C" int voice_get_position(int voice) {
     pump();

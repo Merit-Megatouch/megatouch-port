@@ -8,6 +8,7 @@ void video_init();                 // window (+ GL context when MEGA_GL=1), audi
 void pump();                       // events, touches, present / nothing in GL mode
 void screen_touched();             // something drew on Allegro's screen: present soon
 void gl_frame_done();              // a GL frame was swapped (screenshots in GL mode)
+void agl_load();                   // fill the AllegroGL extension pointers (after the GL context)
 void warp_mouse(int x, int y);
 bool gl_mode();
 SDL_Window* window();

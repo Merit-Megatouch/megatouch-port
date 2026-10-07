@@ -176,10 +176,14 @@ int main(int argc, char** argv) {
             while (!folder.empty() && folder.back() == '/') folder.pop_back();
             setPath(nullptr, folder.substr(folder.rfind('/') + 1).c_str());
         }
+    // legacy/Merit3D games start at the loader's entry point; some also export Allegro's
+    // developer main() (luxor2), which the cabinet never called
+    auto entry = reinterpret_cast<void (*)()>(dlsym(h, "__EntryPointV12"));
+    const char* pre = menv("PRELOAD");
+    if (entry && pre && strstr(pre, "libmerit_legacy")) { entry(); return 0; }
     if (auto gameMain = reinterpret_cast<int (*)(int, char**)>(dlsym(h, "main")))
         return gameMain(argc, argv) ? 0 : 1;
-    // legacy games export only the loader's entry point
-    if (auto entry = reinterpret_cast<void (*)()>(dlsym(h, "__EntryPointV12"))) { entry(); return 0; }
+    if (entry) { entry(); return 0; }
     fprintf(stderr, "%s has neither main nor __EntryPointV12\n", lib);
     return 1;
 }
