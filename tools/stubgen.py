@@ -26,6 +26,15 @@ root = os.path.dirname(os.path.dirname(os.path.abspath(gd)))
 with open(os.path.join(root, 'build/unresolved', os.path.basename(os.path.abspath(gd)) + '.txt')) as f:
     syms = sorted(set(l.strip() for l in f if l.strip()))
 
+# never shadow what the port already implements
+provided = set()
+for lib in ('shared/bin/libmerit_legacy.so', 'shared/bin/megatouch-host'):
+    path = os.path.join(root, lib)
+    if os.path.exists(path):
+        out_ = subprocess.run(['nm', '-D', '--defined-only', path], capture_output=True, text=True).stdout
+        provided |= {l.split()[-1] for l in out_.splitlines() if l.strip()}
+syms = [s for s in syms if s not in provided]
+
 plt = set()
 libdir = os.path.join(gd, 'lib')
 for name in os.listdir(libdir):

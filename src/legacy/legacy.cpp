@@ -18,6 +18,7 @@
 #include "../common/merit_rle.h"
 #include "legacy_internal.h"
 #include "allegro.h"
+#include "legacy_ttf.h"
 #include <SDL2/SDL.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -139,15 +140,19 @@ static void present() {
 }
 
 // Scripted taps for headless tests: MEGA_AUTOCLICK="ms:x,y;ms:x,y" (milliseconds since start).
+static Uint32 g_autoRelease;
 static void autoclick() {
     static const char* spec = menv("AUTOCLICK");
     static size_t pos;
     if (!spec) return;
+    if (g_autoRelease && SDL_GetTicks() >= g_autoRelease) { g_mouseDown = false; g_autoRelease = 0; }
     while (spec[pos]) {
         unsigned t; int x, y, used = 0;
         if (sscanf(spec + pos, "%u:%d,%d%n", &t, &x, &y, &used) != 3) { spec = nullptr; return; }
         if (SDL_GetTicks() - g_start < t) return;
         pos += used + (spec[pos + used] == ';');
+        // games that poll the mouse (MouseX/Y, mouse_b, GetTouchCoord) see a 150 ms press
+        g_mouseX = x; g_mouseY = y; g_mouseDown = true; g_autoRelease = SDL_GetTicks() + 150;
         for (auto& z : g_zones)
             if (x >= z.x && x < z.x + z.w && y >= z.y && y < z.y + z.h) { g_pending.push_back(z.name); break; }
     }
@@ -400,11 +405,20 @@ _RADBitmap* SaveBackBmp;                             // a global the games keep 
 void BitmapPaletteToPalette(_RADBitmap*, _RADBitmap*) {}
 
 // Copies the dst-sized region of src starting at (sx, sy) into dst.
-void BitmapToBitmap(_RADBitmap* dst, _RADBitmap* src, unsigned long sx, unsigned long sy) {
-    if (dst && src) blit(src->px, src->w, src->h, (int)sx, (int)sy, dst->px, dst->w, dst->h, 0, 0, dst->w, dst->h, false, 0);
+// (x, y) is where src goes in dst when src fits inside dst; otherwise it is the corner of the
+// region of src cut out into dst (airhockey's Object_Draw_Clip uses both forms).
+static void bmp_to_bmp(_RADBitmap* dst, _RADBitmap* src, long x, long y, bool trans, uint32_t key) {
+    if (!dst || !src) return;
+    if (src->w <= dst->w && src->h <= dst->h)
+        blit(src->px, src->w, src->h, 0, 0, dst->px, dst->w, dst->h, (int)x, (int)y, src->w, src->h, trans, key);
+    else
+        blit(src->px, src->w, src->h, (int)x, (int)y, dst->px, dst->w, dst->h, 0, 0, dst->w, dst->h, trans, key);
 }
-void BitmapToBitmapTrans(_RADBitmap* dst, _RADBitmap* src, unsigned long sx, unsigned long sy, unsigned char key) {
-    if (dst && src) blit(src->px, src->w, src->h, (int)sx, (int)sy, dst->px, dst->w, dst->h, 0, 0, dst->w, dst->h, true, color_of(key));
+void BitmapToBitmap(_RADBitmap* dst, _RADBitmap* src, unsigned long x, unsigned long y) {
+    bmp_to_bmp(dst, src, (long)x, (long)y, false, 0);
+}
+void BitmapToBitmapTrans(_RADBitmap* dst, _RADBitmap* src, unsigned long x, unsigned long y, unsigned char key) {
+    bmp_to_bmp(dst, src, (long)x, (long)y, true, color_of(key));
 }
 void BitmapToScreen(_RADBitmap* b, unsigned long x, unsigned long y) {
     if (!b) return;
@@ -1128,7 +1142,17 @@ bool MouseManager::CheckLoc(unsigned char, bool) {
 }
 
 // --- translation: the loader's UniversalTranslator / TextSystem over the host's Translator
-class Translator { public: static bool LoadTranslations(char const*, bool); static char const* Translate(char const*); };
+class Translator {
+public:
+    static bool LoadTranslations(char const*, bool);
+    static char const* Translate(char const*);
+    static char* nTranslate(char*, unsigned int, char const*);
+};
+// Translate into a caller buffer (the Translate<N> template in game code calls this)
+char* Translator::nTranslate(char* out, unsigned int size, char const* key) {
+    if (out && size) snprintf(out, size, "%s", Translate(key ? key : ""));
+    return out;
+}
 class UniversalTranslator {
 public:
     UniversalTranslator();
@@ -1170,3 +1194,152 @@ char* _strrev(char* s) {
 class SystemClass { public: bool ConfirmExit(unsigned short, unsigned short, Bitmap*, bool); bool CheckKey(); };
 bool SystemClass::ConfirmExit(unsigned short, unsigned short, Bitmap*, bool) { return true; }
 bool SystemClass::CheckKey() { pump(); return false; }
+
+// ------------------------------------------------------------------------------ more C API
+// (inferred from call sites in airhockey, quickcell, puckshot, funkymonkey)
+unsigned short MouseX() { pump(); return (unsigned short)g_mouseX; }
+unsigned short MouseY() { pump(); return (unsigned short)g_mouseY; }
+// Current touch position; *down = finger on the glass.
+void GetTouchCoord(int* x, int* y, int* down) {
+    pump();
+    if (x) *x = g_mouseX;
+    if (y) *y = g_mouseY;
+    if (down) *down = g_mouseDown;
+}
+bool ScreenIsTouched() { pump(); return g_mouseDown; }
+void MouseRemoveAllNoFlush() { g_zones.clear(); }
+void QueFlush(bool) { pump(); g_pending.clear(); }
+// PlayWave("name", flags, vol 0..255, freq, pan, bool): like PlayPreWave without preloading
+int PlayWave(char* name, unsigned short flags, int vol, int freq, int pan, bool b) {
+    return PlayPreWave(name, flags, b, vol, freq, pan);
+}
+void ClearAPreWave(char* name) {
+    if (!name) return;
+    std::lock_guard<std::mutex> lk(g_amx);
+    auto it = g_waves.find(name);
+    if (it == g_waves.end()) return;
+    const short* data = it->second->s.data();
+    for (size_t i = 0; i < g_voices.size();) if (g_voices[i].s == data) g_voices.erase(g_voices.begin() + i); else i++;
+    delete it->second;
+    g_waves.erase(it);
+}
+void Delay_PE(unsigned long ms) { sleep_ms(ms); }
+
+// pixels / boxes / lines in palette-index colours
+unsigned char BitmapGetPixel(_RADBitmap* b, unsigned long x, unsigned long y) {
+    if (!b || x >= b->w || y >= b->h) return 0;
+    uint32_t c = b->px[y * b->w + x];
+    if (c == kKey) return 5;
+    return (unsigned char)(((c >> 16 & 255) + (c >> 8 & 255) + (c & 255)) / 3);
+}
+void BitmapSetPixel(_RADBitmap* b, unsigned long x, unsigned long y, unsigned char c) {
+    if (b && x < b->w && y < b->h) b->px[y * b->w + x] = color_of(c);
+}
+static void box_px(uint32_t* px, int pw, int ph, int x, int y, int w, int h, uint32_t v, bool fill) {
+    for (int j = y; j < y + h; j++) for (int i = x; i < x + w; i++) {
+        if (i < 0 || j < 0 || i >= pw || j >= ph) continue;
+        if (fill || j == y || j == y + h - 1 || i == x || i == x + w - 1) px[j * pw + i] = v;
+    }
+}
+void BitmapBox(_RADBitmap* b, unsigned long x, unsigned long y, unsigned long w, unsigned long h, unsigned char c) {
+    if (b) box_px(b->px, b->w, b->h, x, y, w, h, color_of(c), false);
+}
+void ScreenBoxC(unsigned long x, unsigned long y, unsigned long w, unsigned long h, unsigned char c) {
+    box_px(g_screen, SW, SH, x, y, w, h, color_of(c), false);
+    g_dirty = true;
+}
+void ScreenLineC(unsigned long x1, unsigned long y1, unsigned long x2, unsigned long y2, int c) {
+    int r = 0, g = 0, b = 0;
+    uint32_t v = color_of(c & 255);
+    r = v >> 16 & 255; g = v >> 8 & 255; b = v & 255;
+    screen->vtable->line(screen, x1, y1, x2, y2, makecol_depth(32, r, g, b));
+    g_dirty = true;
+}
+void ScreenLineC(unsigned long x1, unsigned long y1, unsigned long x2, unsigned long y2, int r, int g, int b) {
+    screen->vtable->line(screen, x1, y1, x2, y2, makecol_depth(32, r, g, b));
+    g_dirty = true;
+}
+void ScreenClear(int c) { for (int i = 0; i < SW * SH; i++) g_screen[i] = color_of(c & 255); g_dirty = true; }
+void ScreenFadeOutClear(unsigned char) {
+    for (int step = 0; step < 8; step++) {
+        for (int i = 0; i < SW * SH; i++) { uint32_t p = g_screen[i]; g_screen[i] = (p >> 1) & 0x7f7f7f; }
+        g_dirty = true;
+        sleep_ms(30);
+    }
+    for (int i = 0; i < SW * SH; i++) g_screen[i] = 0;
+    g_dirty = true;
+}
+void BitmapRectToScreen(_RADBitmap* b, unsigned long x, unsigned long y, unsigned long w, unsigned long h) {
+    if (b) blit(b->px, b->w, b->h, x, y, g_screen, SW, SH, x, y, w, h, false, 0);
+    g_dirty = true;
+}
+// Scaled copy (into dst if given, else a new bitmap). Transparent pixels stay transparent.
+_RADBitmap* ArbScaleBmp(_RADBitmap* dst, _RADBitmap* src, unsigned short w, unsigned short h, unsigned char) {
+    if (!src || !w || !h) return dst;
+    if (!dst) dst = bmp_new(w, h, kKey);
+    for (unsigned j = 0; j < h && j < dst->h; j++)
+        for (unsigned i = 0; i < w && i < dst->w; i++)
+            dst->px[j * dst->w + i] = src->px[(j * src->h / h) * src->w + i * src->w / w];
+    return dst;
+}
+// 8-bit palette conversions: art here is true colour already
+_RADBitmap* BitmapConvPal(_RADBitmap* src, _RADBitmap* dst, unsigned char) {
+    if (!src) return dst;
+    if (!dst) { dst = bmp_new(src->w, src->h, kKey); memcpy(dst->px, src->px, (size_t)src->w * src->h * 4); }
+    return dst;
+}
+void BitmapPaletteMerge(_RADBitmap*, _RADBitmap*) {}
+// Tints the bitmap towards (r, g, b) by `amount` percent (non-transparent pixels)
+void BitmapColorize(_RADBitmap* b, int r, int g, int bl, int amount) {
+    if (!b) return;
+    int a = amount ? SDL_clamp(amount, 0, 100) : 100;
+    for (size_t i = 0; i < (size_t)b->w * b->h; i++) {
+        uint32_t p = b->px[i];
+        if (p == kKey) continue;
+        int lum = ((p >> 16 & 255) + (p >> 8 & 255) + (p & 255)) / 3;
+        int tr = r * lum / 255, tg = g * lum / 255, tb = bl * lum / 255;
+        int pr = p >> 16 & 255, pg = p >> 8 & 255, pb = p & 255;
+        b->px[i] = (uint32_t)(pr + (tr - pr) * a / 100) << 16 | (uint32_t)(pg + (tg - pg) * a / 100) << 8 | (uint32_t)(pb + (tb - pb) * a / 100);
+    }
+}
+// BitmapText: the 8x8 system font; draws with the default bitmap font in white
+void BitmapText(_RADBitmap* b, unsigned long x, unsigned long y, char* text) {
+    if (b && text) legacy::ttf_draw(b->bmp, text, x, y, 0, 0, 255, 255, 255, 12, 0, false, "bureau", 0, 0);
+}
+// BitmapTextTTF(bmp, text, x, y, w, h, c1, c2, c3, size, align, bool, family, spacing)
+// c1..c3: colour adjustments (0,0,-255 / 0,-100,-255 / 0,0,0 seen); drawn white for now.
+void BitmapTextTTF(_RADBitmap* b, char const* text, int x, int y, int w, int h, int c1, int c2, int c3,
+                   int size, int align, bool bold, char* family, int spacing) {
+    if (!b || !text) return;
+    static bool dbg = menv("DEBUG_TEXT") != nullptr;
+    if (dbg) LOG("BitmapTextTTF '%s' box %d,%d %dx%d c %d,%d,%d size %d align %d %d %s %d", text, x, y, w, h, c1, c2, c3, size, align, bold, family ? family : "-", spacing);
+    legacy::ttf_draw(b->bmp, text, x, y, w, h, 255, 255, 255, size, align, bold, family, 0, 0);
+}
+
+// Head-to-head cabinet linking: never linked here (one cabinet, player 0, we are the master)
+extern "C" {
+unsigned char LinkedWithCnt;
+unsigned char WhoWeArePlaying[16];
+unsigned char LinkFanTimeSetting, LinkShowDeckSetting, LinkEasyMode, LinkCheckerzRules, LinkContinueSetting, LinkWaitTimer;
+unsigned char BonusPlay;
+int SavedLanguage;
+void* RankFunc;
+}
+unsigned char GetMyId() { return 0; }
+unsigned char GetMaster() { return 1; }
+void SetMaster(unsigned char) {}
+int GetPackets(char*, int) { return 0; }
+bool SendPilePacket(char*, int) { return true; }
+void ProcessRTPackets() { pump(); }
+void InFormOfIDUsage(unsigned char, unsigned char) {}
+int Heartbeat_Check(int, int) { return 1; }
+void Heartbeat_Stop() {}
+void DisplayDefeated(int, int) {}
+// Meritthon (multi-game tournament) round banner: not in a Meritthon
+void MeritthonDisplayRound(int, int, int, unsigned long) {}
+// Help file for the current language: gamedata/help/<game><suffix>
+bool GetHelpFileName(char (&out)[255], char const* game, Locale::Languages, char const* suffix) {
+    snprintf(out, sizeof out, "/usr/local/gamedata/help/%s%s", game ? game : "", suffix ? suffix : "");
+    struct stat st;
+    return stat(out, &st) == 0;
+}
