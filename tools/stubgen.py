@@ -28,7 +28,7 @@ with open(os.path.join(root, 'build/unresolved', os.path.basename(os.path.abspat
 
 # never shadow what the port already implements
 provided = set()
-for lib in ('shared/bin/libmerit_legacy.so', 'shared/bin/megatouch-host'):
+for lib in ('shared/bin/libmerit_legacy.so', 'shared/bin/libmerit_gendef.so', 'shared/bin/megatouch-host'):
     path = os.path.join(root, lib)
     if os.path.exists(path):
         out_ = subprocess.run(['nm', '-D', '--defined-only', path], capture_output=True, text=True).stdout

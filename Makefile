@@ -35,6 +35,8 @@ LEGACY_SRC  := $(wildcard src/legacy/*.cpp)
 BACKEND_OBJ := $(BACKEND_SRC:src/%.cpp=$(OUT)/%.o) $(OUT)/third_party/stb_vorbis.o
 HOST_OBJ    := $(HOST_SRC:src/%.cpp=$(OUT)/%.o)
 LEGACY_OBJ  := $(LEGACY_SRC:src/%.cpp=$(OUT)/%.o)
+GENDEF_SRC  := $(wildcard src/gendef/*.cpp)
+GENDEF_OBJ  := $(GENDEF_SRC:src/%.cpp=$(OUT)/%.o)
 HEADERS     := $(wildcard src/*/*.h)
 
 .PHONY: all build setup new run analyze decompile package snapshot games publish stubs docs survey clean help
@@ -44,7 +46,7 @@ all: build
 # dependencies without using them (everything they did is in libgame_device_sprite.so).
 STUBS := $(addprefix $(BIN)/stubs/,libgraphics_sprite.so libinput_sprite.so libsound_sprite.so)
 
-build: $(BIN)/megatouch-host $(BIN)/libgame_device_sprite.so $(BIN)/gameids $(STUBS) $(BIN)/libmega_unity.so $(BIN)/libmerit_legacy.so
+build: $(BIN)/megatouch-host $(BIN)/libgame_device_sprite.so $(BIN)/gameids $(STUBS) $(BIN)/libmega_unity.so $(BIN)/libmerit_legacy.so $(BIN)/libmerit_gendef.so
 
 $(BIN)/stubs/%.so:
 	@mkdir -p $(dir $@)
@@ -72,6 +74,12 @@ $(BIN)/megatouch-host: $(HOST_OBJ)
 $(BIN)/libmerit_legacy.so: $(LEGACY_OBJ)
 	@mkdir -p $(BIN)
 	$(CXX) -shared -o $@.new $^ $(LINKPATH) -lSDL2 -lSDL2_image -lz -ldl && mv $@.new $@
+
+# The loader's gendef classes (xml_gamerandom records, RandomizedArrayClass, TriviaClass, DBFClass)
+# on top of the cabinet's libgendef_xml/libgendef_common (preloaded after them for legacy games).
+$(BIN)/libmerit_gendef.so: $(GENDEF_OBJ)
+	@mkdir -p $(BIN)
+	$(CXX) -shared -o $@.new $^ $(LINKPATH) -lgendef_xml -lgendef_common -lz && mv $@.new $@
 
 # Preloaded into the Unity player (Unity-family games): routes FMOD's sound output to PulseAudio.
 $(BIN)/libmega_unity.so: src/unity/fmod_output.cpp src/host/fs_shim.cpp src/common/gl_shots.cpp src/common/env.h

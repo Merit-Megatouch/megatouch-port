@@ -35,7 +35,7 @@ if sys.argv[1:2] == ['--index']:
 
 g = sys.argv[1]
 provided = set()
-for lib in [f'{R}/shared/bin/libmerit_legacy.so', f'{R}/shared/bin/megatouch-host'] + glob.glob(f'{R}/shared/runtime/*.so*'):
+for lib in [f'{R}/shared/bin/libmerit_legacy.so', f'{R}/shared/bin/libmerit_gendef.so', f'{R}/shared/bin/megatouch-host'] + glob.glob(f'{R}/shared/runtime/*.so*'):
     if os.path.isfile(lib): provided |= nm(lib, True)
 miss = set()
 own = [so for so in glob.glob(f'{R}/games/{g}/lib/*.so') if not os.path.islink(so) and 'libmega_stubs' not in so]

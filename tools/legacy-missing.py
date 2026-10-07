@@ -20,7 +20,7 @@ def syms(path, defined):
     return {l.split()[-1].split('@')[0] for l in out.splitlines() if l.strip() and (not defined or l.split()[1] not in 'Uw')}
 
 provided = set()
-for lib in [f'{R}/shared/bin/libmerit_legacy.so', f'{R}/shared/bin/megatouch-host'] + glob.glob(f'{R}/shared/runtime/*.so*'):
+for lib in [f'{R}/shared/bin/libmerit_legacy.so', f'{R}/shared/bin/libmerit_gendef.so', f'{R}/shared/bin/megatouch-host'] + glob.glob(f'{R}/shared/runtime/*.so*'):
     if os.path.isfile(lib): provided |= syms(lib, True)
 games = args or sorted(os.path.basename(os.path.dirname(c)) for c in glob.glob(f'{R}/games/*/game.conf')
                        if 'libmerit_legacy' in open(c).read())
