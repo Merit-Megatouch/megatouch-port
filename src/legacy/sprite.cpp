@@ -31,6 +31,10 @@ WorldClass*& world_slot() {
 }
 // sprites created while no world exists (rare): adopted by the next world
 std::set<Sprite*>& orphans() { static std::set<Sprite*> s; return s; }
+// child -> parent (the Sprite ctor's parent argument; children pushed into +4 lists by games are
+// found from the lists)
+std::map<const Sprite*, Sprite*>& parents() { static std::map<const Sprite*, Sprite*> m; return m; }
+Sprite* parent_of(const Sprite* s) { auto it = parents().find(s); return it == parents().end() ? nullptr : it->second; }
 }
 
 namespace legacy {
@@ -255,10 +259,13 @@ double ease(double t, int smooth) {
 }
 
 // an engine event: runs `step(sprite, t)` with t 0..1 between start and end
+std::set<const EventO*>& engine_events() { static std::set<const EventO*> s; return s; }
 class EngineEvent : public EventO {
 public:
     std::function<void(Sprite*, double)> step;
     bool done = false;
+    EngineEvent() { engine_events().insert(this); }
+    ~EngineEvent() override { engine_events().erase(this); }
     int DoIt(Sprite* s, int) override {
         uint32_t t = now();
         if (t < start) return 1;
@@ -303,6 +310,7 @@ Sprite::Sprite(Bitmap* b, unsigned long fl, Sprite* parent) : Group(nullptr, par
     if (parent) {
         if (!parent->children) parent->children = new List(static_cast<List*>(nullptr));
         parent->children->Push(this);
+        parents()[this] = parent;
     }
 }
 Sprite::~Sprite() {
@@ -311,7 +319,9 @@ Sprite::~Sprite() {
         if (wd->ws && wd->ws->pressed == this) wd->ws->pressed = nullptr;
     }
     orphans().erase(this);
-    if (auto* p = dynamic_cast<Sprite*>(owner)) if (p->children) p->children->RemoveFrom(this);
+    if (Sprite* p = parent_of(this)) { if (p->children) p->children->RemoveFrom(this); }
+    parents().erase(this);
+    for (auto it = parents().begin(); it != parents().end();) if (it->second == this) it = parents().erase(it); else ++it;
     for (List** l : {&click_events, &frame_events, &events84, &timed_events}) {
         if (*l) { (*l)->Clear(8); delete *l; *l = nullptr; }
     }
@@ -327,7 +337,7 @@ Sprite::~Sprite() {
 int Sprite::Signal(SpriteSignal* s) {
     int r = 0;
     if (sig_handlers) sig_handlers->each([&](Group* g) { r |= static_cast<SpriteSigHand*>(g)->DoIt(this, s); });
-    if (auto* p = dynamic_cast<Sprite*>(owner)) r |= p->Signal(s);
+    if (Sprite* p = parent_of(this)) r |= p->Signal(s);
     return r;
 }
 int Sprite::Signal(Group::SpriteSignalType t) { SpriteSignal s(t, this, nullptr, nullptr); return Signal(&s); }
@@ -482,7 +492,7 @@ void Sprite::DeleteAfterLast(unsigned long delay) {
 static void kill_kind(Sprite* s, unsigned char k) {
     s->timed_events->each([&](Group* g) {
         auto* e = static_cast<EventO*>(g);
-        if (dynamic_cast<EngineEvent*>(e) && e->kind == k) { s->timed_events->RemoveFrom(e); delete e; }
+        if (engine_events().count(e) && e->kind == k) { s->timed_events->RemoveFrom(e); delete e; }
     });
 }
 void Sprite::KillAllMovementEvents() { kill_kind(this, K_MOVE); }
@@ -568,7 +578,7 @@ Sprite** Sprite::PixelCollide(float, int) {
 }
 static void clicks_all(Sprite* s, bool on) {
     if (on) s->flags |= F_CLICK; else s->flags &= ~F_CLICK;
-    if (s->children) s->children->each([&](Group* g) { if (auto* c = dynamic_cast<Sprite*>(g)) clicks_all(c, on); });
+    if (s->children) s->children->each([&](Group* g) { if (g) clicks_all(static_cast<Sprite*>(g), on); });
 }
 void Sprite::EnableAllClicks(unsigned long delay) { at(this, K_MISC, delay, [](Sprite* s) { clicks_all(s, true); }); }
 void Sprite::DisableAllClicks(unsigned long delay) { at(this, K_MISC, delay, [](Sprite* s) { clicks_all(s, false); }); }
@@ -698,7 +708,7 @@ void draw_sprite_tree(Sprite* s, BITMAP* dst, float ox, float oy) {
     draw_self(s, dst, ox, oy);
     if (!s->children || (s->flags & F_DISABLED)) return;
     std::vector<Sprite*> kids;
-    s->children->each([&](Group* g) { if (auto* c = dynamic_cast<Sprite*>(g)) kids.push_back(c); });
+    s->children->each([&](Group* g) { if (g) kids.push_back(static_cast<Sprite*>(g)); });
     std::stable_sort(kids.begin(), kids.end(), [](Sprite* a, Sprite* b) { return a->z < b->z; });
     for (Sprite* c : kids) {
         float sox = g_ox, soy = g_oy;
@@ -878,7 +888,7 @@ void WorldClass::frame() {
                 if (clock < e->start) continue;
                 e->DoIt(s, 0);
                 if (!sprites->count(s) || !s->timed_events) break;
-                auto* ee = dynamic_cast<EngineEvent*>(e);
+                auto* ee = engine_events().count(e) ? static_cast<EngineEvent*>(e) : nullptr;
                 bool finished = ee ? ee->done : (e->end != kForever && clock >= e->end);
                 if (finished && s->timed_events->Contains(e)) { s->timed_events->RemoveFrom(e); delete e; }
             }
@@ -897,6 +907,8 @@ void WorldClass::frame() {
     for (Sprite* s : std::vector<Sprite*>(sprites->begin(), sprites->end()))
         if (sprites->count(s) && (s->flags & F_DELETE)) delete s;
     // touches: the topmost enabled, clickable sprite under the finger
+    std::map<Sprite*, Sprite*> list_parent;
+    for (Sprite* s : *sprites) if (s->children) s->children->each([&](Group* g) { list_parent[static_cast<Sprite*>(g)] = s; });
     for (const auto& t : legacy::take_touches()) {
         if (!t.down) {
             if (ws->pressed && sprites->count(ws->pressed) && ws->pressed->click_events)
@@ -909,7 +921,7 @@ void WorldClass::frame() {
         for (Sprite* s : *sprites) {
             if ((s->flags & (F_DISABLED | F_DELETE)) || !(s->flags & F_CLICK)) continue;
             float ox = 0, oy = 0;
-            if (auto* p = dynamic_cast<Sprite*>(s->owner)) { ox = p->x; oy = p->y; if (p->flags & F_DISABLED) continue; }
+            if (Sprite* p = list_parent.count(s) ? list_parent[s] : parent_of(s)) { ox = p->x; oy = p->y; if (p->flags & F_DISABLED) continue; }
             if (hit(s, t.x, t.y, ox, oy) && (!best || s->z >= best->z)) best = s;
         }
         if (best) { ws->pressed = best; best->SpriteClick(); }
@@ -993,3 +1005,9 @@ void NetSpriteLock::SendPacket(unsigned char) {}
 void NetSpriteLock::SendPacketLock(unsigned char, unsigned long) {}
 void NetSpriteLock::SendAck(unsigned char) {}
 void NetSpriteLock::SendNack(unsigned char) {}
+
+// The loader always had a world installed (MegacGlobals+0x207c) before starting a game: Merit2d
+// games load bitmaps through it before making their own, and games save/restore it.
+__attribute__((constructor(200))) static void install_loader_world() {
+    if (!world_slot()) world_slot() = new DOSLinuxWorld();
+}
