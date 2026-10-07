@@ -182,6 +182,8 @@ public:
     char const* HighestName(xml_gameinfo::GameIds, int);
     void AbortGame();
     static char const* PlayerName(int player);
+    int LowestScore(xml_gameinfo::GameIds, int);
+    int LowestScore(int);
 };
 // High scores. Games keep the running score in PlrScore[player]; at game over they call
 // Winner() and HighEnough(winner, ...). On the cabinet "true" opened the loader's name-entry
@@ -234,6 +236,9 @@ char const* HighScoresManager::HighestName(int) { return best().name.c_str(); }
 bool HighScoresManager::HighEnough(xml_gameinfo::GameIds, int player, int, int) { return HighEnough(player, 0); }
 int HighScoresManager::HighestScore(xml_gameinfo::GameIds, int) { return best().score; }
 void HighScoresManager::AbortGame() {}
+// One best score per game is kept, so it is also the lowest (a score above it is "high").
+int HighScoresManager::LowestScore(xml_gameinfo::GameIds, int) { return best().score; }
+int HighScoresManager::LowestScore(int) { return best().score; }
 // The name a player's scores are shown under (1-based; take2 copies it per seat). No player
 // logins here: "Player N".
 char const* HighScoresManager::PlayerName(int player) {

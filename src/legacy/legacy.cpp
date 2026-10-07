@@ -802,9 +802,10 @@ void VideoClass::RemoveFromVBZ(unsigned long id) { legacy::zlist_remove(id); }
 namespace legacy {
 void zlist_changed() { g_zdirty = true; }
 int base_vb() {
+    if (g_curVB >= 0) { g_vbTouched = false; return g_curVB; }   // an open VB is the page under the sprites
     if (!g_vbTouched) return -2;
     g_vbTouched = false;
-    return g_curVB >= 0 ? g_curVB : g_shownVB >= 0 ? g_shownVB : -2;
+    return g_shownVB >= 0 ? g_shownVB : -2;
 }
 }
 // the shown buffer plus the z-ordered items over it
@@ -1079,6 +1080,27 @@ void MeritthonDisplayRound(int, int, int, unsigned long) {}
 bool GetHelpFileName(char (&out)[255], char const* game, Locale::Languages, char const* suffix) {
     snprintf(out, sizeof out, "/usr/local/gamedata/help/%s%s", game ? game : "", suffix ? suffix : "");
     struct stat st;
+    return stat(out, &st) == 0;
+}
+// The card games' overloads keyed by game id: gamedata/help/<language>/<game>.txt, the game
+// being the running library's name (euchre, hearts, spades).
+static void help_path(char (&out)[255], const char* suffix) {
+    std::string game = menv("LIB") ? menv("LIB") : "";
+    size_t sl = game.rfind('/'); if (sl != std::string::npos) game = game.substr(sl + 1);
+    if (game.size() > 3 && game.compare(game.size() - 3, 3, ".so") == 0) game.resize(game.size() - 3);
+    const char* lang = menv("LANGUAGE") ? menv("LANGUAGE") : "english";
+    snprintf(out, sizeof out, "/usr/local/gamedata/help/%s/%s%s", lang, game.c_str(), suffix && *suffix ? suffix : ".txt");
+}
+bool GetHelpFileName(char (&out)[255], xml_gameinfo::GameIds) {
+    help_path(out, nullptr);
+    struct stat st;
+    return stat(out, &st) == 0;
+}
+bool GetHelpFileName(char (&out)[255], xml_gameinfo::GameIds, Locale::Languages, char const* suffix) {
+    help_path(out, suffix);
+    struct stat st;
+    if (stat(out, &st) == 0) return true;
+    help_path(out, nullptr);
     return stat(out, &st) == 0;
 }
 

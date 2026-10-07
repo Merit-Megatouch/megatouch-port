@@ -190,8 +190,7 @@ public:
     // ---- layout
     float x, y;                                  // +0x0c
     float w, h;                                  // +0x14 unscaled size
-    SpriteState* st;                             // +0x1c engine state
-    int pad20;
+    float hot_x, hot_y;                          // +0x1c/+0x20 game-written floats (snubble SObjs)
     int scale_x, scale_y;                        // +0x24 16.16
     float angle;                                 // +0x2c
     uint32_t flags;                              // +0x30
@@ -203,7 +202,9 @@ public:
     Bitmap* bmp;                                 // +0x60
     String* str;                                 // +0x64
     char* name;                                  // +0x68
-    int pad6c[4];
+    SpriteState* st;                             // +0x6c engine state (engine-private range; +0x1c is
+                                                 // written by SObj games, docs/reference/sobj.md §7)
+    int pad70[3];
     List* click_events;                          // +0x7c
     List* frame_events;                          // +0x80
     List* events84;                              // +0x84
@@ -221,6 +222,65 @@ static_assert(offsetof(Sprite, bmp) == 0x60, "Sprite +0x60");
 static_assert(offsetof(Sprite, click_events) == 0x7c, "Sprite +0x7c");
 static_assert(offsetof(Sprite, timed_events) == 0x88, "Sprite +0x88");
 static_assert(offsetof(Sprite, last) == 0xa8, "Sprite +0xa8");
+static_assert(offsetof(Sprite, st) == 0x6c, "Sprite +0x6c");
+
+// The older "AllocSprite" sprite API (euchre, hearts, spades, snubble): a Sprite with a
+// frame-counted event queue at +0x148. docs/reference/sobj.md.
+struct SObjText;
+class SObj : public Sprite {
+public:
+    SObj(Bitmap* bmp, unsigned short flags);
+    ~SObj() override;
+    int DoNextFrame() override;                  // slot 7
+    int DoDraw() override;                       // slot 8
+    void SetBmp(Bitmap*);
+    void SetBmpSeq(Bitmap*);
+    void SetCord(int x, int y, int z);
+    int MoveSprite(int x0, int y0, int z0, int x1, int y1, int z1, int frames, int delay, unsigned char ease);
+    int CurveSprite(int, int, int, int, int, int, int, int, int, int, int, int, int frames, int delay, unsigned char ease);
+    int CurveNum(int* p, int a, int b, int c, int d, int frames, int delay, unsigned char ease);
+    int CurveNum(unsigned char* p, unsigned char a, unsigned char b, unsigned char c, unsigned char d, int frames, int delay, unsigned char ease);
+    void LoopAllAnim(Bitmap* anim, int loops, unsigned char, int delay);
+    void LoopObjAnim(Bitmap* anim, int first, int last, int dur, int loops, int delay, unsigned char);
+    void LoopObjAnimAfterLast(Bitmap* anim, int first, int last, int dur, int loops, int delay, unsigned char);
+    void LoopRestAnim(unsigned char);
+    void HideAfterLast(int delay);
+    void DeleteAfterLast(int delay, unsigned char unlink);
+    int FramesLeft();
+    void StripEvents(int mask);
+    void PlaySound(char* wav, unsigned short flags, unsigned long delay);
+    void DebugSprite();
+
+    // ---- layout (+0xac..+0x1ff; sobj.md §3)
+    unsigned char padac[0xe4 - 0xac];
+    uint32_t sflags;                             // +0xe4: 1 mirror, 0x40 kill
+    int seq_index;                               // +0xe8 frame for SetBmpSeq
+    float prev_x, prev_y, prev_z;                // +0xec
+    int padf8;
+    Bitmap* base_bmp;                            // +0xfc
+    int pad100[2];
+    int visible;                                 // +0x108: 0 hidden, 2 shown
+    int field10c;
+    int show_delay;                              // +0x110 frames until shown
+    SObj* chain_next;                            // +0x114
+    int pad118[4];
+    int field128;                                // +0x128
+    int pad12c[7];
+    ListObj* events;                             // +0x148 pending events (games test it for empty)
+    unsigned char pad14c[0x186 - 0x14c];
+    unsigned char clip_on;                       // +0x186
+    unsigned char pad187;
+    int clip_x1, clip_y1, clip_x2, clip_y2;      // +0x188 inclusive
+    // engine-private
+    SObjText* text;                              // +0x198 AssignString state
+    unsigned short alloc_flags;                  // +0x19c
+    unsigned char kill_unlink;                   // +0x19e unlink from game lists when reaped
+    unsigned char pad19f[0x200 - 0x19f];
+};
+static_assert(sizeof(SObj) == 0x200, "SObj");
+static_assert(offsetof(SObj, sflags) == 0xe4 && offsetof(SObj, base_bmp) == 0xfc && offsetof(SObj, visible) == 0x108, "SObj fields");
+static_assert(offsetof(SObj, show_delay) == 0x110 && offsetof(SObj, field128) == 0x128 && offsetof(SObj, events) == 0x148, "SObj fields");
+static_assert(offsetof(SObj, clip_on) == 0x186 && offsetof(SObj, clip_x1) == 0x188 && offsetof(SObj, text) == 0x198, "SObj fields");
 
 struct WorldState;
 
@@ -251,6 +311,14 @@ public:
     Bitmap* CopyCompBitmap(Bitmap*, int, int, int, int, int, int, int, int, int, int frames, bool);
     void SpriteDrawTarget(Bitmap*);
     void ResetTimers();
+    SObj* AllocSprite(Bitmap*, unsigned short);
+    void DeleteSpriteAllLists(SObj*, unsigned char);
+    void AssignString(SObj*, char const*, int x, int y, int z, BmpFont*, unsigned short w, unsigned short h, int just,
+                      signed char spacing, short r, short g, short b, unsigned char, unsigned char);
+    void AssignString1(SObj*, char const*, int*, int x, int y, int z, BmpFont*, unsigned short w, unsigned short h, int just,
+                       signed char spacing, short r, short g, short b, unsigned char, unsigned char);
+    void AssignString2(SObj*, char const*, int*, int*, int x, int y, int z, BmpFont*, unsigned short w, unsigned short h,
+                       int just, signed char spacing, short r, short g, short b, unsigned char, unsigned char);
 
     // engine
     void frame();                                // one engine frame: events, update, reap, draw, clicks
@@ -260,7 +328,7 @@ public:
     std::set<Bitmap*> bitmaps;                   // +0x20 games insert the bitmaps they make (dominoes
                                                  // Dominoes_Text::Create) with inline std::set code
     unsigned char pad38[0x54 - 0x38];
-    ListObj* sobj_list;                          // +0x54
+    ListObj* sobj_list;                          // +0x54 header of every SObj (games walk it unchecked)
     int pad58;
     std::set<Sprite*>* sprites;                  // +0x5c registry (games iterate it)
     void* root;                                  // +0x60
@@ -320,6 +388,14 @@ static_assert(sizeof(NetSpriteLock) == 0x2d0, "NetSpriteLock");
 
 namespace legacy {
 WorldClass* current_world();
+// engine internals shared with sobj.cpp / gash.cpp
+ListObj* list_new_header();                      // empty header (+ tail), registered
+void list_append(ListObj* hdr, void* data);
+bool list_remove(ListObj* hdr, void* data);       // first node holding data
+void list_unlink_everywhere(void* data, ListObj* except);   // every registered list
+uint32_t world_frame_no(WorldClass*);
+void sobj_reap(WorldClass*);                     // kill bit / fired deletes (sobj.cpp)
+void sobj_blit(Bitmap* b, float x, float y, int sx16, int sy16, int transparency, bool mirror, const int* clip);
 }
 
 // GameClass: base of some games' main objects (cardbandits, wordzap...). A Group with no virtuals of

@@ -57,6 +57,7 @@ struct WorldState {
     std::vector<uint32_t> base;
     struct R { int x, y, w, h; };
     std::vector<R> last_rects;
+    uint32_t frame_no = 0;                       // frames run (SObj timing counts frames)
 };
 
 struct SpriteState {
@@ -90,8 +91,11 @@ SpriteSignal::SpriteSignal(Group::SpriteSignalType t, Sprite* a, Sprite* b, Gash
 SpriteSigHand::SpriteSigHand() : Group(nullptr, nullptr) {}
 
 // ------------------------------------------------------------------------------ lists
+// Every header the engine makes is registered, so an SObj can be unlinked from all game lists
+// (DeleteSpriteAllLists, DeleteAfterLast(…, 1); sobj.md §5).
+static std::set<ListObj*>& headers() { static auto* s = new std::set<ListObj*>; return *s; }
 ListObj::ListObj() : Group(nullptr, nullptr), data(nullptr), prev(nullptr), next(nullptr) {}
-ListObj::~ListObj() {}
+ListObj::~ListObj() { if (!prev) headers().erase(this); }
 ListObjHeader::ListObjHeader() : extra(0) {}
 
 static ListObjHeader* new_header() {
@@ -99,6 +103,7 @@ static ListObjHeader* new_header() {
     auto* t = new ListObj;
     h->data = t; h->prev = nullptr; h->next = t;
     t->prev = h; t->next = nullptr; t->data = h;
+    headers().insert(h);
     return h;
 }
 static ListObj* find_header(ListObj* n) {
@@ -218,6 +223,30 @@ template <class T> void ListT<T>::Set(List* l) { SetList(l ? l->header() : nullp
 template class ListT<Sprite>;
 template class ListT<EventO>;
 
+namespace legacy {
+ListObj* list_new_header() { return new_header(); }
+void list_append(ListObj* h, void* data) {
+    h = find_header(h);
+    if (!h) return;
+    ListObj* t = tail_of(h);
+    auto* n = new ListObj;
+    n->data = data;
+    n->prev = t->prev; n->next = t;
+    t->prev->next = n; t->prev = n;
+}
+bool list_remove(ListObj* h, void* data) {
+    h = find_header(h);
+    for (ListObj* n = h ? h->next : nullptr; n && n->next; n = n->next)
+        if (n->data == data) { unlink(n); delete n; return true; }
+    return false;
+}
+void list_unlink_everywhere(void* data, ListObj* except) {
+    std::vector<ListObj*> hs(headers().begin(), headers().end());
+    for (ListObj* h : hs) if (h != except && headers().count(h)) while (list_remove(h, data)) {}
+}
+uint32_t world_frame_no(WorldClass* w) { return w && w->ws ? w->ws->frame_no : 0; }
+}
+
 // C list API on raw headers
 void LinkIntoList(ListObj* h, void* data, int pos) {
     if (!h) return;
@@ -247,6 +276,14 @@ int EventO::GetType() { return kind; }
 
 namespace {
 WorldClass* W() { return legacy::current_world(); }
+// Where sprites draw: during WorldClass::render() its destination (the screen or the draw target),
+// whatever video buffer the game has open (euchre keeps VB 0 open across its animation loops and
+// the cabinet still showed the sprites); outside a render, the draw target or the current VB.
+BITMAP* g_render_dst;
+BITMAP* sprite_dst(WorldClass* wd) {
+    if (g_render_dst) return g_render_dst;
+    return wd && wd->ws && wd->ws->draw_target && wd->ws->draw_target->al ? wd->ws->draw_target->al : legacy::target_bitmap();
+}
 uint32_t now() { WorldClass* w = W(); return w ? w->clock : legacy::ticks(); }
 
 enum Kind : unsigned char { K_GAME = 0, K_CALL = 1, K_MOVE = 2, K_ENABLE = 3, K_FADE = 4, K_ANIM = 5, K_MISC = 6 };
@@ -662,7 +699,7 @@ std::string string_key(const String* s, const SpriteState* st, int w, int h) {
 // Base drawing: the bitmap, then the text inside the sprite's box. Children are drawn by the world.
 int Sprite::DoDraw() {
     WorldClass* wd = W();
-    BITMAP* dst = wd && wd->ws && wd->ws->draw_target && wd->ws->draw_target->al ? wd->ws->draw_target->al : legacy::target_bitmap();
+    BITMAP* dst = sprite_dst(wd);
     draw_sprite_tree(this, dst, 0, 0);
     return 1;
 }
@@ -724,12 +761,42 @@ void draw_sprite_tree(Sprite* s, BITMAP* dst, float ox, float oy) {
 }
 }
 
+// SObj drawing (sobj.cpp): the bitmap at (x, y) scaled by 16.16 factors, with transparency,
+// optional X mirror and an inclusive clip rectangle.
+namespace legacy {
+void sobj_blit(Bitmap* b, float x, float y, int sx16, int sy16, int transparency, bool mirror, const int* clip) {
+    if (!valid_bmp(b) || !b->ready() || transparency >= 255) return;
+    WorldClass* wd = W();
+    BITMAP* dst = sprite_dst(wd);
+    double sx = sx16 ? sx16 / 65536.0 : 1.0, sy = sy16 ? sy16 / 65536.0 : 1.0;
+    int dw = (int)std::lround(b->w * sx), dh = (int)std::lround(b->h * sy);
+    int cl = dst->cl, ct = dst->ct, cr = dst->cr, cb = dst->cb;
+    if (clip) {
+        dst->cl = std::max(cl, clip[0]); dst->ct = std::max(ct, clip[1]);
+        dst->cr = std::min(cr, clip[2] + 1); dst->cb = std::min(cb, clip[3] + 1);
+    }
+    BITMAP* src = b->al;
+    BITMAP* flipped = nullptr;
+    if (mirror) {
+        flipped = create_bitmap_ex(src->vtable->color_depth, src->w, src->h);
+        for (int yy = 0; yy < src->h; yy++)
+            for (int xx = 0; xx < src->w; xx++) flipped->vtable->putpixel(flipped, src->w - 1 - xx, yy, src->vtable->getpixel(src, xx, yy));
+        src = flipped;
+    }
+    if (dst->cr > dst->cl && dst->cb > dst->ct)
+        blit_sprite(src, dst, (int)std::lround(x), (int)std::lround(y), dw, dh, transparency, nullptr, nullptr, b->flags & 0x02);
+    if (flipped) destroy_bitmap(flipped);
+    dst->cl = cl; dst->ct = ct; dst->cr = cr; dst->cb = cb;
+}
+}
+
 // ------------------------------------------------------------------------------ WorldClass
 WorldClass::WorldClass() : Group(nullptr, nullptr) {
     memset(reinterpret_cast<unsigned char*>(this) + offsetof(WorldClass, pad0c), 0, sizeof(WorldClass) - offsetof(WorldClass, pad0c));
     new (&bitmaps) std::set<Bitmap*>();           // the memset above wiped the member
     legacy::video_init();
     sprites = new std::set<Sprite*>;
+    sobj_list = new_header();
     ws = new WorldState;
     ws->start = legacy::ticks();
     fps = menv_int("LEGACY_FPS", 30);
@@ -747,6 +814,13 @@ WorldClass::~WorldClass() {
         for (Sprite* s : v) if (sprites->count(s)) delete s;
         world_slot() = saved;
         delete sprites; sprites = nullptr;
+    }
+    if (sobj_list) {
+        ListObj* h = sobj_list;
+        for (ListObj* n = h->next; n && n->next;) { ListObj* nx = n->next; delete n; n = nx; }
+        delete tail_of(h);
+        delete h;
+        sobj_list = nullptr;
     }
     if (ws) {
         if (ws->back_owned) legacy::free_bitmap_chain(ws->back);
@@ -867,12 +941,14 @@ void WorldClass::render() {
     std::vector<Sprite*> top;
     for (Sprite* s : *sprites) if (!kids.count(s)) top.push_back(s);
     std::stable_sort(top.begin(), top.end(), [](Sprite* a, Sprite* b) { return a->z < b->z; });
+    g_render_dst = dst;
     for (Sprite* s : top) {
         g_ox = g_oy = 0;
         s->DoDraw();                              // virtual
     }
+    g_render_dst = nullptr;
     g_rects = nullptr;
-    legacy::touched_target();
+    if (dst == screen) legacy::screen_touched(); else legacy::touched_target();
 }
 
 static bool hit(Sprite* s, int tx, int ty, float ox, float oy) {
@@ -885,6 +961,7 @@ static bool hit(Sprite* s, int tx, int ty, float ox, float oy) {
 
 void WorldClass::frame() {
     clock = legacy::ticks() - ws->start;
+    ws->frame_no++;
     std::vector<Sprite*> all(sprites->begin(), sprites->end());
     // events: timed queue (removed when finished), per-frame list
     for (Sprite* s : all) {
@@ -915,6 +992,7 @@ void WorldClass::frame() {
     // reap sprites flagged for deletion
     for (Sprite* s : std::vector<Sprite*>(sprites->begin(), sprites->end()))
         if (sprites->count(s) && (s->flags & F_DELETE)) delete s;
+    legacy::sobj_reap(this);
     // touches: the topmost enabled, clickable sprite under the finger
     std::map<Sprite*, Sprite*> list_parent;
     for (Sprite* s : *sprites) if (s->children) s->children->each([&](Group* g) { list_parent[static_cast<Sprite*>(g)] = s; });
