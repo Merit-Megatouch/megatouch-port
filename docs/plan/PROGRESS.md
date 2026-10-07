@@ -65,6 +65,12 @@ decoder. These are part of the cabinet's copy protection. The port does not impl
 aimed at satisfying or bypassing them — they only get the generic `make stubs` placeholder. If a
 game refuses to run because of them, list it here for the owner instead of working around it.
 
+### Not on this disk image
+luxor2, snake, racing, shooter and beer_pong (the original Beer Pong) ship their code
+(/usr/local/lib/*.so) but their art is linked to /usr/local/ion_only/gamegraphics/*, which this
+image does not have (the ion partition only holds games/). They cannot run without that content.
+idle (attract mode) belongs to the front end, not the games list.
+
 ## In progress
 
 ### Legacy engine (2026-10-07)
