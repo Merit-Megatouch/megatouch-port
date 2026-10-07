@@ -17,7 +17,7 @@ each working game or shared fix.
 
 | Family | Games (libs) | Working | Route | Next |
 | --- | ---: | ---: | --- | --- |
-| GameDevice | 22 | 3 (trix, word dojo 2, boxxi blitz) | SDL2 backend + loader stand-ins | survey order: spin card holdem, field goal, zombie cats, megatouch memory… |
+| GameDevice | 21 games | 20 run (3 played by hand; 17 smoke-tested) | SDL2 backend + loader stand-ins | g_mystery_phraze_hd (Irrlicht backend, 26 symbols); hand play-tests |
 | Unity 3.2 | 30 | 1 (tri towers 2) | cabinet LinuxPlayer + launcher.xml + FMOD shim | scaffold all 29, screenshot-verify each |
 | Legacy 2D | ~128 games / 143 libs | 1 (fourplay) | `src/legacy` reconstruction of the loader's 2D API | grow by game, cheapest first (docs/reference/legacy.md) |
 | Merit3D | ~13 | 0 | GL window + `src/legacy` + 3D-side stand-ins | beer pong 21 in progress (see below) |
@@ -26,6 +26,7 @@ Per-game state lives in each `games/<name>/NOTES.md` and in `docs/reference/game
 
 ## How to verify a game without a person
 
+- `tools/smoke.sh <game> [secs]` + `toolchain/venv/bin/python tools/contact.py out.png <games…>` (contact sheet).
 - GameDevice/legacy: `SDL_VIDEODRIVER=offscreen SDL_AUDIODRIVER=dummy MEGA_SHOT_DIR=/abs/dir
   MEGA_SHOT_EVERY=N MEGA_AUTOCLICK=... timeout 30 games/<g>/run`, then look at the screenshots
   (legacy writes .bmp — convert to PNG to view). GameDevice autoclick is in update ticks (30/s),
@@ -77,6 +78,8 @@ Per-game state lives in each `games/<name>/NOTES.md` and in `docs/reference/game
   operator setup. Investigate whether g_menu / opsetup.so can run on the reconstructed engine.
 
 ## Log (newest first)
+
+- 2026-10-07 — 17 more GameDevice games run headless (smoke.sh + contact sheets); fixes: libsettings preload, v4 .spr, content packs (2 GB shared), absolute links in assets, g_ prefix, window sizes for fight_the_landlord/text_twist2 (800x600), stunt_squirrel (640x480), g_space_farmer (1024x768). All published.
 
 - 2026-10-07 — Owner asleep; autonomous run started. Merit3D groundwork committed.
 - 2026-10-07 — Fourplay (first legacy), Tri Towers 2 (first Unity), Boxxi Blitz, Word Dojo 2, Trix.
