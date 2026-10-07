@@ -77,7 +77,7 @@ namespace legacy {
 int ttf_measure(const char* text, int px, bool bold, const char* family, int spacing) {
     Font* f = font_for(family, bold);
     if (!f->ok || !text) return 0;
-    float sc = stbtt_ScaleForMappingEmToPixels(&f->info, (float)px);
+    float sc = stbtt_ScaleForPixelHeight(&f->info, (float)px);
     float x = 0;
     int prev = 0;
     for (const unsigned char* p = (const unsigned char*)text; *p;) {
@@ -97,7 +97,7 @@ void ttf_draw(BITMAP* dst, const char* text, int bx, int by, int bw, int bh, int
               int align, bool bold, const char* family, int spacing, int outline) {
     Font* f = font_for(family, bold);
     if (!dst || !f->ok || !text || px <= 0) return;
-    float sc = stbtt_ScaleForMappingEmToPixels(&f->info, (float)px);
+    float sc = stbtt_ScaleForPixelHeight(&f->info, (float)px);
     int asc, desc, gap;
     stbtt_GetFontVMetrics(&f->info, &asc, &desc, &gap);
     int tw = ttf_measure(text, px, bold, family, spacing);

@@ -649,23 +649,54 @@ void Bitmap::CreateColoredSmackTextBox(char const* text, FontBase* font, signed 
 
 // TrueType text into the existing bitmap, inside the box; colours are offsets from white.
 // align: 1 left, 2 centre, 4 right (2 in most calls).
+// shrink: reduce the size until the text fits the box on one line (the "S" variant); otherwise
+// word-wrap to the box width, lines centred vertically.
 static void ttf_box(Bitmap* bm, char const* text, int x, int y, int w, int h, int r, int g, int b, int size,
-                    int align, bool bold, char* font, int spacing) {
+                    int align, bool bold, char* font, int spacing, bool shrink) {
     if (!text) return;
     if (bm->w <= 0 || bm->h <= 0) bm->resize(x + w, y + h);
     int a = align == 2 ? 2 : align == 4 ? 1 : 0;
+    int sp = spacing > 0 ? spacing : 0;
     static bool dbg = menv("DEBUG_TEXT") != nullptr;
-    if (dbg) LOG("TTF '%s' box %d,%d %dx%d rgb %d,%d,%d size %d align %d %s", text, x, y, w, h, r, g, b, size, align, font ? font : "-");
-    legacy::ttf_draw(bm->al, text, x, y, w, h, std::clamp(255 + r, 0, 255), std::clamp(255 + g, 0, 255),
-                     std::clamp(255 + b, 0, 255), size, a, bold, font, spacing > 0 ? spacing : 0, 0);
+    if (dbg) LOG("TTF%s '%s' box %d,%d %dx%d rgb %d,%d,%d size %d align %d %s", shrink ? "S" : "", text, x, y, w, h, r, g, b, size, align, font ? font : "-");
+    int cr = std::clamp(255 + r, 0, 255), cg = std::clamp(255 + g, 0, 255), cb = std::clamp(255 + b, 0, 255);
+    std::vector<std::string> lines;
+    if (shrink || w <= 0) {
+        while (shrink && w > 0 && size > 6 && legacy::ttf_measure(text, size, bold, font, sp) > w) size--;
+        while (shrink && h > 0 && size > 6 && size > h) size--;
+        lines.push_back(text);
+    } else {
+        std::string cur, word;
+        auto flush = [&]() {
+            if (word.empty()) return;
+            std::string t = cur.empty() ? word : cur + " " + word;
+            if (!cur.empty() && legacy::ttf_measure(t.c_str(), size, bold, font, sp) > w) { lines.push_back(cur); cur = word; }
+            else cur = t;
+            word.clear();
+        };
+        for (const char* p = text; *p; p++) {
+            if (*p == '\n') { flush(); lines.push_back(cur); cur.clear(); }
+            else if (*p == ' ') flush();
+            else word += *p;
+        }
+        flush();
+        if (!cur.empty() || lines.empty()) lines.push_back(cur);
+        // still too tall for the box: shrink until it fits
+        while (h > 0 && size > 8 && (int)lines.size() * (size + size / 6) > h * 5 / 4) { size--; }
+    }
+    int lh = size + size / 6;
+    int total = (int)lines.size() * lh;
+    int y0 = h > 0 ? y + (h - total) / 2 : y;
+    for (size_t i = 0; i < lines.size(); i++)
+        legacy::ttf_draw(bm->al, lines[i].c_str(), x, y0 + (int)i * lh, w, lh, cr, cg, cb, size, a, bold, font, sp, 0);
 }
 void Bitmap::CreateColoredTextBoxTTF(char const* text, int x, int y, int w, int h, int r, int g, int b, int size,
                                      int align, bool bold, char* font, int spacing) {
-    ttf_box(this, text, x, y, w, h, r, g, b, size, align, bold, font, spacing);
+    ttf_box(this, text, x, y, w, h, r, g, b, size, align, bold, font, spacing, false);
 }
 void Bitmap::CreateColoredTextBoxTTFS(char const* text, int x, int y, int w, int h, int r, int g, int b, int size,
                                       int align, bool bold, char* font, int spacing) {
-    ttf_box(this, text, x, y, w, h, r, g, b, size, align, bold, font, spacing);
+    ttf_box(this, text, x, y, w, h, r, g, b, size, align, bold, font, spacing, true);
 }
 void Bitmap::CreateHelpBmpFromInfoFile(int, int, int, int, int, int, int, int, char*, bool, char*) {}
 
@@ -714,12 +745,12 @@ BITMAP* render_string(const String* s, int w, int h) {
     if (!s || !s->text) return nullptr;
     bool bold = s->style & 0x08;
     int px = s->size > 0 ? s->size : 20;
-    int sp = s->spacing;
-    // word wrap with the TrueType metrics
+    // String +0x50 is the interline spacing (libmerit2d SetInterLineSpacing), not letter spacing
+    int line_h = std::max(4, px + px / 6 + s->spacing);
     std::vector<std::string> lines;
     {
         std::string cur, word;
-        auto fits = [&](const std::string& t) { return w <= 0 || ttf_measure(t.c_str(), px, bold, s->font, sp) <= w; };
+        auto fits = [&](const std::string& t) { return w <= 0 || ttf_measure(t.c_str(), px, bold, s->font, 0) <= w; };
         auto flush = [&]() {
             if (word.empty()) return;
             std::string trial = cur.empty() ? word : cur + " " + word;
@@ -735,10 +766,10 @@ BITMAP* render_string(const String* s, int w, int h) {
         flush();
         lines.push_back(cur);
     }
-    int line_h = px + std::max(0, (int)sp) + px / 6;
     int tw = 0;
-    for (auto& l : lines) tw = std::max(tw, ttf_measure(l.c_str(), px, bold, s->font, sp));
-    int W = w > 0 ? w : std::max(1, tw), H = h > 0 ? h : std::max(1, (int)lines.size() * line_h);
+    for (auto& l : lines) tw = std::max(tw, ttf_measure(l.c_str(), px, bold, s->font, 0));
+    // a word wider than the box: widen the bitmap rather than cut it (it is centred on the box)
+    int W = std::max(w > 0 ? w : 1, tw), H = h > 0 ? h : std::max(1, (int)lines.size() * line_h);
     BITMAP* b = create_bitmap_ex(16, W, H);
     for (int y = 0; y < H; y++) std::fill(row16(b, y), row16(b, y) + W, (uint16_t)kKey16);
     int total = (int)lines.size() * line_h;
@@ -746,7 +777,7 @@ BITMAP* render_string(const String* s, int w, int h) {
     int align = (s->just & 0x7f) == 1 ? 0 : (s->just & 0x7f) == 2 ? 1 : 2;
     int r = std::clamp(255 + s->r, 0, 255), g = std::clamp(255 + s->g, 0, 255), bl = std::clamp(255 + s->b, 0, 255);
     for (size_t i = 0; i < lines.size(); i++)
-        ttf_draw(b, lines[i].c_str(), 0, y0 + (int)i * line_h, W, line_h, r, g, bl, px, align, bold, s->font, sp > 0 ? sp : 0, 0);
+        ttf_draw(b, lines[i].c_str(), 0, y0 + (int)i * line_h, W, line_h, r, g, bl, px, align, bold, s->font, 0, 0);
     return b;
 }
 

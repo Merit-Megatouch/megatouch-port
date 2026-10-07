@@ -698,6 +698,7 @@ void draw_self(Sprite* s, BITMAP* dst, float ox, float oy) {
             int tw = (int)std::lround(t->w * sx), th = (int)std::lround(t->h * sy);
             float tx = s->x + ox, ty = s->y + oy;
             if (s->flags & F_CENTER_X) tx -= tw / 2.0f;
+            else if (bw > 0 && t->w > bw) tx -= (t->w - bw) * (float)sx / 2.0f;   // overflowing text stays centred on the box
             if (s->flags & F_CENTER_Y) ty -= th / 2.0f;
             if (s->st->shadow) {
                 int dark[3] = {s->st->shadow_rgb[0], s->st->shadow_rgb[1], s->st->shadow_rgb[2]};
