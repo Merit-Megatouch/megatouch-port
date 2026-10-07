@@ -316,3 +316,13 @@ static_assert(sizeof(NetSpriteLock) == 0x2d0, "NetSpriteLock");
 namespace legacy {
 WorldClass* current_world();
 }
+
+// GameClass: base of some games' main objects (cardbandits family...). A Group with no virtuals of
+// its own; subclasses put their fields from +0xd5 on.
+class GameClass : public Group {
+public:
+    GameClass();
+    ~GameClass() override;
+    unsigned char raw[0xd4 - 0xc];
+};
+static_assert(sizeof(GameClass) == 0xd4, "GameClass");
