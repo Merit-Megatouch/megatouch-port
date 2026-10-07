@@ -24,7 +24,7 @@ public:
     void Display(int x, int y, int f);
     void DisplayRegion(int sx, int sy, int w, int h, int dx, int dy, int f);
     void DisplayZ(int x, int y, int z, unsigned char);
-    void DrawtoVBZ(int, int, int);
+    int DrawtoVBZ(int x, int y, int z);          // persistent z-ordered item on the shown buffer
     void CopyFromCurrent(int x, int y);
     void CopyFromScreen(int x, int y, bool);
     void CopyFromVB(int x, int y, int vb);
@@ -102,12 +102,14 @@ public:
     Bitmap* prev;                                // +0x5c
     Anim* anim;                                  // +0x60 attached animation
     int frame_index;                             // +0x64 index in the chain
-    unsigned char pad68[0x94 - 0x68];
+    unsigned short* cdata;                       // +0x68 compressed (RLE) pixels set by setCData
+    unsigned char pad6c[0x94 - 0x6c];
 
     // helpers for the engine
     void resize(int w, int h);                   // reallocate, filled transparent
     void from_frame(const MeritFrame& f);        // 32-bit frame -> this bitmap
     void draw_to(BITMAP* dst, int sx, int sy, int w, int h, int dx, int dy, bool black_trans);
+    bool ready() { if (!al) DeCompress(); return al != nullptr; }
 };
 static_assert(sizeof(Bitmap) == 0x94, "Bitmap layout");
 static_assert(offsetof(Bitmap, al) == 0x2c, "Bitmap +0x2c");

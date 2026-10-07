@@ -60,6 +60,8 @@ struct SpriteState {
     BITMAP* text_cache = nullptr;                // rendered String
     std::string cache_key;
     Bitmap* anim_chain = nullptr;                // RunDiskAnimThenDelete: owned chain
+    Bitmap* text_bmp = nullptr;                  // ProcessAssignedString: the String as the sprite's bitmap
+    std::string text_bmp_key;                    // text it was made from (drawn as text again once it changes)
     bool hq = false;
 };
 
@@ -312,6 +314,7 @@ Sprite::~Sprite() {
     if (st) {
         if (st->text_cache) destroy_bitmap(st->text_cache);
         if (st->anim_chain) legacy::free_bitmap_chain(st->anim_chain);
+        delete st->text_bmp;
         delete st; st = nullptr;
     }
     free(name); name = nullptr;
@@ -362,7 +365,20 @@ void Sprite::ChangeString(char const* t, unsigned long delay) {
     at(this, K_MISC, delay, [text](Sprite* sp) { if (sp->str) sp->str->set_text(text.c_str()); sp->flags |= F_DIRTY; });
 }
 void Sprite::AssignName(char* n) { free(name); name = n ? strdup(n) : nullptr; }
-void Sprite::ProcessAssignedString() {}
+// Renders the assigned String into a bitmap that becomes the sprite's bitmap (+0x60); games then
+// edit its pixels (brickbreaker InitTextSprites: DeCompress32 on it).
+void Sprite::ProcessAssignedString() {
+    if (!str) return;
+    BITMAP* t = legacy::render_string(str, (int)w, (int)h);
+    if (!t) return;
+    if (!st->text_bmp) st->text_bmp = new Bitmap(0, 0, 0, 16);
+    st->text_bmp->resize(t->w, t->h);
+    blit(t, st->text_bmp->al, 0, 0, 0, 0, t->w, t->h);
+    destroy_bitmap(t);
+    st->text_bmp_key = str->text ? str->text : "";
+    bmp = st->text_bmp;
+    flags |= F_DIRTY;
+}
 
 void Sprite::Move(float x0, float y0, float z0, float x1, float y1, float z1, unsigned long dur, unsigned long delay, unsigned char smooth) {
     if (!dur && !delay) { x = x1; y = y1; z = z1; return; }
@@ -640,12 +656,13 @@ void draw_self(Sprite* s, BITMAP* dst, float ox, float oy) {
     float px = s->x + ox, py = s->y + oy;
     if (s->flags & F_CENTER_X) px -= dw / 2.0f;
     if (s->flags & F_CENTER_Y) py -= dh / 2.0f;
-    if (s->bmp && s->bmp->al) {
+    if (s->bmp && s->bmp->ready()) {
         int bw = (int)std::lround(s->bmp->w * sx), bh = (int)std::lround(s->bmp->h * sy);
         blit_sprite(s->bmp->al, dst, (int)std::lround(px), (int)std::lround(py), bw, bh, s->transparency, s->st, nullptr,
                     s->bmp->flags & 0x02);
     }
-    if (s->str && s->str->text && *s->str->text) {
+    bool text_is_bmp = s->st->text_bmp && s->bmp == s->st->text_bmp && s->str && s->str->text && s->st->text_bmp_key == s->str->text;
+    if (s->str && s->str->text && *s->str->text && !text_is_bmp) {
         int bw = (int)s->w, bh = (int)s->h;
         std::string key = string_key(s->str, s->st, bw, bh);
         if (!s->st->text_cache || s->st->cache_key != key) {

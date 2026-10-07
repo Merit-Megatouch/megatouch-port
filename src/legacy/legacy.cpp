@@ -52,6 +52,9 @@ static bool g_dirty = true, g_quit;
 static Uint32 g_start, g_lastPresent, g_quitAt;
 
 struct Zone { std::string name; int x, y, w, h; };
+static int g_shownVB = -1;                       // the buffer last shown (base for the z list)
+static bool g_zdirty;
+void zlist_redraw();
 static std::vector<legacy::Touch> g_touches;      // for the sprite engine (take_touches)
 static std::vector<Zone> g_zones;
 static std::vector<std::string> g_pending;       // touched zone names not yet read
@@ -189,6 +192,7 @@ static void pump() {
     if (g_quit && SDL_GetTicks() - g_quitAt > 3000) { LOG("window closed"); _exit(0); }
     // headless checks also re-present a still screen once a second so screenshots keep coming
     static const bool shots = menv("SHOT_DIR");
+    if (g_zdirty) zlist_redraw();
     mouse_x = g_mouseX; mouse_y = g_mouseY; mouse_b = g_mouseDown ? 1 : 0; mouse_pos = g_mouseX << 16 | g_mouseY;
     if (!g_gl && (g_dirty || (shots && SDL_GetTicks() - g_lastPresent >= 1000)) && SDL_GetTicks() - g_lastPresent >= 15) present();
 }
@@ -330,7 +334,7 @@ static Pcm* wave_load(const char* name) {
     if (it != g_waves.end()) return it->second;
     std::string path;
     Pcm* p = nullptr;
-    if (find_asset(name, false, ".wav", path)) {
+    if (find_asset(name, false, ".wav", path) || find_asset(name, false, "", path)) {
         std::vector<uint8_t> d;
         if (merit_read_gz(path.c_str(), d)) {
             SDL_AudioSpec ws; Uint8* buf; Uint32 blen;
@@ -708,7 +712,18 @@ public:
     static void Rect(int, int, int, int);
     static void SetRGB(short, short, short);
     static void ClearVB(int);
+    static void RemoveFromVBZ(unsigned long);
 };
+void VideoClass::RemoveFromVBZ(unsigned long id) { legacy::zlist_remove(id); }
+namespace legacy { void zlist_changed() { g_zdirty = true; } }
+// the shown buffer plus the z-ordered items over it
+void zlist_redraw() {
+    g_zdirty = false;
+    if (g_shownVB < 0) return;
+    memcpy(g_screen, vb_pixels(g_shownVB), (size_t)SW * SH * 4);
+    legacy::zlist_compose(screen);
+    g_dirty = true;
+}
 void VideoClass::OpenVB(int id) { video_init(); g_curVB = id; vb_pixels(id); }
 void VideoClass::CloseVB() { g_curVB = -1; }
 void VideoClass::OpenScrapVB() { g_curVB = kScrapVB; vb_pixels(kScrapVB); }
@@ -719,7 +734,7 @@ void VideoClass::ClearVB(int id) { uint32_t* p = vb_pixels(id); for (int i = 0; 
 // Presents a whole buffer (-1: the open one).
 void VideoClass::ShowVB(int id) {
     if (id == -1) id = g_curVB;
-    if (id >= 0) memcpy(g_screen, vb_pixels(id), (size_t)SW * SH * 4);
+    if (id >= 0) { memcpy(g_screen, vb_pixels(id), (size_t)SW * SH * 4); g_shownVB = id; legacy::zlist_compose(screen); }
     g_dirty = true;
     present();
     pump();

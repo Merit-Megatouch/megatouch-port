@@ -73,6 +73,11 @@ struct Touch { int x, y; bool down; };
 std::vector<Touch> take_touches();
 bool quitting();
 _RADBitmap* rad_new(uint32_t w, uint32_t h, uint32_t fill);   // C-API bitmap (BitmapAlloc)
+// the z-ordered display list (Bitmap::DrawtoVBZ / VideoClass::RemoveFromVBZ), drawn over the
+// shown video buffer
+void zlist_remove(unsigned long id);
+bool zlist_compose(BITMAP* dst);                  // false when the list is empty
+void zlist_changed();
 }
 
 #pragma GCC visibility pop

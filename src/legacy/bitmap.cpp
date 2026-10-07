@@ -49,7 +49,7 @@ void Bitmap::from_frame(const MeritFrame& f) {
 // Draws a region onto a 32- or 16-bit target, honouring +0x22 opaque, the transparency key, the
 // colour effect (+0x54 with +0x0a..0x0e) and black-as-transparent for old PCX art.
 void Bitmap::draw_to(BITMAP* dst, int sx, int sy, int cw, int ch, int dx, int dy, bool black_trans) {
-    if (!al || !dst) return;
+    if (!dst || !ready()) return;
     if (sx < 0) { cw += sx; dx -= sx; sx = 0; }
     if (sy < 0) { ch += sy; dy -= sy; sy = 0; }
     cw = std::min(cw, al->w - sx); ch = std::min(ch, al->h - sy);
@@ -81,7 +81,7 @@ void Bitmap::draw_to(BITMAP* dst, int sx, int sy, int cw, int ch, int dx, int dy
 }
 
 void Bitmap::Display(int x, int y, int f) {
-    if (!al) return;
+    if (!ready()) return;
     BITMAP* dst = legacy::target_bitmap();
     if (scale_on && scale_x > 0 && scale_y > 0 && (scale_x != 100 || scale_y != 100)) {
         // scaled: through a temporary (scale values are percentages)
@@ -100,7 +100,28 @@ void Bitmap::DisplayRegion(int sx, int sy, int cw, int ch, int dx, int dy, int f
     legacy::touched_target();
 }
 void Bitmap::DisplayZ(int x, int y, int, unsigned char) { Display(x, y, 0); }
-void Bitmap::DrawtoVBZ(int x, int y, int) { Display(x, y, 0); }
+namespace {
+struct ZItem { unsigned long id; Bitmap* b; int x, y, z; };
+std::vector<ZItem> g_zlist;
+unsigned long g_zid = 1;
+}
+int Bitmap::DrawtoVBZ(int x, int y, int z) {
+    g_zlist.push_back({g_zid, this, x, y, z});
+    legacy::zlist_changed();
+    return (int)g_zid++;
+}
+namespace legacy {
+void zlist_remove(unsigned long id) {
+    for (size_t i = 0; i < g_zlist.size(); i++) if (g_zlist[i].id == id) { g_zlist.erase(g_zlist.begin() + i); zlist_changed(); return; }
+}
+bool zlist_compose(BITMAP* dst) {
+    if (g_zlist.empty()) return false;
+    std::vector<ZItem> v = g_zlist;
+    std::stable_sort(v.begin(), v.end(), [](const ZItem& a, const ZItem& b) { return a.z < b.z; });
+    for (auto& it : v) it.b->draw_to(dst, 0, 0, it.b->w, it.b->h, it.x, it.y, false);
+    return true;
+}
+}
 
 static void grab(Bitmap* b, BITMAP* src, int x, int y) {
     if (!b->al || !src) return;
@@ -110,7 +131,7 @@ void Bitmap::CopyFromCurrent(int x, int y) { grab(this, legacy::target_bitmap(),
 void Bitmap::CopyFromScreen(int x, int y, bool) { grab(this, screen, x, y); }
 void Bitmap::CopyFromVB(int x, int y, int vb) { grab(this, vb < 0 ? legacy::target_bitmap() : legacy::vb_bitmap(vb), x, y); }
 void Bitmap::CopyToBitmap(Bitmap* dst, int sx, int sy, int cw, int ch, int dx, int dy) {
-    if (dst && dst->al && al) masked_blit(al, dst->al, sx, sy, dx, dy, cw, ch);
+    if (dst && dst->ready() && ready()) masked_blit(al, dst->al, sx, sy, dx, dy, cw, ch);
 }
 
 void Bitmap::Clear() { if (al) for (int y = 0; y < h; y++) std::fill(row16(al, y), row16(al, y) + w, (uint16_t)kKey16); }
@@ -166,9 +187,19 @@ void Bitmap::Crop(Bitmap* dst, unsigned char) {
     blit(al, dst->al, x0, y0, 0, 0, dst->w, dst->h);
 }
 void Bitmap::Compress(bool, int, unsigned short*) {}
-void Bitmap::DeCompress() {}
+// +0x2c is NULL while the bitmap holds only compressed data (setCData): decode the RLE
+// (+0x48 bytes, +0x4c x +0x50, as the game filled them) into a 16-bit bitmap.
+void Bitmap::DeCompress() {
+    if (al || !cdata || w <= 0 || h <= 0 || w > 4096 || h > 4096) return;
+    MeritFrame f; f.w = w; f.h = h;
+    size_t bytes = csize > 0 ? (size_t)csize : (size_t)w * h * 4;
+    merit_rle_decode(reinterpret_cast<const uint8_t*>(cdata), bytes, w, h, f.argb);
+    for (auto& p : f.argb) p = to_px(p);
+    from_frame(f);
+}
 // 32-bit pixels from now on (games then use 32-bit getpixel/putpixel on +0x2c)
 void Bitmap::DeCompress32() {
+    if (!al) DeCompress();
     if (!al || depth_of(al) == 32) return;
     BITMAP* n = create_bitmap_ex(32, w, h);
     blit(al, n, 0, 0, 0, 0, w, h);                 // mask colour stays the mask colour
@@ -177,9 +208,12 @@ void Bitmap::DeCompress32() {
     depth = 32;
 }
 void Bitmap::FreeMemory() {}
-unsigned short* Bitmap::CData(int) { return nullptr; }
-void Bitmap::setCData(unsigned short*) {}
-void Bitmap::freeCData() {}
+unsigned short* Bitmap::CData(int) { return cdata; }
+void Bitmap::setCData(unsigned short* p) {
+    cdata = p;
+    if (p && al) { destroy_bitmap(al); al = nullptr; }   // decoded on DeCompress
+}
+void Bitmap::freeCData() { free(cdata); cdata = nullptr; }
 void Bitmap::TTFtoCData(unsigned char*, unsigned char*, int, int) {}
 Bitmap* Bitmap::NextAnim() { return next; }
 Bitmap* Bitmap::PrevAnim() { return prev; }
@@ -236,7 +270,21 @@ bool Bitmap::LoadData(char* name, unsigned char, int) {
     for (uint32_t y = 0; y < ih; y++) memcpy(row16(al, y), &d[8 + (size_t)y * iw * 2], iw * 2);
     return true;
 }
-bool Bitmap::LoadCompressedData(char* name, _IO_FILE*) {
+bool Bitmap::LoadCompressedData(char* name, _IO_FILE* fp) {
+    // From an open archive (chess pieces.all): u32 1 (compressed) | 0 (raw), u32 size,
+    // u32 w, u32 h, then size bytes of RLE (or w*h RGB565).
+    if (FILE* f = reinterpret_cast<FILE*>(fp)) {
+        uint32_t hd[4];
+        if (fread(hd, 4, 4, f) != 4 || hd[2] > 4096 || hd[3] > 4096) { LOG("bad archive record for %s", name ? name : "?"); return false; }
+        std::vector<uint8_t> d(hd[0] ? hd[1] : (size_t)hd[2] * hd[3] * 2);
+        if (!d.empty() && fread(d.data(), 1, d.size(), f) != d.size()) return false;
+        MeritFrame fr; fr.w = (int)hd[2]; fr.h = (int)hd[3];
+        if (hd[0]) merit_rle_decode(d.data(), d.size(), fr.w, fr.h, fr.argb);
+        else { fr.argb.resize((size_t)fr.w * fr.h); for (size_t i = 0; i < fr.argb.size(); i++) fr.argb[i] = merit_rgb565(d[2 * i] | d[2 * i + 1] << 8, 255); }
+        for (auto& p : fr.argb) p = to_px(p);
+        from_frame(fr);
+        return true;
+    }
     // a .dlt/.spr picture (first frame) when it is one, else the raw .img layout
     std::string path;
     if (name && find_asset(name, false, "", path)) {
