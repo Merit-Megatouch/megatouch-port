@@ -80,6 +80,8 @@ void zlist_remove(unsigned long id);
 bool zlist_compose(BITMAP* dst);                  // false when the list is empty
 void zlist_changed();
 int base_vb();                                    // buffer a world without a background shows (-2: none)
+int play_wave(const char* name, int vol255, bool loop);
+bool key_down(int sdl_scancode);
 }
 
 #pragma GCC visibility pop

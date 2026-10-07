@@ -647,6 +647,17 @@ Uint32 ticks() { return SDL_GetTicks() - g_start; }
 std::vector<Touch> take_touches() { ::pump(); std::vector<Touch> t; t.swap(g_touches); return t; }
 bool quitting() { return g_quit; }
 _RADBitmap* rad_new(uint32_t w, uint32_t h, uint32_t fill) { ::video_init(); return bmp_new(w, h, fill); }
+// a sound file by name (preloaded or not), vol 0..255; returns a voice id or -1
+int play_wave(const char* name, int vol, bool loop) {
+    ::video_init();
+    Pcm* p = name ? wave_load(name) : nullptr;
+    if (!p || !g_audio) return -1;
+    std::lock_guard<std::mutex> lk(g_amx);
+    int id = g_nextVoice++;
+    g_voices.push_back({id, p->s.data(), p->s.size(), 0, SDL_clamp(vol, 0, 255) / 255.0f, loop});
+    return id;
+}
+bool key_down(int sdl_scancode) { ::pump(); const Uint8* k = SDL_GetKeyboardState(nullptr); return k && k[sdl_scancode]; }
 }
 
 // --- loader objects
