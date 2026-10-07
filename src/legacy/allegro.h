@@ -71,6 +71,7 @@ extern "C" {
 extern BITMAP* screen;
 BITMAP* create_bitmap_ex(int depth, int w, int h);
 void destroy_bitmap(BITMAP* b);
+void clear_bitmap(BITMAP* b);
 void blit(BITMAP* src, BITMAP* dst, int sx, int sy, int dx, int dy, int w, int h);
 void masked_blit(BITMAP* src, BITMAP* dst, int sx, int sy, int dx, int dy, int w, int h);
 void stretch_blit(BITMAP* s, BITMAP* d, int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh);
