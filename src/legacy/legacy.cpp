@@ -36,20 +36,25 @@ struct SoundBase;
 struct Bitmap;
 
 static const uint32_t kTag = 0x52414442;          // "RADB"
-static const uint32_t kKey = 0x00000000;          // transparency key (palette index 5)
+// Pixels are in Allegro's 32-bit format (0x00RRGGBB) so games' own Allegro drawing and ours
+// share one framebuffer. The transparency key is Allegro's 32-bit mask colour, magenta.
+static const uint32_t kKey = 0x00ff00ff;          // transparent (palette index 5 / skipped RLE)
+static inline uint32_t to_px(uint32_t argb) { return (argb >> 24) < 128 ? kKey : (argb & 0x00ffffff); }
+static void frames_to_px(std::vector<MeritFrame>& fr) { for (auto& f : fr) for (auto& p : f.argb) p = to_px(p); }
 
 static uint32_t color_of(unsigned idx) {
     switch (idx) {
     case 5:   return kKey;
-    case 0:   return 0xff000000;
-    case 255: return 0xffffffff;
-    default:  return 0xff000000 | (idx * 0x010101);   // unknown palette: grey ramp
+    case 0:   return 0x00000000;
+    case 255: return 0x00ffffff;
+    default:  return idx * 0x010101u;                 // unknown palette: grey ramp
     }
 }
 
 // ---------------------------------------------------------------------------------- screen
 static const int SW = 640, SH = 480;              // the 2D API's screen
-static uint32_t g_screen[SW * SH];
+static uint32_t g_fallbackScreen[SW * SH];
+static uint32_t* g_screen = g_fallbackScreen;     // Allegro's `screen` bitmap once it is set up
 static bool g_gl = menv("GL") != nullptr;        // Merit3D games: an OpenGL window instead
 static SDL_GLContext g_glctx;
 static int g_mouseX, g_mouseY;
@@ -97,7 +102,7 @@ static void video_init() {
     SDL_RenderSetLogicalSize(g_ren, SW, SH);
     g_tex = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, SW, SH);
     g_start = SDL_GetTicks();
-    for (auto& p : g_screen) p = 0xff000000;
+    for (int i = 0; i < SW * SH; i++) g_screen[i] = 0;
     audio_init();
     LOG("screen %dx%d", SW, SH);
 }
@@ -275,6 +280,7 @@ static Anim* anim_load(const char* name, bool lang) {
     if (!merit_container(d, off, count)) { LOG("unknown version in %s", path.c_str()); delete a; return nullptr; }
     if (ver == 3 && hdr[3]) a->delay = hdr[3];
     merit_read_frames(d, off, a->frames, count);
+    frames_to_px(a->frames);
     if (a->frames.empty()) { LOG("no frames in %s", path.c_str()); delete a; return nullptr; }
     a->w = ver == 3 ? hdr[0] : a->frames[0].w;
     a->h = ver == 3 ? hdr[1] : a->frames[0].h;
@@ -641,7 +647,7 @@ struct BmpData { int w = 0, h = 0; std::vector<uint32_t> px; Anim* anim = nullpt
 std::map<int, std::vector<uint32_t>> g_vbs;
 int g_curVB = -1;                            // -1: draw straight to the screen
 const int kScrapVB = 1000;
-uint32_t g_rgb = 0xff000000;                 // SetRGB colour for Rect
+uint32_t g_rgb = 0;                          // SetRGB colour for Rect
 int g_nextVB = 1;
 
 uint32_t* vb_pixels(int id) {
@@ -738,9 +744,9 @@ bool Bitmap::LoadPCX(char* name, int, int, unsigned char) {
         }
         for (int i = 0; i < w; i++) {
             uint32_t v;
-            if (planes == 3) v = 0xff000000u | line[i] << 16 | line[bpl + i] << 8 | line[2 * bpl + i];
-            else if (pal) { const uint8_t* p = pal + line[i] * 3; v = 0xff000000u | p[0] << 16 | p[1] << 8 | p[2]; }
-            else v = 0xff000000u | line[i] * 0x010101u;
+            if (planes == 3) v = (uint32_t)line[i] << 16 | line[bpl + i] << 8 | line[2 * bpl + i];
+            else if (pal) { const uint8_t* p = pal + line[i] * 3; v = (uint32_t)p[0] << 16 | p[1] << 8 | p[2]; }
+            else v = line[i] * 0x010101u;
             b->px[(size_t)y * w + i] = v;
         }
     }
@@ -757,7 +763,7 @@ bool Bitmap::LoadData(char* name, unsigned char, int) {
     BmpData* b = bd(this);
     for (size_t i = 0; i < (size_t)w * h; i++) {
         uint16_t c = d[8 + 2 * i] | d[9 + 2 * i] << 8;
-        b->px[i] = c == 0xf81f ? kKey : merit_rgb565(c, 255);
+        b->px[i] = c == 0xf81f ? kKey : (merit_rgb565(c, 255) & 0x00ffffff);
     }
     return true;
 }
@@ -772,6 +778,7 @@ bool Bitmap::LoadCompressedData(char* name, _IO_FILE*) {
                 std::vector<MeritFrame> f;
                 merit_read_frames(d, off, f, 1);
                 if (!f.empty()) {
+                    frames_to_px(f);
                     bmp_resize(this, f[0].w, f[0].h, kKey);
                     bd(this)->px = f[0].argb;
                     return true;
@@ -794,7 +801,7 @@ bool Bitmap::LoadTGA_32(char* name) {
         for (int x = 0; x < w && o + bytes <= d.size(); x++, o += bytes) {
             int yy = (desc & 0x20) ? y : h - 1 - y;
             uint32_t a = bytes == 4 ? d[o + 3] : 255;
-            b->px[(size_t)yy * w + x] = a < 8 ? kKey : (0xff000000u | d[o + 2] << 16 | d[o + 1] << 8 | d[o]);
+            b->px[(size_t)yy * w + x] = a < 128 ? kKey : ((uint32_t)d[o + 2] << 16 | d[o + 1] << 8 | d[o]);
         }
     return true;
 }
@@ -804,7 +811,7 @@ bool Bitmap::LoadTGA_32(char* name) {
 void Bitmap::Display(int x, int y, int flag) {
     BmpData* b = bd(this);
     if (b->w <= 0) return;
-    blit(b->px.data(), b->w, b->h, 0, 0, target(), SW, SH, x, y, b->w, b->h, true, flag ? 0xff000000u : kKey);
+    blit(b->px.data(), b->w, b->h, 0, 0, target(), SW, SH, x, y, b->w, b->h, true, flag ? 0u : kKey);
     touched_target();
 }
 void Bitmap::DisplayRegion(int x, int y, int sx, int sy, int w, int h, int) {
@@ -888,10 +895,11 @@ GlyphFont* font_load(const char* file) {
     auto* f = new GlyphFont;
     merit_read_frames(d, off, f->glyphs, count);
     if (f->glyphs.empty()) { delete f; return nullptr; }
+    frames_to_px(f->glyphs);
     f->w = f->glyphs[0].w; f->h = f->glyphs[0].h;
     for (auto& g : f->glyphs) {           // proportional advance: rightmost opaque column + 2
         int r = -1;
-        for (int y = 0; y < g.h; y++) for (int x = g.w - 1; x > r; x--) if (g.argb[(size_t)y * g.w + x] >> 24) { r = x; break; }
+        for (int y = 0; y < g.h; y++) for (int x = g.w - 1; x > r; x--) if (g.argb[(size_t)y * g.w + x] != kKey) { r = x; break; }
         f->adv.push_back(r < 0 ? f->w / 2 : r + 2);
     }
     return f;
@@ -938,10 +946,10 @@ void Bitmap::CreateColoredSmackTextBox(char const* text, FontBase* font, signed 
             for (int yy = 0; yy < gl.h; yy++)
                 for (int xx = 0; xx < gl.w; xx++) {
                     uint32_t c = gl.argb[(size_t)yy * gl.w + xx];
-                    if (!(c >> 24)) continue;
+                    if (c == kKey) continue;
                     if (tint) {
                         uint32_t lum = ((c >> 16 & 255) + (c >> 8 & 255) + (c & 255)) / 3;
-                        c = 0xff000000u | (uint32_t)(r * lum / 255 & 255) << 16 | (uint32_t)(g * lum / 255 & 255) << 8 | (uint32_t)(bl * lum / 255 & 255);
+                        c = (uint32_t)(r * lum / 255 & 255) << 16 | (uint32_t)(g * lum / 255 & 255) << 8 | (uint32_t)(bl * lum / 255 & 255);
                     }
                     int X = x + xx, Y = y + yy;
                     if (X >= 0 && X < W && Y >= 0 && Y < H) b->px[(size_t)Y * W + X] = c;
@@ -1046,11 +1054,11 @@ void VideoClass::OpenScrapVB() { g_curVB = kScrapVB; vb_pixels(kScrapVB); }
 int VideoClass::GetVB() { return g_curVB; }
 int VideoClass::CreateVB(short, short) { int id = g_nextVB++; vb_pixels(id); return id; }
 void VideoClass::DestroyVB(int id) { g_vbs.erase(id); if (g_curVB == id) g_curVB = -1; }
-void VideoClass::ClearVB(int id) { uint32_t* p = vb_pixels(id); for (int i = 0; i < SW * SH; i++) p[i] = 0xff000000; }
+void VideoClass::ClearVB(int id) { uint32_t* p = vb_pixels(id); for (int i = 0; i < SW * SH; i++) p[i] = 0; }
 // Presents a whole buffer (-1: the open one).
 void VideoClass::ShowVB(int id) {
     if (id == -1) id = g_curVB;
-    if (id >= 0) memcpy(g_screen, vb_pixels(id), sizeof g_screen);
+    if (id >= 0) memcpy(g_screen, vb_pixels(id), (size_t)SW * SH * 4);
     g_dirty = true;
     present();
     pump();
@@ -1069,7 +1077,7 @@ void VideoClass::CopyVBRegion(int sx, int sy, int w, int h, int dx, int dy, int 
 void VideoClass::CopyFromScreen(int sx, int sy, int w, int h, int dx, int dy, bool) {
     blit(g_screen, SW, SH, sx, sy, target(), SW, SH, dx, dy, w, h, false, 0);
 }
-void VideoClass::SetRGB(short r, short g, short b) { g_rgb = 0xff000000u | (r & 255) << 16 | (g & 255) << 8 | (b & 255); }
+void VideoClass::SetRGB(short r, short g, short b) { g_rgb = (uint32_t)(r & 255) << 16 | (g & 255) << 8 | (b & 255); }
 void VideoClass::Rect(int x, int y, int w, int h) {
     uint32_t* t = target();
     for (int j = y; j < y + h && j < SH; j++)

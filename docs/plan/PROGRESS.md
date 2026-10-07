@@ -17,9 +17,9 @@ each working game or shared fix.
 
 | Family | Games (libs) | Working | Route | Next |
 | --- | ---: | ---: | --- | --- |
-| GameDevice | 21 games | 20 run (3 played by hand; 17 smoke-tested) | SDL2 backend + loader stand-ins | g_mystery_phraze_hd (Irrlicht backend, 26 symbols); hand play-tests |
-| Unity 3.2 | 30 | 1 (tri towers 2) | cabinet LinuxPlayer + launcher.xml + FMOD shim | scaffold all 29, screenshot-verify each |
-| Legacy 2D | ~128 games / 143 libs | 1 (fourplay) | `src/legacy` reconstruction of the loader's 2D API | grow by game, cheapest first (docs/reference/legacy.md) |
+| GameDevice | 21 games | 20 run (3 played by hand; 17 smoke-tested) | SDL2 backend + loader stand-ins | g_mystery_phraze_hd deferred: needs DBFClass (dBase reader), RandomizedArrayClass and the gendef record xml_gamerandom::MystPICRAND_record (abstract_xml_record subclass) — 18 symbols |
+| Unity 3.2 | 30 | 30 run (1 played by hand) | cabinet LinuxPlayer + launcher.xml (real format) + FMOD shim + fs shim | hand play-tests; clocker/close-the-clock washed out |
+| Legacy 2D | ~128 games / 143 libs | 4 start (fourplay, conquest, nine, bgammon) | `src/legacy` reconstruction: C API + C++ layer (Bitmap, VideoClass, MouseManager, fonts) | batch scaffold all, implement the union of missing symbols, fix shared visuals |
 | Merit3D | ~13 | 0 | GL window + `src/legacy` + 3D-side stand-ins | beer pong 21 in progress (see below) |
 
 Per-game state lives in each `games/<name>/NOTES.md` and in `docs/reference/games.md` (`make docs`).
