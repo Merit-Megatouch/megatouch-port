@@ -146,6 +146,13 @@ run. idle (attract mode) belongs to the front end, not the games list.
   (language, volume, free play) written to a settings file that `run` passes as MEGA_* env.
 
 ## Log (newest first)
+- 2026-10-07 late: Random(n) is 0..n inclusive (ginrummy plays); 16-bit allocframe frames for
+  golf (course thumbnails right; golf still crashes later: its BMAP layer asks for frames with
+  garbage sizes); destroy_bitmap ignores bitmaps it never made. Batch: 140 of 145 without a crash.
+  Content for the chip/chain/com/pom/local Boxxi, Lookout and PixMix editions was downloaded on
+  the cabinet (/var/merit/chains/*/pics is empty on this image): those games have no pictures.
+  The ION Unity menu (g_menu) is not on the image either; `launcher` is only the
+  loading/continue overlay. Phase 2 front end is ours, using menugraphics art.
 - 2026-10-07 late: SObj API (euchre/hearts/spades/snubble), Gash worlds (breakout/racepoker/
   motormatch), bitmap fonts rewritten from docs/reference/bmpfont.md, sprites draw to the render
   destination with an open VB as the page, 9 ION-partition games, AllegroGL extension pointers.

@@ -64,7 +64,7 @@ grows the library, like `loader_services.cpp` grew for GameDevice games.
 | `MouseRemoveAll()`, `ClearTouch()` | Clear zones / pending touches | |
 | `InputCharOrDelay(buf, ms)` | Wait up to `ms` for a touch, copy the zone name into `buf` | `strcasecmp("QUITBOX", buf)` |
 | `Delay(ms)`, `SystemTimer()` | Sleep; milliseconds since start | `local + 20000 < SystemTimer()` = 20 s idle |
-| `Random(n)`, `Randomize(seed)` | 0..n-1 | |
+| `Random(n)`, `Randomize(seed)` | **0..n inclusive** (ginrummy `GinDeck::Shuffle` loops on `Random(52-1)` until every card is used; ~100 sites pass n-1) | |
 | `AddPreWave(name, flags, …)`, `PlayPreWave(name, flags, loop?, vol, ?, pan)` → voice | Preload / play `<name>.wav` (game folder, then `misc`) | |
 | `voice_get_position(voice)` | -1 once the voice finished | Fourplay waits for a sound this way |
 | `MegacGlobals::GetInstance()` | Static block: **+0x24 player count** (`PLAYERS`), **+0x2038 current GameId** | |

@@ -222,6 +222,38 @@ static _RADBitmap* bmp_new(uint32_t w, uint32_t h, uint32_t fill) {
     for (size_t i = 0; i < (size_t)w * h; i++) b->px[i] = fill;
     return b;
 }
+// 16-bit frames (golf's allocframe(w, h, 16)): the game writes RGB565 into the Allegro bitmap
+// itself, so px is a 32-bit shadow copy, refreshed before reads and written back after writes.
+static bool rad16(const _RADBitmap* b) { return b && b->bmp && b->bmp->vtable->color_depth == 16; }
+static void rad_pull(_RADBitmap* b) {
+    if (!rad16(b)) return;
+    for (uint32_t y = 0; y < b->h; y++) {
+        const uint16_t* r = reinterpret_cast<const uint16_t*>(b->bmp->line[y]);
+        for (uint32_t x = 0; x < b->w; x++) {
+            uint16_t c = r[x];
+            b->px[y * b->w + x] = c == 0xF81F ? kKey : (uint32_t)((c >> 11) * 255 / 31) << 16 | (uint32_t)((c >> 5 & 63) * 255 / 63) << 8 | (uint32_t)((c & 31) * 255 / 31);
+        }
+    }
+}
+static void rad_push(_RADBitmap* b) {
+    if (!rad16(b)) return;
+    for (uint32_t y = 0; y < b->h; y++) {
+        uint16_t* r = reinterpret_cast<uint16_t*>(b->bmp->line[y]);
+        for (uint32_t x = 0; x < b->w; x++) {
+            uint32_t c = b->px[y * b->w + x];
+            r[x] = c == kKey ? 0xF81F : (uint16_t)((c >> 19 & 31) << 11 | (c >> 10 & 63) << 5 | (c >> 3 & 31));
+        }
+    }
+}
+static _RADBitmap* bmp_new16(uint32_t w, uint32_t h) {
+    auto* b = static_cast<_RADBitmap*>(calloc(1, sizeof(_RADBitmap)));
+    if (w == 0 || h == 0 || w > 4096 || h > 4096) { LOG("bitmap %ux%u requested; using 1x1", w, h); w = h = 1; }
+    b->tag = kTag; b->w = w; b->h = h;
+    b->bmp = create_bitmap_ex(16, (int)w, (int)h);
+    b->px = static_cast<uint32_t*>(calloc((size_t)w * h, 4));
+    for (uint32_t y = 0; y < h; y++) memset(b->bmp->line[y], 0, (size_t)w * 2);
+    return b;
+}
 
 // Copies a w x h block; `trans` skips pixels equal to `key`.
 static void blit(const uint32_t* src, int sw, int sh, int sx, int sy,
@@ -325,6 +357,7 @@ static void anim_to(Anim* a, _RADBitmap* b) {
     if (a->canvas.empty()) anim_seek(a, a->cur);
     for (size_t i = 0; i < (size_t)b->w * b->h; i++) b->px[i] = kKey;
     blit(a->canvas.data(), a->w, a->h, 0, 0, b->px, b->w, b->h, 0, 0, a->w, a->h, false, 0);
+    rad_push(b);
 }
 
 // ---------------------------------------------------------------------------------- sound
@@ -419,23 +452,33 @@ _RADBitmap* MouseBmp;                                // cursor bitmap passed to 
 
 _RADBitmap* BitmapAlloc(unsigned long w, unsigned long h, unsigned char) { video_init(); return bmp_new(w, h, color_of(0)); }
 // golf's BMAP_BitmapAlloc: the same frame, read back as {?, w, h} and passed to Bitmap*()
-_RADBitmap* allocframe(unsigned long w, unsigned long h, int) { return BitmapAlloc(w, h, 0); }
-void BitmapFree(_RADBitmap* b) { if (b && b->tag == kTag) { b->tag = 0; destroy_bitmap(b->bmp); free(b); } }
+_RADBitmap* allocframe(unsigned long w, unsigned long h, int depth) {
+    video_init();
+    return depth == 16 ? bmp_new16(w, h) : BitmapAlloc(w, h, 0);
+}
+void BitmapFree(_RADBitmap* b) {
+    if (b && b->tag == kTag) { b->tag = 0; if (rad16(b)) free(b->px); destroy_bitmap(b->bmp); free(b); }
+}
 void BitmapClear(_RADBitmap* b, unsigned char c, int, int, int) {
     if (!b) return;
     uint32_t v = color_of(c);
     for (size_t i = 0; i < (size_t)b->w * b->h; i++) b->px[i] = v;
+    rad_push(b);
 }
 void BitmapFilledBox(_RADBitmap* b, unsigned long x, unsigned long y, unsigned long w, unsigned long h, unsigned char c) {
     if (!b) return;
+    rad_pull(b);
     uint32_t v = color_of(c);
     for (unsigned long j = y; j < y + h && j < b->h; j++)
         for (unsigned long i = x; i < x + w && i < b->w; i++) b->px[j * b->w + i] = v;
+    rad_push(b);
 }
 void BitmapChangeColor(_RADBitmap* b, unsigned char from, unsigned char to) {
     if (!b) return;
+    rad_pull(b);
     uint32_t f = color_of(from), t = color_of(to);
     for (size_t i = 0; i < (size_t)b->w * b->h; i++) if (b->px[i] == f) b->px[i] = t;
+    rad_push(b);
 }
 void BitmapSetPalette(_RADBitmap*) {}
 void BitmapGetPalette(_RADBitmap*) {}
@@ -449,6 +492,8 @@ void BitmapPaletteToPalette(_RADBitmap*, _RADBitmap*) {}
 // region of src cut out into dst (airhockey's Object_Draw_Clip uses both forms).
 static void bmp_to_bmp(_RADBitmap* dst, _RADBitmap* src, long x, long y, bool trans, uint32_t key) {
     if (!dst || !src) return;
+    rad_pull(src); rad_pull(dst);
+    struct Push { _RADBitmap* b; ~Push() { rad_push(b); } } push{dst};
     if (src->w <= dst->w && src->h <= dst->h)
         blit(src->px, src->w, src->h, 0, 0, dst->px, dst->w, dst->h, (int)x, (int)y, src->w, src->h, trans, key);
     else
@@ -462,16 +507,18 @@ void BitmapToBitmapTrans(_RADBitmap* dst, _RADBitmap* src, unsigned long x, unsi
 }
 void BitmapToScreen(_RADBitmap* b, unsigned long x, unsigned long y) {
     if (!b) return;
+    rad_pull(b);
     blit(b->px, b->w, b->h, 0, 0, g_screen, SW, SH, (int)x, (int)y, b->w, b->h, false, 0);
     g_dirty = true;
 }
 void BitmapToScreenTrans(_RADBitmap* b, unsigned long x, unsigned long y, int key) {
     if (!b) return;
+    rad_pull(b);
     blit(b->px, b->w, b->h, 0, 0, g_screen, SW, SH, (int)x, (int)y, b->w, b->h, true, color_of(key));
     g_dirty = true;
 }
 unsigned long BitmapFromScreen(_RADBitmap* b, unsigned long x, unsigned long y) {
-    if (b) blit(g_screen, SW, SH, (int)x, (int)y, b->px, b->w, b->h, 0, 0, b->w, b->h, false, 0);
+    if (b) { blit(g_screen, SW, SH, (int)x, (int)y, b->px, b->w, b->h, 0, 0, b->w, b->h, false, 0); rad_push(b); }
     return 0;
 }
 void ScreenFilledBox(unsigned long x, unsigned long y, unsigned long w, unsigned long h, int c) {
@@ -604,9 +651,11 @@ void Delay(unsigned long ms) { sleep_ms(ms); }
 unsigned long SystemTimer() { pump(); return SDL_GetTicks() - g_start; }
 static unsigned long g_rng = 1;
 void Randomize(unsigned long seed) { g_rng = seed ? seed : 1; }
+// 0..n inclusive: ginrummy's GinDeck::Shuffle draws Random(cards-1) until it finds an unused
+// slot, and ~100 call sites across the games pass n-1 the same way.
 unsigned long Random(unsigned long n) {
     g_rng = g_rng * 1103515245 + 12345;
-    return n ? (g_rng >> 16) % n : 0;
+    return (unsigned long)((g_rng >> 16) % ((unsigned long long)n + 1));
 }
 
 // --- sound

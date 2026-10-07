@@ -11,6 +11,7 @@
 // engine, config files, 3D/zbuffer, datafiles.
 #include "allegro.h"
 #include "legacy_internal.h"
+#include <set>
 #include <dirent.h>
 #include <fnmatch.h>
 #include <sys/stat.h>
@@ -279,8 +280,12 @@ static GFX_VTABLE* vtable_for(int d) {
 extern "C" { GFX_VTABLE __linear_vtable8, __linear_vtable15, __linear_vtable16, __linear_vtable24, __linear_vtable32; }
 
 // ------------------------------------------------------------------------------ bitmaps
+// every BITMAP made here, so destroy_bitmap can refuse pointers it never gave out (golf frees
+// frames whose bitmap it replaced or already freed)
+static std::set<BITMAP*>& live_bitmaps() { static auto* s = new std::set<BITMAP*>; return *s; }
 static BITMAP* bmp_struct(int depth, int w, int h) {
     auto* b = static_cast<BITMAP*>(calloc(1, sizeof(BITMAP) + sizeof(unsigned char*) * (h > 0 ? h : 1)));
+    live_bitmaps().insert(b);
     b->w = w; b->h = h; b->clip = 1; b->cl = 0; b->ct = 0; b->cr = w; b->cb = h;
     b->vtable = vtable_for(depth);
     b->write_bank = b->read_bank = reinterpret_cast<void*>(al_stub_bank);
@@ -320,6 +325,11 @@ BITMAP* create_sub_bitmap(BITMAP* p, int x, int y, int w, int h) {
 }
 void destroy_bitmap(BITMAP* b) {
     if (!b || b == screen) return;
+    if (!live_bitmaps().erase(b)) {
+        static bool logged;
+        if (!logged) { logged = true; fprintf(stderr, "[legacy] destroy_bitmap: %p is not a live bitmap (ignored)\n", (void*)b); }
+        return;
+    }
     if (!(b->id & BMP_ID_SUB)) free(b->dat);
     free(b);
 }
