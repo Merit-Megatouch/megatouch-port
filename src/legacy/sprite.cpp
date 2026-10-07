@@ -767,7 +767,7 @@ Bitmap* WorldClass::LoadBmp(char const* nm, int lang, float scale, int, int max_
         legacy::free_bitmap_chain(b);
         return into;
     }
-    if (b) ws->loaded.insert(b);
+    if (b && this && ws) ws->loaded.insert(b);       // games call this through a NULL world too (phunt_new)
     return b;
 }
 Bitmap* WorldClass::LoadAdBmp(char const* nm, int lang, float scale, int fmt, int max_frames, bool b6) {
@@ -779,9 +779,12 @@ void WorldClass::DeleteBmp(Bitmap* b, unsigned char) {
     // sprites still showing a frame of it: detach (games normally kill them first)
     std::set<Bitmap*> frames;
     for (Bitmap* f = b; f; f = f->next) frames.insert(f);
-    for (Sprite* s : *sprites) if (frames.count(s->bmp)) s->bmp = nullptr;
-    if (ws->back && frames.count(ws->back)) { ws->back = nullptr; ws->back_owned = false; }
-    ws->loaded.erase(b);
+    WorldClass* wd = this ? this : legacy::current_world();
+    if (wd && wd->sprites) for (Sprite* s : *wd->sprites) if (frames.count(s->bmp)) s->bmp = nullptr;
+    if (wd && wd->ws) {
+        if (wd->ws->back && frames.count(wd->ws->back)) { wd->ws->back = nullptr; wd->ws->back_owned = false; }
+        wd->ws->loaded.erase(b);
+    }
     legacy::free_bitmap_chain(b);
 }
 Bitmap* WorldClass::GetFrame(Bitmap* b, int n) {

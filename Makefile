@@ -24,7 +24,7 @@ SDK      := $(R)/shared/engine-sdk
 OUT      := $(R)/build
 BIN      := $(R)/shared/bin
 
-CXXFLAGS := -O2 -g -fPIC -std=gnu++17 -D_GLIBCXX_USE_CXX11_ABI=0 -Wall -Wno-unused-parameter \
+CXXFLAGS := -O2 -g -fPIC -std=gnu++17 -D_GLIBCXX_USE_CXX11_ABI=0 -fno-delete-null-pointer-checks -Wall -Wno-unused-parameter \
             -I$(I386)/usr/include -I$(I386)/usr/include/i386-linux-gnu
 LINKPATH := -L$(SDK) -L$(I386LIB) -Wl,-rpath-link,$(SDK):$(I386LIB):$(I386LIB)/pulseaudio \
             -Wl,--allow-shlib-undefined
