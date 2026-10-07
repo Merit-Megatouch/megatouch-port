@@ -396,6 +396,7 @@ void list_unlink_everywhere(void* data, ListObj* except);   // every registered 
 uint32_t world_frame_no(WorldClass*);
 void sobj_reap(WorldClass*);                     // kill bit / fired deletes (sobj.cpp)
 void sobj_blit(Bitmap* b, float x, float y, int sx16, int sy16, int transparency, bool mirror, const int* clip);
+void sprite_draw_origin(float& ox, float& oy);
 }
 
 // GameClass: base of some games' main objects (cardbandits, wordzap...). A Group with no virtuals of

@@ -14,6 +14,7 @@
 //    Art is RGB565 (.dlt); pixels the RLE skips are the key colour (stored as 0x00000000).
 //  * Animations (_MSmack, after RAD's Smacker) are .dlt files: u32 version 3, u16 w, h,
 //    frames, delay, then run-length frames (src/common/merit_rle.h).
+#include <cstdarg>
 #include "../common/env.h"
 #include "../common/merit_rle.h"
 #include "legacy_internal.h"
@@ -1076,6 +1077,40 @@ void Heartbeat_Stop() {}
 void DisplayDefeated(int, int) {}
 // Meritthon (multi-game tournament) round banner: not in a Meritthon
 void MeritthonDisplayRound(int, int, int, unsigned long) {}
+// MegaLink transmit (breakout, racepoker): not linked; true, or the caller retries for 3 s
+bool SendPacket(char*) { return true; }
+int GlobalDebugLevel() { return 0; }
+// The USB I/O board's joystick (breakout's paddle): none; `this` may be NULL (gash.md §10)
+class USBIO {
+public:
+    bool JoystickFound();
+    bool ReadJoystick(short* x, short* y, unsigned char* btn, short, short, unsigned char* extra);
+};
+bool USBIO::JoystickFound() { return false; }
+bool USBIO::ReadJoystick(short* x, short* y, unsigned char* btn, short, short, unsigned char* extra) {
+    if (x) *x = 0;
+    if (y) *y = 0;
+    if (btn) *btn = 0;
+    if (extra) *extra = 0;
+    return false;
+}
+// Allegro 4 Unicode helpers (UTF-8 text): bounded printf and copy, always terminated
+extern "C" int uszprintf(char* buf, int size, const char* fmt, ...) {
+    if (!buf || size <= 0) return 0;
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(buf, (size_t)size, fmt ? fmt : "", ap);
+    va_end(ap);
+    return n;
+}
+extern "C" char* ustrzcpy(char* dst, int size, const char* src) {
+    if (!dst || size <= 0) return dst;
+    snprintf(dst, (size_t)size, "%s", src ? src : "");
+    return dst;
+}
+class LinuxGameClass { public: void CheckHotKey(char); };
+void LinuxGameClass::CheckHotKey(char) {}       // debug hotkeys (no HotKey in any layout)
+
 // Help file for the current language: gamedata/help/<game><suffix>
 bool GetHelpFileName(char (&out)[255], char const* game, Locale::Languages, char const* suffix) {
     snprintf(out, sizeof out, "/usr/local/gamedata/help/%s%s", game ? game : "", suffix ? suffix : "");
@@ -1113,6 +1148,7 @@ void* NetGlob;                                   // NetGlobals*; null = not link
 void* CardG = g_cardG;                           // card-link state block (read only when linked)
 unsigned char LocalGameOverFlag, DLLReady, ISRDone;
 }
+class NetSprite;
 class NetGlobals {
 public:
     static unsigned long GetLeaderScore();
@@ -1121,7 +1157,9 @@ public:
     static int GetState(int);
     static int GetHeadIdx(unsigned char);
     static void ProcNetClicks();
+    void NetSpriteUnRegister(NetSprite*, unsigned char);
 };
+void NetGlobals::NetSpriteUnRegister(NetSprite*, unsigned char) {}   // only reached when linked
 extern "C" int PlrScore[8];                      // megatouch-host
 unsigned long NetGlobals::GetLeaderScore() { return PlrScore[0]; }
 unsigned char NetGlobals::GetRank(unsigned char) { return 1; }

@@ -20,6 +20,9 @@
 
 class MegacGlobals { public: static MegacGlobals* GetInstance(); };   // megatouch-host
 int PlayPreWave(char* name, unsigned short, bool, int vol, int, int);  // legacy.cpp
+bool IsScreenTouched();
+unsigned short MouseX();
+unsigned short MouseY();
 
 namespace {
 const uint32_t kForever = 0xefffffff;
@@ -334,7 +337,9 @@ void at(Sprite* s, Kind k, unsigned long delay, std::function<void(Sprite*)> f) 
 // ------------------------------------------------------------------------------ Sprite
 bool Sprite::ClicksEnabled = true;
 
+static void* g_base_dodraw;                      // Sprite::DoDraw's vtable entry (slot 8)
 Sprite::Sprite(Bitmap* b, unsigned long fl, Sprite* parent) : Group(nullptr, parent) {
+    if (!g_base_dodraw) g_base_dodraw = (*reinterpret_cast<void***>(this))[8];
     memset(reinterpret_cast<unsigned char*>(this) + offsetof(Sprite, x), 0, offsetof(Sprite, last) + 1 - offsetof(Sprite, x));
     st = new SpriteState;
     flags = (uint32_t)fl;
@@ -761,6 +766,10 @@ void draw_sprite_tree(Sprite* s, BITMAP* dst, float ox, float oy) {
 }
 }
 
+namespace legacy {
+// the parent offset of the sprite being drawn (flattened Gash subtrees)
+void sprite_draw_origin(float& ox, float& oy) { ox = g_ox; oy = g_oy; }
+}
 // SObj drawing (sobj.cpp): the bitmap at (x, y) scaled by 16.16 factors, with transparency,
 // optional X mirror and an inclusive clip rectangle.
 namespace legacy {
@@ -940,12 +949,32 @@ void WorldClass::render() {
     for (Sprite* s : *sprites) if (s->children) s->children->each([&](Group* g) { kids.insert(static_cast<Sprite*>(g)); });
     std::vector<Sprite*> top;
     for (Sprite* s : *sprites) if (!kids.count(s)) top.push_back(s);
-    std::stable_sort(top.begin(), top.end(), [](Sprite* a, Sprite* b) { return a->z < b->z; });
-    g_render_dst = dst;
+    // A Gash world's root sprite (+0x60) is transparent: its whole subtree joins the global z order,
+    // children placed relative to their parents (gash.md §4.4).
+    struct Item { Sprite* s; float ox, oy; bool flat; };
+    std::vector<Item> items;
+    std::function<void(Sprite*, float, float)> collect = [&](Sprite* p, float ox, float oy) {
+        if (!p->children) return;
+        std::vector<Sprite*> kids;
+        p->children->each([&](Group* g) { if (g) kids.push_back(static_cast<Sprite*>(g)); });
+        for (Sprite* c : kids) {
+            if (!sprites->count(c) || (c->flags & (F_DISABLED | F_DELETE))) continue;
+            items.push_back({c, ox, oy, true});
+            collect(c, ox + c->x, oy + c->y);
+        }
+    };
     for (Sprite* s : top) {
-        g_ox = g_oy = 0;
-        s->DoDraw();                              // virtual
+        if (root && s == root) collect(s, s->x, s->y);
+        else items.push_back({s, 0, 0, false});
     }
+    std::stable_sort(items.begin(), items.end(), [](const Item& a, const Item& b) { return a.s->z < b.s->z; });
+    g_render_dst = dst;
+    for (const Item& it : items) {
+        g_ox = it.ox; g_oy = it.oy;
+        if (it.flat && (*reinterpret_cast<void***>(it.s))[8] == g_base_dodraw) draw_self(it.s, dst, it.ox, it.oy);
+        else it.s->DoDraw();                      // virtual (game classes, Gash widgets)
+    }
+    g_ox = g_oy = 0;
     g_render_dst = nullptr;
     g_rects = nullptr;
     if (dst == screen) legacy::screen_touched(); else legacy::touched_target();
@@ -1003,15 +1032,34 @@ void WorldClass::frame() {
             ws->pressed = nullptr;
             continue;
         }
-        if (!Sprite::ClicksEnabled || frozen) continue;
+        // +0x19c is the game state in Gash worlds (1 = time up while a prompt shows), not a freeze
+        if (!Sprite::ClicksEnabled || (frozen && !root)) continue;
         Sprite* best = nullptr;
         for (Sprite* s : *sprites) {
             if ((s->flags & (F_DISABLED | F_DELETE)) || !(s->flags & F_CLICK)) continue;
             float ox = 0, oy = 0;
-            if (Sprite* p = list_parent.count(s) ? list_parent[s] : parent_of(s)) { ox = p->x; oy = p->y; if (p->flags & F_DISABLED) continue; }
+            bool hidden = false;
+            int depth = 0;
+            for (Sprite* p = list_parent.count(s) ? list_parent[s] : parent_of(s); p && depth < 32; depth++) {
+                if (p->flags & F_DISABLED) { hidden = true; break; }
+                ox += p->x; oy += p->y;
+                p = list_parent.count(p) ? list_parent[p] : parent_of(p);
+            }
+            if (hidden) continue;
             if (hit(s, t.x, t.y, ox, oy) && (!best || s->z >= best->z)) best = s;
         }
         if (best) { ws->pressed = best; best->SpriteClick(); }
+    }
+    if (root) {
+        // Gash games read the touch from MegacGlobals+0x5b60/+0x5b64/+0x5b68, and a sprite with flag
+        // 0x800 (breakout's paddle zone) signals every frame while it is held (gash.md §9)
+        bool down = IsScreenTouched();
+        auto* g = reinterpret_cast<unsigned char*>(MegacGlobals::GetInstance());
+        int mx = MouseX(), my = MouseY(), d = down;
+        memcpy(g + 0x5b60, &mx, 4); memcpy(g + 0x5b64, &my, 4); memcpy(g + 0x5b68, &d, 4);
+        if (!down) ws->pressed = nullptr;
+        else if (ws->pressed && sprites->count(ws->pressed) && (ws->pressed->flags & 0x800) && !(ws->pressed->flags & F_DISABLED))
+            ws->pressed->SpriteClick();
     }
     render();
     ws->last_frame = legacy::ticks();
