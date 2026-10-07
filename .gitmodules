@@ -556,3 +556,6 @@
 [submodule "games/motormatch"]
 	path = games/motormatch
 	url = https://github.com/Merit-Megatouch/motormatch.git
+[submodule "games/ginrummy"]
+	path = games/ginrummy
+	url = https://github.com/Merit-Megatouch/ginrummy.git
