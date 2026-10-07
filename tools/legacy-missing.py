@@ -28,10 +28,10 @@ need = {}
 for g in games:
     miss = set()
     for so in glob.glob(f'{R}/games/{g}/lib/*.so'):
-        if os.path.islink(so): continue
+        if os.path.islink(so) or 'libmega_stubs' in so: continue
         miss |= syms(so, False)
     for so in glob.glob(f'{R}/games/{g}/lib/*.so'):
-        if not os.path.islink(so): miss -= syms(so, True)
+        if not os.path.islink(so) and 'libmega_stubs' not in so: miss -= syms(so, True)
     need[g] = sorted(s for s in miss - provided if s not in ('__gmon_start__', '_Jv_RegisterClasses'))
 count = collections.Counter(s for m in need.values() for s in m)
 dem = lambda s: subprocess.run(['c++filt', s], capture_output=True, text=True).stdout.strip()

@@ -558,6 +558,7 @@ void InputCharOrDelay(char* buf, unsigned long ms) {
         }
         SDL_Delay(1);
     } while (SDL_GetTicks() < end);
+    if (buf) strcpy(buf, "DELAY");                 // timeout marker games test for (goal: strstr("getout", buf))
 }
 void Delay(unsigned long ms) { sleep_ms(ms); }
 unsigned long SystemTimer() { pump(); return SDL_GetTicks() - g_start; }
