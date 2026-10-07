@@ -344,6 +344,7 @@ void launch(Game& g, int players) {
         if (chdir(dir.c_str()) != 0) _exit(127);
         setenv("MEGA_PLAYERS", std::to_string(players).c_str(), 1);
         setenv("MEGA_LANGUAGE", g_set.language.c_str(), 1);
+        if (const char* t = getenv("MEGA_MENU_TIMEOUT")) alarm((unsigned)atoi(t));   // tests: end the game after N s
         execl((dir + "/run").c_str(), "run", (char*)nullptr);
         _exit(127);
     }
@@ -415,6 +416,12 @@ int main(int argc, char** argv) {
     load_catalogue();
     fprintf(stderr, "[menu] %zu games\n", g_games.size());
 
+    // tests: MEGA_MENU_LAUNCH=<game dir> launches it straight away and quits when it returns
+    if (const char* l = getenv("MEGA_MENU_LAUNCH")) {
+        for (auto& g : g_games) if (g.dir == l) { launch(g, 1); fprintf(stderr, "[menu] %s returned\n", l); }
+        SDL_Quit();
+        return 0;
+    }
     Screen scr = ATTRACT;
     std::string cat;
     int page = 0, sel = -1, players = 1, opsel = 0;
