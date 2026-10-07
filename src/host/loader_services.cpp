@@ -73,10 +73,12 @@ public:
     ContinueControl();
     ~ContinueControl();
     bool display(unsigned int, unsigned int);
+    bool display(unsigned int, unsigned int, bool (*)());   // with a poll callback (tennis)
 };
 ContinueControl::ContinueControl() {}
 ContinueControl::~ContinueControl() {}
 bool ContinueControl::display(unsigned int, unsigned int) { return true; }
+bool ContinueControl::display(unsigned int, unsigned int, bool (*)()) { return true; }
 
 class HighScoresManager {
 public:
