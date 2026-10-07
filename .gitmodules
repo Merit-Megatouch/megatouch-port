@@ -13,3 +13,60 @@
 [submodule "games/fourplay"]
 	path = games/fourplay
 	url = https://github.com/Merit-Megatouch/fourplay.git
+[submodule "games/g_spin_card_holdem"]
+	path = games/g_spin_card_holdem
+	url = https://github.com/Merit-Megatouch/g_spin_card_holdem.git
+[submodule "games/brain_in_gear"]
+	path = games/brain_in_gear
+	url = https://github.com/Merit-Megatouch/brain_in_gear.git
+[submodule "games/g_field_goal"]
+	path = games/g_field_goal
+	url = https://github.com/Merit-Megatouch/g_field_goal.git
+[submodule "games/megatouch_memory"]
+	path = games/megatouch_memory
+	url = https://github.com/Merit-Megatouch/megatouch_memory.git
+[submodule "games/g_zombie_cats"]
+	path = games/g_zombie_cats
+	url = https://github.com/Merit-Megatouch/g_zombie_cats.git
+[submodule "games/fight_the_landlord"]
+	path = games/fight_the_landlord
+	url = https://github.com/Merit-Megatouch/fight_the_landlord.git
+[submodule "games/text_twist2"]
+	path = games/text_twist2
+	url = https://github.com/Merit-Megatouch/text_twist2.git
+[submodule "games/tug_of_words"]
+	path = games/tug_of_words
+	url = https://github.com/Merit-Megatouch/tug_of_words.git
+[submodule "games/stunt_squirrel"]
+	path = games/stunt_squirrel
+	url = https://github.com/Merit-Megatouch/stunt_squirrel.git
+[submodule "games/funky_monkey_2"]
+	path = games/funky_monkey_2
+	url = https://github.com/Merit-Megatouch/funky_monkey_2.git
+[submodule "games/touchdown_poker"]
+	path = games/touchdown_poker
+	url = https://github.com/Merit-Megatouch/touchdown_poker.git
+[submodule "games/jackpot_corner"]
+	path = games/jackpot_corner
+	url = https://github.com/Merit-Megatouch/jackpot_corner.git
+[submodule "games/little_shop_of_treasures"]
+	path = games/little_shop_of_treasures
+	url = https://github.com/Merit-Megatouch/little_shop_of_treasures.git
+[submodule "games/g_little_shop_road_trip"]
+	path = games/g_little_shop_road_trip
+	url = https://github.com/Merit-Megatouch/g_little_shop_road_trip.git
+[submodule "games/g_space_farmer"]
+	path = games/g_space_farmer
+	url = https://github.com/Merit-Megatouch/g_space_farmer.git
+[submodule "games/g_phillies_hottest_phunt"]
+	path = games/g_phillies_hottest_phunt
+	url = https://github.com/Merit-Megatouch/g_phillies_hottest_phunt.git
+[submodule "games/photo_hunt_hd"]
+	path = games/photo_hunt_hd
+	url = https://github.com/Merit-Megatouch/photo_hunt_hd.git
+[submodule "games/beer_pong_challenge"]
+	path = games/beer_pong_challenge
+	url = https://github.com/Merit-Megatouch/beer_pong_challenge.git
+[submodule "games/g_mystery_phraze_hd"]
+	path = games/g_mystery_phraze_hd
+	url = https://github.com/Merit-Megatouch/g_mystery_phraze_hd.git
