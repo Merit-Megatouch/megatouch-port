@@ -74,9 +74,9 @@ $(BIN)/libmerit_legacy.so: $(LEGACY_OBJ)
 	$(CXX) -shared -o $@.new $^ $(LINKPATH) -lSDL2 -lz && mv $@.new $@
 
 # Preloaded into the Unity player (Unity-family games): routes FMOD's sound output to PulseAudio.
-$(BIN)/libmega_unity.so: src/unity/fmod_output.cpp src/common/env.h
+$(BIN)/libmega_unity.so: src/unity/fmod_output.cpp src/host/fs_shim.cpp src/common/env.h
 	@mkdir -p $(BIN)
-	$(CXX) $(CXXFLAGS) -shared -o $@.new $< -ldl && mv $@.new $@
+	$(CXX) $(CXXFLAGS) -shared -o $@.new src/unity/fmod_output.cpp src/host/fs_shim.cpp -ldl && mv $@.new $@
 
 $(BIN)/gameids: tools/gameids.cpp
 	@mkdir -p $(BIN)

@@ -13,7 +13,15 @@ GD="$R/games/$G"; O="$R/build/smoke/$G"
 rm -rf "$O"; mkdir -p "$O"
 W=$(sed -n 's/^WIDTH=//p' "$GD/game.conf"); H=$(sed -n 's/^HEIGHT=//p' "$GD/game.conf")
 cx=$(( ${W:-800} / 2 )); cy=$(( ${H:-600} / 2 ))
-if grep -q '^PRELOAD=.*libmerit_legacy' "$GD/game.conf"; then
+if grep -q '^ENGINE=unity' "$GD/game.conf"; then
+  # Unity: needs the real display; screenshots come from libmega_unity.so's glXSwapBuffers hook
+  MEGA_SHOT_DIR="$O" MEGA_SHOT_EVERY=180 timeout "$SECS" "$GD/run" > "$O/log.txt" 2>&1
+  rc=$?
+  shots=$(ls "$O" | grep -c '^frame')
+  printf '%-28s rc=%-3s shots=%-3s crash=%s\n' "$G" "$rc" "$shots" "$(grep -cE 'Segmentation|SIGSEGV|Crash!!!' "$O/log.txt")"
+  grep -E "Couldn't pull|Exception|Couldn't load|not found|failed" "$O/log.txt" | sed 's/[0-9]\{3,\}/N/g' | sort | uniq -c | sort -rn | head -6 | sed 's/^/    /'
+  exit 0
+elif grep -q '^PRELOAD=.*libmerit_legacy' "$GD/game.conf"; then
   # legacy: milliseconds, every 1.5 s
   clicks=$(for t in $(seq 2000 1500 $((SECS * 1000))); do printf '%d:%d,%d;' $t $cx $cy; done)
   every=60

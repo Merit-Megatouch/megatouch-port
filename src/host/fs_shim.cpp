@@ -21,7 +21,10 @@
 // ---------------------------------------------------------------------------
 // path redirection
 
-static std::string g_root;  // e.g. /path/to/Trix/data
+// e.g. /path/to/games/g_trix/data. A plain buffer, not std::string: in a preloaded library
+// (Unity) other libraries' constructors call stat/open before our globals are constructed.
+static char g_root[4096];
+static size_t g_rootLen;
 
 static const char* const kPrefixes[] = {"/usr/local/games", "/usr/local/gamedata", "/usr/local/ion_only",
                                         "/var/merit", "/dev/merit_ipc", nullptr};
@@ -30,7 +33,7 @@ static const char* const kPrefixes[] = {"/usr/local/games", "/usr/local/gamedata
 static const char* redirect(const char* path, char* buf, size_t len) {
     static bool trace = menv("TRACE_FILES") != nullptr;
     if (trace && path) fprintf(stderr, "[file] %s\n", path);
-    if (!path || path[0] != '/' || g_root.empty()) return path;
+    if (!path || path[0] != '/' || !g_rootLen) return path;
     // The resource locator's wildcard search builds "//usr/local/..." (base "/" + "/usr...");
     // the kernel treats repeated slashes as one, so must we.
     const char* q = path;
@@ -38,7 +41,7 @@ static const char* redirect(const char* path, char* buf, size_t len) {
     for (const char* const* p = kPrefixes; *p; p++) {
         size_t n = strlen(*p);
         if (strncmp(q, *p, n) == 0 && (q[n] == '/' || q[n] == 0)) {
-            snprintf(buf, len, "%s%s", g_root.c_str(), q);
+            snprintf(buf, len, "%s%s", g_root, q);
             return buf;
         }
     }
@@ -145,6 +148,16 @@ int __xstat64(int ver, const char* path, struct stat64* st) {
 }
 
 struct OldDirent { long d_ino; long d_off; unsigned short d_reclen; unsigned char d_type; char d_name[256]; };
+// LFS variants used by programs built against newer glibc headers (the Unity player).
+int __lxstat64(int ver, const char* path, struct stat64* st) {
+    REAL(lstat64); REAL(stat64);
+    (void)ver;
+    const char* orig = path;
+    RPATH(path);
+    return path != orig ? real_stat64(path, st) : real_lstat64(path, st);
+}
+int chdir(const char* path) { REAL(chdir); RPATH(path); return real_chdir(path); }
+
 void* readdir_old(DIR* d) __asm__("readdir");
 void* readdir_old(DIR* d) {
     static thread_local OldDirent out;
@@ -168,7 +181,7 @@ int glob(const char* pattern, int flags, int (*errfunc)(const char*, int), glob_
         // hand back paths in the cabinet's namespace so callers can keep composing them
         for (size_t i = 0; i < g->gl_pathc; i++) {
             char*& s = g->gl_pathv[i + g->gl_offs];
-            if (strncmp(s, g_root.c_str(), g_root.size()) == 0) memmove(s, s + g_root.size(), strlen(s + g_root.size()) + 1);
+            if (strncmp(s, g_root, g_rootLen) == 0) memmove(s, s + g_rootLen, strlen(s + g_rootLen) + 1);
         }
     }
     return r;
@@ -197,6 +210,6 @@ int connect(int fd, const struct sockaddr* addr, socklen_t len) {
     return real_connect(fd, addr, len);
 }
 
-void trix_set_data_root(const char* root) { g_root = root; }
+void trix_set_data_root(const char* root) { snprintf(g_root, sizeof g_root, "%s", root); g_rootLen = strlen(g_root); }
 
 }  // extern "C"

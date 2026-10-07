@@ -176,6 +176,9 @@ if ! done_mark "$S/unity"; then
   scripts/lib/extract-libs.sh "$U/closure" libGLU.so.1 libcurl.so.3 libfmodex.so libtheora.so.0 libgthread-2.0.so.0 2>/dev/null || true
   for f in "$U"/closure/*; do [ -e "$S/runtime/$(basename "$f")" ] || mv "$f" "$U/lib/"; done
   rm -rf "$U/closure"
+  # the launcher's own lib/ (libsqlite3.so, which Mono's System.Data.SQLite P/Invokes as "sqlite3")
+  cab_rdump ion /games/launcher/lib "$U"
+  [ -f "$U/lib/libsqlite3.so" ] || true
   mark "$U"
 fi
 
