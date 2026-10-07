@@ -485,10 +485,27 @@ void Bitmap::DrawSpline(int x1, int y1, int x2, int y2, int x3, int y3, int x4, 
 // BmpFont(w, h, n) picks a cabinet bitmap font (gamedata/fonts/*.dlt: one glyph per frame,
 // frame = character code) by cell size. FontBase objects are polymorphic: games call virtual
 // slots on them (sprite-engine.md §5.4); every slot logs its first call (MEGA_DEBUG_FONT=1: all).
+// ------------------------------------------------------------------------------ bitmap fonts
+// BmpFont / FontBase (0x798 bytes, games only touch the vptr) and the shared MegacGraphics
+// fonts. Glyph files are .dlt delta strips: frame 0 is a black cell and every later frame stores
+// only the pixels that differ from the previous glyph, so the frames are composited in order and
+// glyph(code) = canvas after frame code-1. Black is transparent. Reference:
+// docs/reference/bmpfont.md.
 class BmpFont { public: BmpFont(short, short, unsigned short); };
 namespace {
-struct GlyphFont { int w = 0, h = 0; std::vector<MeritFrame> glyphs; std::vector<int> adv; };
-struct FontState { GlyphFont* font = nullptr; int align = 0; int spacing = 0; int r = 0, g = 0, b = 0; };
+struct GlyphFont {
+    int w = 0, h = 0;                            // cell size
+    std::vector<std::vector<uint32_t>> glyph;    // by 8-bit code: ARGB, alpha 0 = transparent
+    std::vector<int> ink_l, ink_r;               // inked columns (ink_r < ink_l: blank)
+};
+struct FontState {
+    GlyphFont* font = nullptr;
+    int r = 0, g = 0, b = 0;                     // colour, offsets from white
+    int just = 0;                                // SetJustify: 0 left, 1 right, 2 centre
+    bool prop = false;                           // SetProportional / SetFixed
+    int fixed_w = 0;                             // SetFixedWidth (0 = off)
+    int space = 10;                              // SetSpaceWidth
+};
 std::map<const void*, FontState> g_fonts;
 GlyphFont* g_defaultFont;
 
@@ -500,18 +517,27 @@ GlyphFont* font_load(const char* file) {
     std::vector<uint8_t> d;
     GlyphFont* f = nullptr;
     size_t off, count;
-    if (merit_read_gz(path.c_str(), d) && merit_container(d, off, count)) {
+    std::vector<MeritFrame> fr;
+    if (merit_read_gz(path.c_str(), d) && merit_container(d, off, count)) merit_read_frames(d, off, fr, count);
+    if (!fr.empty() && fr[0].w > 0 && fr[0].h > 0) {
         f = new GlyphFont;
-        merit_read_frames(d, off, f->glyphs, count);
-        if (f->glyphs.empty()) { delete f; f = nullptr; }
-    }
-    if (f) {
-        frames_to_px(f->glyphs);
-        f->w = f->glyphs[0].w; f->h = f->glyphs[0].h;
-        for (auto& g : f->glyphs) {           // proportional advance: rightmost opaque column + 2
-            int r = -1;
-            for (int y = 0; y < g.h; y++) for (int x = g.w - 1; x > r; x--) if (g.argb[(size_t)y * g.w + x] != kKey) { r = x; break; }
-            f->adv.push_back(r < 0 ? f->w / 2 : r + 2);
+        f->w = fr[0].w; f->h = fr[0].h;
+        size_t n = (size_t)f->w * f->h;
+        std::vector<uint32_t> canvas(n, 0xff000000u);
+        f->glyph.assign(256, std::vector<uint32_t>(n, 0));
+        for (size_t k = 0; k < fr.size() && k + 1 < 256; k++) {
+            if (fr[k].argb.size() == n)
+                for (size_t i = 0; i < n; i++) if (fr[k].argb[i] >> 24) canvas[i] = fr[k].argb[i] | 0xff000000u;
+            auto& gl = f->glyph[k + 1];
+            for (size_t i = 0; i < n; i++) gl[i] = (canvas[i] & 0xffffff) ? canvas[i] : 0;
+        }
+        f->ink_l.assign(256, 0); f->ink_r.assign(256, -1);
+        for (int c = 0; c < 256; c++) {
+            int l = f->w, r = -1;
+            for (int y = 0; y < f->h; y++)
+                for (int x = 0; x < f->w; x++)
+                    if (f->glyph[c][(size_t)y * f->w + x]) { l = std::min(l, x); r = std::max(r, x); }
+            f->ink_l[c] = r < 0 ? 0 : l; f->ink_r[c] = r;
         }
     }
     cache[file] = f;
@@ -520,19 +546,19 @@ GlyphFont* font_load(const char* file) {
 GlyphFont* font_named(const char* name) {
     if (!name || !*name) return nullptr;
     std::string n = name;
-    for (const char* ext : {"", ".dlt.gz", ".dlt", ".spr.gz"})
+    for (const char* ext : {".dlt.gz", ".dlt", ""})
         if (GlyphFont* f = font_load((n + ext).c_str())) return f;
     return nullptr;
 }
-GlyphFont* font_for(short w, short h) {
-    char names[4][32];
-    snprintf(names[0], 32, "b%dx%d.dlt.gz", w, h); snprintf(names[1], 32, "%dx%d.dlt.gz", w, h);
-    snprintf(names[2], 32, "%dx%dw.dlt.gz", w, h); snprintf(names[3], 32, "%dx%d.dlt.gz", h, h);
+GlyphFont* font_for(short w, short h) {         // fallback only: a Load always follows
+    char names[3][32];
+    snprintf(names[0], 32, "%dx%d.dlt.gz", w, h); snprintf(names[1], 32, "b%dx%d.dlt.gz", w, h);
+    snprintf(names[2], 32, "%dx%dw.dlt.gz", w, h);
     for (auto& n : names) if (GlyphFont* f = font_load(n)) return f;
     return nullptr;
 }
 GlyphFont* default_font() {
-    if (!g_defaultFont) g_defaultFont = font_load("12x16.dlt.gz");    // white glyphs
+    if (!g_defaultFont) g_defaultFont = font_load("12x16.dlt.gz");
     if (!g_defaultFont) g_defaultFont = font_load("b24x24.dlt.gz");
     return g_defaultFont;
 }
@@ -541,38 +567,51 @@ FontState& state_of(const void* font) {
     if (!st.font) st.font = default_font();
     return st;
 }
-int adv_of(GlyphFont* f, unsigned char c, int spacing) { return (c < f->adv.size() ? f->adv[c] : f->w) + spacing; }
-int text_width(GlyphFont* f, const unsigned char* t, int spacing) {
+
+// advance of one character and where its cell is drawn relative to the pen
+struct Adv { int adv, dx; };
+Adv advance(const GlyphFont* f, const FontState& st, unsigned char c, bool prop) {
+    int l = f->ink_l[c], r = f->ink_r[c], ink = r >= l ? r - l + 1 : 0;
+    if (st.fixed_w > 0) return {st.fixed_w, ink ? (st.fixed_w - ink) / 2 - l : 0};
+    if (prop || st.prop) {
+        if (c == ' ' || !ink) return {st.space, 0};
+        return {ink + std::max(1, f->w / 12), -l};
+    }
+    return {f->w, 0};
+}
+int text_width(const GlyphFont* f, const FontState& st, const unsigned char* t, bool prop) {
     int w = 0;
-    for (; *t; t++) w += adv_of(f, *t, spacing);
+    for (; *t; t++) w += advance(f, st, *t, prop).adv;
     return w;
 }
-// glyphs onto a 16/32-bit Allegro bitmap; colour offsets from white tint the (white) glyphs
-void glyphs_draw(BITMAP* dst, GlyphFont* f, const unsigned char* t, size_t n, int x, int y, int spacing, int dr, int dg, int db) {
+// glyphs onto a 16/32-bit Allegro bitmap, tinted by colour offsets (keeps the anti-aliasing)
+void glyphs_draw(BITMAP* dst, const GlyphFont* f, const FontState& st, const unsigned char* t, int x, int y, bool prop, int dr,
+                 int dg, int db) {
     int d = depth_of(dst);
-    for (size_t k = 0; k < n && t[k]; k++) {
-        unsigned char ch = t[k];
-        if (ch < f->glyphs.size()) {
-            const MeritFrame& g = f->glyphs[ch];
-            for (int yy = 0; yy < g.h; yy++)
-                for (int xx = 0; xx < g.w; xx++) {
-                    uint32_t c = g.argb[(size_t)yy * g.w + xx];
-                    if (c == kKey) continue;
-                    int X = x + xx, Y = y + yy;
-                    if (X < dst->cl || X >= dst->cr || Y < dst->ct || Y >= dst->cb) continue;
-                    int r = (c >> 16 & 255) * (255 + dr) / 255, gg = (c >> 8 & 255) * (255 + dg) / 255, b = (c & 255) * (255 + db) / 255;
-                    int v = d == 16 ? rgb16(r, gg, b) : makecol_depth(d, r, gg, b);
-                    dst->vtable->putpixel(dst, X, Y, v);
-                }
-        }
-        x += adv_of(f, ch, spacing);
+    for (; *t; t++) {
+        Adv a = advance(f, st, *t, prop);
+        const auto& g = f->glyph[*t];
+        for (int yy = 0; yy < f->h; yy++)
+            for (int xx = 0; xx < f->w; xx++) {
+                uint32_t c = g[(size_t)yy * f->w + xx];
+                if (!c) continue;
+                int X = x + a.dx + xx, Y = y + yy;
+                if (X < dst->cl || X >= dst->cr || Y < dst->ct || Y >= dst->cb) continue;
+                int r = std::clamp((int)(c >> 16 & 255) * (255 + dr) / 255, 0, 255);
+                int gg = std::clamp((int)(c >> 8 & 255) * (255 + dg) / 255, 0, 255);
+                int b = std::clamp((int)(c & 255) * (255 + db) / 255, 0, 255);
+                int v = d == 16 ? rgb16(r, gg, b) : makecol_depth(d, r, gg, b);
+                if (d == 16 && v == kKey16) v ^= 0x20;
+                dst->vtable->putpixel(dst, X, Y, v);
+            }
+        x += a.adv;
     }
 }
-// word-wraps text to max_w (0 = one line)
-std::vector<std::string> wrap(GlyphFont* f, const char* text, int max_w, int spacing) {
+// word-wrap to max_w (0 = one line per '\n')
+std::vector<std::string> wrap(const GlyphFont* f, const FontState& st, const char* text, int max_w, bool prop) {
     std::vector<std::string> lines;
     std::string cur, word;
-    auto width = [&](const std::string& s) { return text_width(f, reinterpret_cast<const unsigned char*>(s.c_str()), spacing); };
+    auto width = [&](const std::string& s) { return text_width(f, st, reinterpret_cast<const unsigned char*>(s.c_str()), prop); };
     auto flush_word = [&]() {
         if (word.empty()) return;
         std::string trial = cur.empty() ? word : cur + " " + word;
@@ -589,7 +628,6 @@ std::vector<std::string> wrap(GlyphFont* f, const char* text, int max_w, int spa
     if (!cur.empty() || lines.empty()) lines.push_back(cur);
     return lines;
 }
-// renders wrapped glyph text into b, resizing it to fit (sprite-engine.md §5.4)
 std::string strip_markup(const char* t) {
     std::string out;
     for (const char* p = t ? t : ""; *p; p++) {
@@ -598,23 +636,31 @@ std::string strip_markup(const char* t) {
     }
     return out;
 }
-void smack_text(Bitmap* b, const char* text_in, const void* font, int just, int max_w, int max_h, int dr, int dg, int db) {
+// x offset of a line of width lw in a box of width W (j: 0 left, 1 right, 2 centre)
+int justify(int j, int W, int lw) { return j == 1 ? W - lw : j == 2 ? (W - lw) / 2 : 0; }
+// smack-box justification: -1 = the font's SetJustify, 0 = centre, >0 = right (sprite-engine.md §5.4)
+// (-2: left, used for String justification)
+int box_just(int just, const FontState& st) { return just == -2 ? 0 : just < 0 ? st.just : just == 0 ? 2 : 1; }
+
+// Text boxes always space proportionally (bmpfont.md §5.5: serpb31/j96 boxes need it). With
+// box_w > 0 the bitmap keeps that width (SObj AssignString boxes); otherwise it fits the text.
+void smack_text(Bitmap* b, const char* text_in, const void* font, int just, int max_w, int max_h, int dr, int dg, int db,
+                bool keep_box = false) {
     std::string clean = strip_markup(tr(text_in));
-    const char* text = clean.c_str();
     FontState& st = state_of(font);
     GlyphFont* f = st.font;
     if (!f) return;
-    auto lines = wrap(f, text, max_w, st.spacing);
+    auto lines = wrap(f, st, clean.c_str(), max_w, true);
     int tw = 0;
-    for (auto& l : lines) tw = std::max(tw, text_width(f, reinterpret_cast<const unsigned char*>(l.c_str()), st.spacing));
-    int W = std::max(1, tw), H = std::max(1, (int)lines.size() * f->h);
+    for (auto& l : lines) tw = std::max(tw, text_width(f, st, reinterpret_cast<const unsigned char*>(l.c_str()), true));
+    int W = std::max(1, keep_box && max_w > 0 ? std::max((int)max_w, tw) : tw), H = std::max(1, (int)lines.size() * f->h);
     if (max_h > 0) H = std::min(H, std::max((int)max_h, f->h));
     b->resize(W, H);
+    int j = box_just(just, st);
     for (size_t i = 0; i < lines.size(); i++) {
         auto* t = reinterpret_cast<const unsigned char*>(lines[i].c_str());
-        int lw = text_width(f, t, st.spacing);
-        int x = just > 0 ? W - lw : just < 0 ? 0 : (W - lw) / 2;
-        glyphs_draw(b->al, f, t, lines[i].size(), x, (int)i * f->h, st.spacing, dr, dg, db);
+        int lw = text_width(f, st, t, true);
+        glyphs_draw(b->al, f, st, t, justify(j, W, lw), (int)i * f->h, true, dr, dg, db);
     }
 }
 
@@ -633,48 +679,74 @@ template <int... I> void* const* make_font_vtable(Seq<I...>) {
 void* const* font_vtable() { static void* const* vt = make_font_vtable(MakeSeq<48>::type()); return vt; }
 void font_attach(void* obj) { void* const* vt = font_vtable(); memcpy(obj, &vt, sizeof vt); }
 
-// Slots (byte offsets): 0x08 colour (0, r, g, b), 0x18 Load(font, glyphs, flag), 0x24 alignment
-// (0 left, 1 centre, 2 right), 0x2c DrawText(text, x, y, w, ...), 0x30 CreateTextBox(text, w, h, ...)
-// -> _RADBitmap*, 0x54/0x60 spacing.
+// DrawText / DrawNumber onto the current video buffer, justified in [x, x+w] (about x if w = 0)
+int draw_line(void* self, const char* s, int x, int y, int w, bool draw) {
+    FontState& st = state_of(self);
+    GlyphFont* f = st.font;
+    if (!s || !f) return 0;
+    std::string clean = strip_markup(tr(s));
+    auto* t = reinterpret_cast<const unsigned char*>(clean.c_str());
+    int tw = text_width(f, st, t, false);
+    int px = w > 0 ? x + justify(st.just, w, tw) : x - (st.just == 1 ? tw : st.just == 2 ? tw / 2 : 0);
+    if (draw) {
+        glyphs_draw(legacy::target_bitmap(), f, st, t, px, y, false, st.r, st.g, st.b);
+        legacy::touched_target();
+    }
+    return tw;
+}
+
+// vtable slots (byte offsets), bmpfont.md §3
 int font_slot(int slot, void* self, const int* a) {
     static bool all = menv("DEBUG_FONT") != nullptr;
     static std::map<int, bool> seen;
-    if (all || !seen[slot]) {
+    int off = slot * 4;
+    bool known = off <= 0x10 || off == 0x18 || off == 0x20 || (off >= 0x24 && off <= 0x30) || off == 0x38 || (off >= 0x4c && off <= 0x68);
+    if (all || (!known && !seen[slot])) {
         seen[slot] = true;
-        LOG("font %p slot 0x%x args %d %d %d %d %d %d %d %d", self, slot * 4, a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
+        LOG("font %p slot 0x%x args %d %d %d %d %d %d %d %d", self, off, a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
     }
     FontState& st = state_of(self);
     GlyphFont* f = st.font;
-    switch (slot * 4) {
-    case 0x08: st.r = a[1]; st.g = a[2]; st.b = a[3]; return 0;
-    case 0x18: {                                   // Load(font name, glyphs, flag)
-        if (GlyphFont* nf = font_named(reinterpret_cast<const char*>(a[0]))) st.font = nf;
-        return 1;
-    }
-    case 0x24: st.align = a[0]; return 0;
-    case 0x54: case 0x60: st.spacing = a[0] > 4 ? 0 : a[0]; return 0;
-    case 0x2c: {                                   // DrawText(text, x, y, width, ...)
+    switch (off) {
+    case 0x00: return f ? f->h : 16;                                        // GetHeight
+    case 0x04: {                                                            // GetStringWidth
         if (!a[0] || !f) return 0;
         std::string clean = strip_markup(tr(reinterpret_cast<const char*>(a[0])));
-        const unsigned char* t = reinterpret_cast<const unsigned char*>(clean.c_str());
-        int x = a[1], y = a[2], w = a[3], tw = text_width(f, t, st.spacing);
-        if (w > 0) x += st.align == 1 ? (w - tw) / 2 : st.align == 2 ? w - tw : 0;
-        else x -= st.align == 1 ? tw / 2 : st.align == 2 ? tw : 0;
-        glyphs_draw(legacy::target_bitmap(), f, t, strlen(reinterpret_cast<const char*>(t)), x, y, st.spacing, st.r, st.g, st.b);
-        legacy::touched_target();
-        return tw;
+        return text_width(f, st, reinterpret_cast<const unsigned char*>(clean.c_str()), false);
     }
+    case 0x08: st.r = a[0]; st.g = a[1]; st.b = a[2]; return 0;           // SetColor(r, g, b, x)
+    case 0x10: st.r = st.g = st.b = 0; return 0;                           // ResetColor
+    case 0x18:                                                              // Load(name, charset, flag)
+        if (GlyphFont* nf = font_named(reinterpret_cast<const char*>(a[0]))) { st.font = nf; return 1; }
+        LOG("font file %s not found", a[0] ? reinterpret_cast<const char*>(a[0]) : "?");
+        return 0;
+    case 0x24: st.just = a[0]; return 0;                                   // SetJustify(j, ?)
+    case 0x28: {                                                            // DrawNumber(n, x, y, w, ?, ?)
+        char buf[32];
+        snprintf(buf, sizeof buf, "%ld", (long)a[0]);
+        return draw_line(self, buf, a[1], a[2], a[3], true);
+    }
+    case 0x2c: return draw_line(self, reinterpret_cast<const char*>(a[0]), a[1], a[2], a[3], true);   // DrawText
+    case 0x38: return draw_line(self, reinterpret_cast<const char*>(a[0]), a[1], a[2], a[3], false);  // MeasureText
     case 0x30: {                                   // CreateTextBox(text, w, h, ...) -> _RADBitmap*
         const char* t = reinterpret_cast<const char*>(a[0]);
         if (!f) return 0;
         Bitmap tmp(0, 0, 0, 16);
-        smack_text(&tmp, t, self, 0, a[1], a[2], st.r, st.g, st.b);
+        smack_text(&tmp, t, self, -1, a[1], a[2], st.r, st.g, st.b);
         _RADBitmap* r = legacy::rad_new(tmp.w, tmp.h, kKey);
         BITMAP* wrap32 = legacy::al_wrap32(r->px, r->w, r->h);
         blit(tmp.al, wrap32, 0, 0, 0, 0, tmp.w, tmp.h);
         destroy_bitmap(wrap32);
         return (int)reinterpret_cast<intptr_t>(r);
     }
+    case 0x4c: st.prop = true; return 0;                                   // SetProportional
+    case 0x50: st.prop = false; return 0;                                  // SetFixed
+    case 0x54: st.fixed_w = a[0]; return 0;                                // SetFixedWidth
+    case 0x58: st.fixed_w = 0; return 0;                                   // ClearFixedWidth
+    case 0x5c: return (unsigned char)st.space;                             // GetSpaceWidth
+    case 0x60: st.space = a[0]; return 0;                                  // SetSpaceWidth
+    case 0x64: g_fonts.erase(self); return 0;                              // complete dtor
+    case 0x68: g_fonts.erase(self); ::operator delete(self); return 0;     // deleting dtor
     }
     return 0;
 }
@@ -683,9 +755,26 @@ int font_slot(int slot, void* self, const int* a) {
 BmpFont::BmpFont(short w, short h, unsigned short) {
     legacy::video_init();
     font_attach(this);
-    GlyphFont* f = font_for(w, h);
-    if (!f) f = default_font();
-    g_fonts[this].font = f;
+    FontState& st = g_fonts[this];
+    st = FontState();
+    st.font = font_for(w, h);
+    if (!st.font) st.font = default_font();
+    st.prop = true;                               // bmpfont.md §5.5: fresh fonts lay out proportionally
+}
+
+namespace legacy {
+// a String made with a BmpFont (wordzap), laid out like a smack text box
+BITMAP* bmpfont_render(const void* font, const char* text, int just, int w, int h, int r, int g, int b) {
+    Bitmap tmp(0, 0, 0, 16);
+    smack_text(&tmp, text, font, just, w, h, r, g, b, true);
+    BITMAP* out = create_bitmap_ex(32, tmp.w, tmp.h);
+    for (int y = 0; y < out->h; y++) std::fill(row32(out, y), row32(out, y) + out->w, kKey);
+    masked_blit(tmp.al, out, 0, 0, 0, 0, tmp.w, tmp.h);
+    return out;
+}
+void bmpfont_box(Bitmap* b, const void* font, const char* text, int just, int w, int h, int r, int g, int bl) {
+    smack_text(b, text, font, just, w, h, r, g, bl, true);
+}
 }
 
 void Bitmap::CreateSmackTextBox(char const* text, FontBase* font, signed char just, unsigned short max_w,
@@ -761,7 +850,9 @@ MegacGraphics* MegacGraphics::GetInstance() {
         for (int off = 0x04; off <= 0x80; off += 4) {
             auto* f = new unsigned char[256]();
             font_attach(f);
-            g_fonts[f].font = default_font();
+            FontState& st = g_fonts[f];
+            st = FontState();
+            st.font = default_font();             // the files per slot are unknown (bmpfont.md §4)
             memcpy(g + off, &f, sizeof f);
         }
     }
@@ -794,6 +885,7 @@ namespace legacy {
 // A String laid out in a w x h box (0 = fit): TrueType lines, word-wrapped to w.
 BITMAP* render_string(const String* s, int w, int h) {
     if (!s || !s->text) return nullptr;
+    if (s->bmpfont) return bmpfont_render(s->bmpfont, s->text, (s->just & 7) == 1 ? -2 : (s->just & 7) == 2 ? 1 : (s->just & 7) == 4 ? 0 : -1, w, h, s->r, s->g, s->b);
     bool bold = s->style & 0x08;
     int px = s->size > 0 ? s->size : 20;
     // String +0x50 is the interline spacing (libmerit2d SetInterLineSpacing), not letter spacing

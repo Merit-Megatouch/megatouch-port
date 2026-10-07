@@ -152,4 +152,6 @@ Bitmap* load_bitmap_chain(const char* name, bool lang, int max_frames);
 void free_bitmap_chain(Bitmap* first);
 // renders a String into a new 16-bit bitmap of the given box size (0 = fit the text)
 BITMAP* render_string(const String* s, int w, int h);
+BITMAP* bmpfont_render(const void* font, const char* text, int just, int w, int h, int r, int g, int b);
+void bmpfont_box(Bitmap* b, const void* font, const char* text, int just, int w, int h, int r, int g, int bl);
 }

@@ -93,8 +93,14 @@ struct SObjText {
 static void render_text(SObj* s, const char* text) {
     SObjText* t = s->text;
     if (!t->bmp) t->bmp = new Bitmap(0, 0, 0, 16);
-    t->bmp->CreateColoredSmackTextBox(text, reinterpret_cast<FontBase*>(t->font), (signed char)t->just, t->w, t->h,
-                                      t->r, t->g, t->b, 0, false);
+    legacy::bmpfont_box(t->bmp, t->font, text, t->just, t->w, t->h, t->r, t->g, t->b);   // keeps the box width
+    static bool dbg = getenv("MEGA_DEBUG_SOBJ") != nullptr;
+    if (dbg) {
+        int ink = 0;
+        for (int yy = 0; yy < t->bmp->h; yy++) for (int xx = 0; xx < t->bmp->w; xx++) if (t->bmp->al->vtable->getpixel(t->bmp->al, xx, yy) != 0xF81F) ink++;
+        fprintf(stderr, "[sobj] text '%s' at %.0f,%.0f box %dx%d just %d rgb %d,%d,%d -> %dx%d vis %d ink %d z %.0f depth %d\n", text, s->x, s->y, t->w, t->h,
+                t->just, t->r, t->g, t->b, t->bmp->w, t->bmp->h, s->visible, ink, s->z, t->bmp->al->vtable->color_depth);
+    }
     set_bmp(s, t->bmp);
 }
 static void render_counter(SObj* s) {
