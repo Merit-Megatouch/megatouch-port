@@ -45,6 +45,11 @@ struct WorldState {
     Bitmap* draw_target = nullptr;
     std::set<Bitmap*> loaded;                    // LoadBmp results (first frames)
     Sprite* pressed = nullptr;                   // sprite under the current touch
+    // no background set: the screen as it was before the sprites (captured at the first frame)
+    // is restored under the sprites only, so what the game drew with the C API stays
+    std::vector<uint32_t> base;
+    struct R { int x, y, w, h; };
+    std::vector<R> last_rects;
 };
 
 struct SpriteState {
@@ -584,9 +589,11 @@ inline uint32_t* px32(BITMAP* b, int y) { return reinterpret_cast<uint32_t*>(b->
 
 // Draws a 16/32-bit source onto the 32-bit target: scaled to dw x dh, with transparency
 // (0 opaque..255 invisible), colour matrix and colour offsets.
+std::vector<WorldState::R>* g_rects;             // collects what the sprites cover this frame
 void blit_sprite(BITMAP* src, BITMAP* dst, int dx, int dy, int dw, int dh, int transparency, const SpriteState* st,
                  const int* rgb_override, bool opaque) {
     if (!src || !dst || dw <= 0 || dh <= 0 || transparency >= 255) return;
+    if (g_rects && dst == screen) g_rects->push_back({dx, dy, dw, dh});
     int sd = src->vtable->color_depth;
     int alpha = 255 - transparency;
     const int* rgb = rgb_override ? rgb_override : (st ? st->rgb : nullptr);
@@ -801,7 +808,8 @@ void WorldClass::SetBack(short vb) {
     BITMAP* src = legacy::vb_bitmap(vb);
     ws->back_px.assign(reinterpret_cast<uint32_t*>(src->line[0]), reinterpret_cast<uint32_t*>(src->line[0]) + SW * SH);
 }
-void WorldClass::RefreshArea(int, int, int, int) {}
+// the game redrew (part of) the screen itself: take it as the new base under the sprites
+void WorldClass::RefreshArea(int, int, int, int) { ws->base.clear(); ws->last_rects.clear(); }
 void WorldClass::ClearScreen() {
     if (ws->back_owned) legacy::free_bitmap_chain(ws->back);
     ws->back = nullptr; ws->back_owned = false; ws->back_px.clear();
@@ -819,7 +827,21 @@ void WorldClass::render() {
         else if (ws->back && ws->back->al) {
             clear_bitmap(screen);
             ws->back->draw_to(screen, 0, 0, ws->back->w, ws->back->h, 0, 0, false);
-        } else clear_bitmap(screen);
+        } else if (legacy::base_vb() >= 0) {
+            // no background: the game's video buffer (qbzone draws there, then ShowAll)
+            BITMAP* vb = legacy::vb_bitmap(legacy::base_vb());
+            if (vb != screen) blit(vb, screen, 0, 0, 0, 0, SW, SH);
+        } else {
+            uint32_t* px = reinterpret_cast<uint32_t*>(screen->line[0]);
+            if (ws->base.empty()) ws->base.assign(px, px + SW * SH);
+            for (auto& r : ws->last_rects)
+                for (int y = std::max(0, r.y); y < std::min(SH, r.y + r.h); y++) {
+                    int x0 = std::max(0, r.x), x1 = std::min(SW, r.x + r.w);
+                    if (x1 > x0) memcpy(px + y * SW + x0, ws->base.data() + y * SW + x0, (size_t)(x1 - x0) * 4);
+                }
+            ws->last_rects.clear();
+            g_rects = &ws->last_rects;
+        }
     }
     std::set<Sprite*> kids;
     for (Sprite* s : *sprites) if (s->children) s->children->each([&](Group* g) { kids.insert(static_cast<Sprite*>(g)); });
@@ -830,6 +852,7 @@ void WorldClass::render() {
         g_ox = g_oy = 0;
         s->DoDraw();                              // virtual
     }
+    g_rects = nullptr;
     legacy::touched_target();
 }
 

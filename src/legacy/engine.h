@@ -54,6 +54,7 @@ struct Anim {
     Uint32 last = 0;
     _RADBitmap* target = nullptr;
     std::vector<uint32_t> canvas;                   // frames[0..cur] composited
+    bool full = false;                              // frames are whole pictures (FLIC), not deltas
 };
 
 namespace legacy {
@@ -78,6 +79,7 @@ _RADBitmap* rad_new(uint32_t w, uint32_t h, uint32_t fill);   // C-API bitmap (B
 void zlist_remove(unsigned long id);
 bool zlist_compose(BITMAP* dst);                  // false when the list is empty
 void zlist_changed();
+int base_vb();                                    // buffer a world without a background shows (-2: none)
 }
 
 #pragma GCC visibility pop

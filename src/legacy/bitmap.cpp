@@ -756,6 +756,21 @@ Bitmap* load_bitmap_chain(const char* name, bool lang, int max_frames) {
     if (!name) return nullptr;
     std::string path;
     bool delta = false;
+    if (find_asset(name, lang, ".flc", path) || find_asset(name, lang, ".fli", path)) {
+        Anim* a = legacy::anim_load(name, lang);
+        if (!a) return nullptr;
+        Bitmap *first = nullptr, *prev = nullptr;
+        for (size_t i = 0; i < a->frames.size() && (max_frames <= 0 || (int)i < max_frames); i++) {
+            auto* b = new Bitmap(0, 0, 1, 16);
+            b->from_frame(a->frames[i]);
+            b->frame_index = (int)i;
+            b->prev = prev;
+            if (prev) prev->next = b; else first = b;
+            prev = b;
+        }
+        delete a;
+        return first;
+    }
     if (find_asset(name, lang, ".spr", path)) delta = false;
     else if (find_asset(name, lang, ".dlt", path)) delta = true;
     else if (find_asset(name, lang, "", path)) delta = path.find(".dlt") != std::string::npos;

@@ -32,6 +32,8 @@
 #include <vector>
 
 #include "engine.h"
+#include "../common/flic.h"
+#include <algorithm>
 
 // ---------------------------------------------------------------------------------- types
 extern "C" { extern volatile int mouse_x, mouse_y, mouse_b, mouse_pos; }
@@ -105,7 +107,8 @@ static void video_init() {
 
 static void present() {
     static uint32_t out[SW * SH];
-    for (int i = 0; i < SW * SH; i++) out[i] = g_screen[i] | 0xff000000;
+    // the transparency key copied by an opaque blit shows as black (palette index 0 on the cabinet)
+    for (int i = 0; i < SW * SH; i++) { uint32_t p = g_screen[i] & 0xffffff; out[i] = p == kKey ? 0xff000000 : p | 0xff000000; }
     SDL_UpdateTexture(g_tex, nullptr, out, SW * 4);
     SDL_RenderClear(g_ren);
     SDL_RenderCopy(g_ren, g_tex, nullptr, nullptr);
@@ -244,6 +247,12 @@ static void anim_overlay(Anim* a, int f) {
 
 // Rebuilds the canvas for frame `f` (from frame 1 when going backwards or wrapping).
 static void anim_seek(Anim* a, int f) {
+    if (a->full) {
+        f = std::clamp(f, 0, (int)a->frames.size() - 1);
+        a->canvas = a->frames[f].argb;
+        a->cur = f;
+        return;
+    }
     if (a->canvas.empty() || f < a->cur || f == 0) {
         a->canvas.assign((size_t)a->w * a->h, kKey);
         a->cur = 0;
@@ -271,6 +280,19 @@ static bool find_asset(const char* name, bool lang, const char* ext, std::string
 
 static Anim* anim_load(const char* name, bool lang) {
     std::string path;
+    if (find_asset(name, lang, ".flc", path) || find_asset(name, lang, ".fli", path)) {
+        std::vector<uint8_t> d;
+        std::vector<FlicFrame> ff;
+        int delay = 0;
+        if (!merit_read_gz(path.c_str(), d) || !flic_decode(d, ff, &delay)) { LOG("bad FLIC %s", path.c_str()); return nullptr; }
+        auto* a = new Anim;
+        a->full = true;
+        a->w = ff[0].w; a->h = ff[0].h;
+        if (delay > 0) a->delay = std::max(1, delay * 60 / 1000);
+        for (auto& f : ff) { MeritFrame m; m.w = f.w; m.h = f.h; m.argb = std::move(f.argb); a->frames.push_back(std::move(m)); }
+        frames_to_px(a->frames);
+        return a;
+    }
     if (!find_asset(name, lang, ".dlt", path) && !find_asset(name, lang, ".spr", path) && !find_asset(name, lang, "", path)) {
         LOG("missing animation %s", name); return nullptr;
     }
@@ -678,7 +700,8 @@ uint32_t* vb_pixels(int id) {
     return v.data();
 }
 uint32_t* target() { return vb_pixels(g_curVB); }
-void touched_target() { if (g_curVB < 0) g_dirty = true; }
+bool g_vbTouched;                            // something drew into a video buffer since the last world frame
+void touched_target() { if (g_curVB < 0) g_dirty = true; else g_vbTouched = true; }
 }
 namespace legacy {
 BITMAP* vb_bitmap(int id) {
@@ -715,7 +738,14 @@ public:
     static void RemoveFromVBZ(unsigned long);
 };
 void VideoClass::RemoveFromVBZ(unsigned long id) { legacy::zlist_remove(id); }
-namespace legacy { void zlist_changed() { g_zdirty = true; } }
+namespace legacy {
+void zlist_changed() { g_zdirty = true; }
+int base_vb() {
+    if (!g_vbTouched) return -2;
+    g_vbTouched = false;
+    return g_curVB >= 0 ? g_curVB : g_shownVB >= 0 ? g_shownVB : -2;
+}
+}
 // the shown buffer plus the z-ordered items over it
 void zlist_redraw() {
     g_zdirty = false;
