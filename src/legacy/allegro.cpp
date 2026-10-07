@@ -54,7 +54,8 @@ char allegro_error[256];
 void* system_driver;
 void* mouse_driver;
 void* keyboard_driver;
-int keyboard_needs_poll;
+int keyboard_needs_poll() { return 1; }        // functions in Allegro 4.0, not variables
+int mouse_needs_poll() { return 1; }
 void* font;
 struct GfxDriver {                                // GFX_DRIVER: games read w/h at +0x68/+0x6c
     int id; const char *name, *desc, *ascii_name;

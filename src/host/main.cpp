@@ -44,6 +44,7 @@ static void crash(int sig, siginfo_t* si, void* uc) {
     static volatile int depth;
     if (depth++) _exit(128 + sig);           // a fault while reporting a fault
     trix_profile_recover();   // returns only if the fault was not inside the sampler
+    fflush(stdout);                                // the game's own last messages first
     fprintf(stderr, "\n*** signal %d at address %p\n", sig, si->si_addr);
 #if defined(__i386__)
     // the faulting instruction and a frame-pointer walk first: backtrace() itself can fault
@@ -167,6 +168,14 @@ int main(int argc, char** argv) {
     void* h = dlopen(game.c_str(), RTLD_NOW | RTLD_GLOBAL);
     if (!h) { fprintf(stderr, "failed to load %s: %s\n", game.c_str(), dlerror()); return 1; }
     trix_profile_start();
+    // Merit2d games (zenword) read their data from BaseGame::GetPath(), which the cabinet loader
+    // set to the game's gamegraphics folder; SetPath(name) is a member that ignores `this`.
+    if (auto setPath = reinterpret_cast<void (*)(void*, const char*)>(dlsym(RTLD_DEFAULT, "_ZN13MeritBaseGame8BaseGame7SetPathEPKc")))
+        if (const char* ad = menv("ASSET_DIR")) {
+            std::string folder(ad);
+            while (!folder.empty() && folder.back() == '/') folder.pop_back();
+            setPath(nullptr, folder.substr(folder.rfind('/') + 1).c_str());
+        }
     if (auto gameMain = reinterpret_cast<int (*)(int, char**)>(dlsym(h, "main")))
         return gameMain(argc, argv) ? 0 : 1;
     // legacy games export only the loader's entry point

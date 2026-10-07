@@ -26,6 +26,7 @@ static const uint32_t kTag = 0x52414442;          // "RADB"
 // 32-bit pixels are Allegro's format (0x00RRGGBB); the transparency key is Allegro's 32-bit mask
 // colour, magenta. 16-bit (Bitmap objects) use RGB565 with mask 0xF81F.
 static const uint32_t kKey = 0x00ff00ff;
+bool gl_mode();                                   // a Merit3D (OpenGL) game: 32-bit bitmaps
 static const int kKey16 = 0xf81f;
 inline uint32_t to_px(uint32_t argb) { return (argb >> 24) < 128 ? kKey : (argb & 0x00ffffff); }
 inline void frames_to_px(std::vector<MeritFrame>& fr) { for (auto& f : fr) for (auto& p : f.argb) p = to_px(p); }

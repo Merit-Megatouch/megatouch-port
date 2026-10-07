@@ -78,7 +78,8 @@ void TextSystem::GetSpriteChannels(char const* markup, unsigned char** out1, uns
                                    bool, bool, int bpp, float scale) {
     w = std::max(1, w); h = std::max(1, h);
     std::vector<unsigned char> cov;
-    int px = std::max(4, (int)(desc.size * (scale > 0 ? scale : 1.0f)));
+    int px = legacy::ttf_em_px(desc.font, false, std::max(4.0f, desc.size * (scale > 0 ? scale : 1.0f)));
+    if (getenv("MEGA_TEXT_DEBUG")) fprintf(stderr, "[text] '%s' font=%s size=%d px=%d box=%dx%d scale=%g\n", markup, desc.font, desc.size, px, w, h, scale);
     legacy::ttf_coverage(markup, w, h, px, desc.halign, desc.valign, false, desc.font, desc.line_spacing, cov);
     int r = std::clamp((int)desc.r, 0, 255), g = std::clamp((int)desc.g, 0, 255), b = std::clamp((int)desc.b, 0, 255);
     size_t n = (size_t)w * h;
@@ -102,7 +103,7 @@ void TextSystem::GetSpriteChannels(char const* markup, unsigned char** out1, uns
 }
 CoordT<int> TextSystem::GetTextSize(char const* markup, int max_w, bool) {
     CoordT<int> c{0, 0};
-    legacy::ttf_text_size(markup, std::max(4, desc.size), false, desc.font, desc.line_spacing, max_w, c.x, c.y);
+    legacy::ttf_text_size(markup, legacy::ttf_em_px(desc.font, false, std::max(4, desc.size)), false, desc.font, desc.line_spacing, max_w, c.x, c.y);
     return c;
 }
 // Callers wrap the text in markup first, so tags stay: only a bare '&' is escaped, and Latin-1

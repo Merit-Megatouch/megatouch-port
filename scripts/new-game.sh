@@ -58,7 +58,7 @@ extract_code() {
 
   FAMILY=legacy
   if readelf -d "$GD/lib/$DLL.so" | grep -q libgame_device_sprite.so; then FAMILY=gamedevice
-  elif readelf -d "$GD/lib/$DLL.so" | grep -q libmerit3d.so; then FAMILY=merit3d; fi
+  elif readelf -d "$GD/lib/$DLL.so" | grep -qE 'libmerit3d.so|libagl.so|libGL.so'; then FAMILY=merit3d; fi
   cab_exists ion "/games/$DIR/Data" && FAMILY=unity
   say "engine family: $FAMILY"
   if [ "$FAMILY" = gamedevice ]; then

@@ -23,12 +23,6 @@ if [ -f "$R/shared/bin/libmerit_gendef.so" ]; then
 fi
 for l in $libs; do [ -s "$R/games/$g/lib/$l" ] || "$R/scripts/lib/extract-libs.sh" "$R/games/$g/lib" "$l" 2>/dev/null; done
 for f in "$R/games/$g"/lib/*; do [ -e "$R/shared/runtime/$(basename "$f")" ] && rm -f "$f"; done
-# libcontent reads the shared content packs (/usr/local/ion_only/content)
-case " $libs " in *" libcontent.so "*)
-  mkdir -p "$R/games/$g/data/usr/local/ion_only"
-  [ -e "$R/games/$g/data/usr/local/ion_only/content" ] || \
-    ln -sfn ../../../../../../shared/data-common/usr/local/ion_only/content "$R/games/$g/data/usr/local/ion_only/content" ;;
-esac
 stubs=""; grep -q '^PRELOAD=.*libmega_stubs.so' "$c" && stubs=" libmega_stubs.so"
 # libmvideo (Merit3D video) does not list its codecs: load them globally before it
 case " $libs " in *" libmvideo.so "*)
@@ -42,4 +36,11 @@ if [ -n "$gl" ]; then case " $libs " in *" libdebug_mock.so "*) ;; *) libs="libd
   [ -s "$R/games/$g/lib/libdebug_mock.so" ] || "$R/scripts/lib/extract-libs.sh" "$R/games/$g/lib" libdebug_mock.so 2>/dev/null; fi
 line="PRELOAD=${gl}libmerit_legacy.so ${libs}${gendef}${stubs}"; line=$(echo "$line" | tr -s ' ' | sed 's/ $//')
 if grep -q '^PRELOAD=' "$c"; then sed -i "s|^PRELOAD=.*|$line|" "$c"; else echo "$line" >> "$c"; fi
+# libcontent reads the shared content packs (/usr/local/ion_only/content). ($libs may be
+# newline-separated, so test the final line.)
+case " $line " in *" libcontent.so "*)
+  mkdir -p "$R/games/$g/data/usr/local/ion_only"
+  [ -e "$R/games/$g/data/usr/local/ion_only/content" ] || \
+    ln -sfn ../../../../../../shared/data-common/usr/local/ion_only/content "$R/games/$g/data/usr/local/ion_only/content" ;;
+esac
 echo "$g: $line"

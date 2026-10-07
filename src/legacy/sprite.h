@@ -74,7 +74,8 @@ public:
 
     Group* cur;                                  // +0x0c current element
     ListObj* node;                               // +0x10 current node (the header for owners)
-    unsigned char owns;                          // +0x14
+    ListObj* owns;                               // +0x14 owning lists: the header (bowling's inline ListT::Set
+                                                 // reads it); 0 for iterators. Other games test it as a byte.
 };
 static_assert(sizeof(List) == 0x18, "List");
 
@@ -255,7 +256,10 @@ public:
     void frame();                                // one engine frame: events, update, reap, draw, clicks
     void render();
 
-    unsigned char pad0c[0x54 - 0x0c];
+    unsigned char pad0c[0x20 - 0x0c];
+    std::set<Bitmap*> bitmaps;                   // +0x20 games insert the bitmaps they make (dominoes
+                                                 // Dominoes_Text::Create) with inline std::set code
+    unsigned char pad38[0x54 - 0x38];
     ListObj* sobj_list;                          // +0x54
     int pad58;
     std::set<Sprite*>* sprites;                  // +0x5c registry (games iterate it)
@@ -277,6 +281,7 @@ public:
     int pad204;
 };
 static_assert(sizeof(WorldClass) == 0x208, "WorldClass");
+static_assert(offsetof(WorldClass, bitmaps) == 0x20 && sizeof(std::set<Bitmap*>) == 0x18, "World +0x20");
 static_assert(offsetof(WorldClass, sprites) == 0x5c, "World +0x5c");
 static_assert(offsetof(WorldClass, clock) == 0x170, "World +0x170");
 static_assert(offsetof(WorldClass, fps) == 0x17c, "World +0x17c");

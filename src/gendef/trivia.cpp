@@ -27,9 +27,10 @@ public:
     bool GetRecord(int);
     int GetNumRecords();
     bool nGetField(unsigned int field, char* out, unsigned int size, bool trim);
+    int GetNumericData(int field);                 // the current record's field as an integer
     // engine helpers
     struct Field { char name[12]; int offset, length; };
-    struct State { std::vector<uint8_t> data; std::vector<Field> fields; int nrec = 0, hlen = 0, rlen = 0, cur = -1; };
+    struct State { std::vector<uint8_t> data; std::vector<Field> fields; int nrec = 0, hlen = 0, rlen = 0, cur = -1; bool utf8 = false; };
     State* st;
     bool encrypted;
     unsigned char pad[0x220 - 4 - sizeof(State*) - sizeof(bool)];
@@ -43,19 +44,27 @@ DBFClass::~DBFClass() { delete st; st = nullptr; }
 void DBFClass::SetEncryption(bool on) { encrypted = on; }
 bool DBFClass::OpenDBF(char const* path) {
     if (!path) return false;
-    gzFile gz = gzopen(path, "rb");                   // reads plain files too (through the fs shim)
-    if (!gz) {
-        std::string p = std::string(path) + ".gz";
-        gz = gzopen(p.c_str(), "rb");
-        if (!gz) { fprintf(stderr, "[gendef] DBF %s not found\n", path); return false; }
-    }
+    // the path as given (plain or .gz; gzopen reads plain files too, through the fs shim), else
+    // the language folder the cabinet's Menu_AppendLangExt would have added, and the UTF-8
+    // edition some games ship instead (triviawhiz2/english/twhiz2.dat.utf8)
+    std::string p = path, dir, base = p;
+    size_t sl = p.rfind('/');
+    if (sl != std::string::npos) { dir = p.substr(0, sl + 1); base = p.substr(sl + 1); }
+    const char* lang = getenv("MEGA_LANGUAGE") ? getenv("MEGA_LANGUAGE") : "english";
+    gzFile gz = nullptr;
+    st->utf8 = false;
+    for (const std::string& c : {p, p + ".gz", dir + lang + "/" + base, dir + lang + "/" + base + ".utf8", p + ".utf8"})
+        if ((gz = gzopen(c.c_str(), "rb"))) { st->utf8 = c.size() > 5 && c.compare(c.size() - 5, 5, ".utf8") == 0; break; }
+    if (!gz) { fprintf(stderr, "[gendef] DBF %s not found\n", path); return false; }
     st->data.clear();
     unsigned char buf[65536];
     int n;
     while ((n = gzread(gz, buf, sizeof buf)) > 0) st->data.insert(st->data.end(), buf, buf + n);
     gzclose(gz);
     std::vector<uint8_t>& d = st->data;
-    if (encrypted || (d.size() > 0 && d[0] != 0x03 && d[0] != 0x83)) {
+    // plain dBase III (0x03/0x83) or Visual FoxPro (0x30/0x31/0xf5, stickerbook) tables are not XORed
+    auto plain = [](uint8_t v) { return v == 0x03 || v == 0x83 || v == 0x30 || v == 0x31 || v == 0xf5; };
+    if (encrypted || (d.size() > 0 && !plain(d[0]))) {
         static const uint8_t K[20] = {0x81, 0x88, 0x83, 0x85, 0x87, 0x82, 0x84, 0x9e, 0x94, 0x9d,
                                       0x91, 0x93, 0x8b, 0x99, 0x96, 0x9a, 0x98, 0x90, 0x8c, 0x92};
         for (size_t i = 0; i < d.size(); i++) d[i] ^= K[(i + 2) % 20];
@@ -105,6 +114,7 @@ int DBFClass::field_index(const char* name) const {
     for (size_t i = 0; i < st->fields.size(); i++) if (!strncmp(st->fields[i].name, name, 11)) return (int)i;
     return -1;
 }
+int DBFClass::GetNumericData(int idx) { return atoi(field(st->cur, idx, true).c_str()); }
 bool DBFClass::nGetField(unsigned int idx, char* out, unsigned int size, bool trim) {
     if (!out || !size) return false;
     std::string s = field(st->cur, (int)idx, trim);
@@ -164,6 +174,7 @@ void TriviaClass::init(xml_gamerandom::PICRAND_record* catrand, int ncatrand, ch
     impl->npicks = ncatrand;
     impl->db.SetEncryption(flags & 1);
     if (!impl->db.OpenDBF(path)) return;
+    utf8 = impl->db.st->utf8;                     // a .utf8 edition needs no MeritStringToUTF8
     DBFClass& d = impl->db;
     int fq1 = d.field_index("QLINE1"), fq2 = d.field_index("QLINE2"), fa = d.field_index("ANSWERA"),
         fb = d.field_index("ANSWERB"), fc = d.field_index("ANSWERC"), fd = d.field_index("ANSWERD"),

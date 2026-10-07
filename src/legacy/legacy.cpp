@@ -44,7 +44,8 @@ struct SoundBase;
 // ---------------------------------------------------------------------------------- screen
 static uint32_t g_fallbackScreen[SW * SH];
 static uint32_t* g_screen = g_fallbackScreen;     // Allegro's `screen` bitmap once it is set up
-static bool g_gl = menv("GL") != nullptr;        // Merit3D games: an OpenGL window instead
+static bool g_gl = menv("GL") != nullptr;
+bool gl_mode() { return g_gl; }        // Merit3D games: an OpenGL window instead
 static SDL_GLContext g_glctx;
 static int g_mouseX, g_mouseY;
 static bool g_mouseDown;

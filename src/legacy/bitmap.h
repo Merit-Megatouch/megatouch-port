@@ -103,11 +103,14 @@ public:
     Anim* anim;                                  // +0x60 attached animation
     int frame_index;                             // +0x64 index in the chain
     unsigned short* cdata;                       // +0x68 compressed (RLE) pixels set by setCData
-    unsigned char pad6c[0x94 - 0x6c];
+    unsigned char* smack;                        // +0x6c handle put at +0x44 for a loaded animation
+                                                 // (wild8 clears flag bytes at +0xc..+0xe in it)
+    unsigned char pad70[0x94 - 0x70];
 
     // helpers for the engine
     void resize(int w, int h);                   // reallocate, filled transparent
     void from_frame(const MeritFrame& f);        // 32-bit frame -> this bitmap
+    void from_argb(int w, int h, const uint32_t* argb);   // 32-bit with alpha in GL mode, else 16-bit
     void draw_to(BITMAP* dst, int sx, int sy, int w, int h, int dx, int dy, bool black_trans);
     bool ready() { if (!al) DeCompress(); return al != nullptr; }
 };

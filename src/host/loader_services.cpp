@@ -181,6 +181,7 @@ public:
     int HighestScore(xml_gameinfo::GameIds, int);
     char const* HighestName(xml_gameinfo::GameIds, int);
     void AbortGame();
+    static char const* PlayerName(int player);
 };
 // High scores. Games keep the running score in PlrScore[player]; at game over they call
 // Winner() and HighEnough(winner, ...). On the cabinet "true" opened the loader's name-entry
@@ -233,6 +234,14 @@ char const* HighScoresManager::HighestName(int) { return best().name.c_str(); }
 bool HighScoresManager::HighEnough(xml_gameinfo::GameIds, int player, int, int) { return HighEnough(player, 0); }
 int HighScoresManager::HighestScore(xml_gameinfo::GameIds, int) { return best().score; }
 void HighScoresManager::AbortGame() {}
+// The name a player's scores are shown under (1-based; take2 copies it per seat). No player
+// logins here: "Player N".
+char const* HighScoresManager::PlayerName(int player) {
+    static char names[9][16];
+    if (player < 1 || player > 8) player = 1;
+    snprintf(names[player], sizeof names[player], "Player %d", player);
+    return names[player];
+}
 char const* HighScoresManager::HighestName(xml_gameinfo::GameIds, int) { return best().name.c_str(); }
 
 // The cabinet's language setting. Locale::Languages: 0 = English, 3 = French, 4 = Spanish, ...

@@ -9,4 +9,5 @@ void ttf_draw(BITMAP* dst, const char* text, int x, int y, int w, int h, int r, 
 void ttf_coverage(const char* markup, int w, int h, int px, int halign, int valign, bool bold, const char* family,
                   int line_gap, std::vector<unsigned char>& out);
 void ttf_text_size(const char* markup, int px, bool bold, const char* family, int line_gap, int max_w, int& w, int& h);
+int ttf_em_px(const char* family, bool bold, float pt);
 }

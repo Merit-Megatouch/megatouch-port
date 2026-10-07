@@ -232,6 +232,15 @@ void ttf_coverage(const char* markup, int w, int h, int px, int halign, int vali
     }
 }
 
+// TextSystem point size -> the ascent+descent pixel height the rest of this file takes. The
+// cabinet's Pango text system sets its FT2 font map to 40 dpi (libtext_system Init), so the em is
+// pt * 40/72 pixels.
+int ttf_em_px(const char* family, bool bold, float pt) {
+    Font* f = font_for(family, bold);
+    if (!f->ok) return (int)pt;
+    return std::max(1, (int)(pt * (40.0f / 72.0f) * stbtt_ScaleForMappingEmToPixels(&f->info, 1.0f) / stbtt_ScaleForPixelHeight(&f->info, 1.0f) + 0.5f));
+}
+
 // size of `markup` laid out at px, wrapped at max_w
 void ttf_text_size(const char* markup, int px, bool bold, const char* family, int line_gap, int max_w, int& w, int& h) {
     w = h = 0;

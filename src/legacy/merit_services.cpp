@@ -3,6 +3,7 @@
 #include "sprite.h"
 #include "../common/env.h"
 #include <SDL2/SDL.h>
+#include <dlfcn.h>
 #include <cstring>
 #include <map>
 #include <string>
@@ -190,6 +191,27 @@ char const* MyMeritManager::Name() const { return ""; }
 int MyMeritManager::GetGameLevel(xml_gameinfo::GameIds) { return 0; }
 void MyMeritManager::SetGameLevel(xml_gameinfo::GameIds, int) {}
 // coin-jam notifications: callbacks kept, never fired (no coin mechanism)
+// The loader's database handles (high scores at +0x70 for stickerbook, kids_color, switcheroo;
+// meritthon uses +0x10 and +0x24). There is no SQLite database here: each handle is an
+// abstract_db_class with no connection (+0xc = 0), so libgendef_db's queries return false.
+class DBGlobals {
+public:
+    static DBGlobals* Instance();
+};
+DBGlobals* DBGlobals::Instance() {
+    alignas(16) static unsigned char inst[0x200];
+    static bool init = false;
+    if (!init) {
+        init = true;
+        if (void* vt = dlsym(RTLD_DEFAULT, "_ZTV17abstract_db_class"))
+            for (int off : {0x10, 0x24, 0x70}) {
+                void* p = static_cast<char*>(vt) + 8;
+                memcpy(inst + off, &p, sizeof p);
+            }
+    }
+    return reinterpret_cast<DBGlobals*>(inst);
+}
+
 class CoinJamManager {
 public:
     static CoinJamManager* Instance();

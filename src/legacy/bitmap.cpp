@@ -32,9 +32,15 @@ Bitmap::Bitmap(int w_, int h_, unsigned char, unsigned char bpp) {
     depth = bpp ? bpp : 16;
     resize(w_, h_);
 }
+static void drop_smack(Bitmap* b) {
+    if (b->smack && b->rad == reinterpret_cast<_RADBitmap*>(b->smack)) b->rad = nullptr;
+    delete[] b->smack;
+    b->smack = nullptr;
+}
 Bitmap::~Bitmap() {
     delete anim;
     anim = nullptr;
+    drop_smack(this);
     if (al) destroy_bitmap(al);
     al = nullptr;
 }
@@ -49,6 +55,21 @@ void Bitmap::from_frame(const MeritFrame& f) {
     resize(f.w, f.h);
     for (int y = 0; y < f.h; y++)
         for (int x = 0; x < f.w; x++) row16(al, y)[x] = (uint16_t)px_to16(f.argb[(size_t)y * f.w + x]);
+}
+// Image files: Merit3D (GL) games read the pixels as 32-bit ARGB and blend or upload them
+// themselves (FlipBitmapVert over w*4 bytes, myblitpix32), so keep the alpha there.
+void Bitmap::from_argb(int w_, int h_, const uint32_t* argb) {
+    if (!gl_mode()) {
+        MeritFrame f; f.w = w_; f.h = h_; f.argb.resize((size_t)w_ * h_);
+        for (size_t i = 0; i < f.argb.size(); i++) f.argb[i] = to_px(argb[i]);
+        from_frame(f);
+        return;
+    }
+    resize(0, 0);
+    w = w_; h = h_; depth = 32;
+    al = create_bitmap_ex(32, w, h);
+    for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++) { uint32_t v = argb[(size_t)y * w + x]; row32(al, y)[x] = v >> 24 ? v : kKey; }
 }
 
 // Draws a region onto a 32- or 16-bit target, honouring +0x22 opaque, the transparency key, the
@@ -306,17 +327,32 @@ bool Bitmap::LoadTGA_32(char* name) {
     std::vector<uint8_t> d;
     if (!name || !read_file(name, d) || d.size() < 18) return false;
     int idlen = d[0], type = d[2], tw = d[12] | d[13] << 8, th = d[14] | d[15] << 8, bpp = d[16], desc = d[17];
-    if (type != 2 || (bpp != 32 && bpp != 24)) { LOG("unsupported TGA %s", name); return false; }
+    if ((type != 2 && type != 10) || (bpp != 32 && bpp != 24) || tw <= 0 || th <= 0 || tw > 4096 || th > 4096) {
+        LOG("unsupported TGA %s", name);
+        return false;
+    }
     int bytes = bpp / 8;
-    MeritFrame f; f.w = tw; f.h = th; f.argb.assign((size_t)tw * th, kKey);
-    size_t o = 18 + idlen;
-    for (int y = 0; y < th; y++)
-        for (int x = 0; x < tw && o + bytes <= d.size(); x++, o += bytes) {
-            int yy = (desc & 0x20) ? y : th - 1 - y;
-            uint32_t a = bytes == 4 ? d[o + 3] : 255;
-            f.argb[(size_t)yy * tw + x] = a < 128 ? kKey : ((uint32_t)d[o + 2] << 16 | d[o + 1] << 8 | d[o]);
+    // unpack to file-order BGRA pixels (type 10: run-length packets)
+    std::vector<uint32_t> px((size_t)tw * th, 0);
+    size_t o = 18 + idlen, n = 0;
+    auto get = [&](size_t at) -> uint32_t {
+        if (at + bytes > d.size()) return 0;
+        return (bytes == 4 ? (uint32_t)d[at + 3] : 255u) << 24 | (uint32_t)d[at + 2] << 16 | d[at + 1] << 8 | d[at];
+    };
+    if (type == 2) {
+        for (; n < px.size(); n++, o += bytes) px[n] = get(o);
+    } else {
+        while (n < px.size() && o < d.size()) {
+            int hd = d[o++], cnt = (hd & 0x7f) + 1;
+            if (hd & 0x80) { uint32_t v = get(o); o += bytes; while (cnt-- && n < px.size()) px[n++] = v; }
+            else while (cnt-- && n < px.size()) { px[n++] = get(o); o += bytes; }
         }
-    from_frame(f);
+    }
+    auto at = [&](int x, int y) { return px[(size_t)((desc & 0x20) ? y : th - 1 - y) * tw + x]; };
+    std::vector<uint32_t> argb(px.size());
+    for (int y = 0; y < th; y++)
+        for (int x = 0; x < tw; x++) argb[(size_t)y * tw + x] = at(x, y);
+    from_argb(tw, th, argb.data());
     return true;
 }
 bool Bitmap::LoadTGA(char* name, int) { return LoadTGA_32(name); }
@@ -329,13 +365,11 @@ static bool load_image(Bitmap* b, char* name) {
     SDL_Surface* c = SDL_ConvertSurfaceFormat(s, SDL_PIXELFORMAT_ARGB8888, 0);
     SDL_FreeSurface(s);
     if (!c) return false;
-    MeritFrame f; f.w = c->w; f.h = c->h; f.argb.resize((size_t)c->w * c->h);
-    for (int y = 0; y < c->h; y++) {
-        const uint32_t* p = reinterpret_cast<const uint32_t*>(static_cast<uint8_t*>(c->pixels) + y * c->pitch);
-        for (int x = 0; x < c->w; x++) f.argb[(size_t)y * c->w + x] = to_px(p[x]);
-    }
+    std::vector<uint32_t> argb((size_t)c->w * c->h);
+    for (int y = 0; y < c->h; y++)
+        memcpy(&argb[(size_t)y * c->w], static_cast<uint8_t*>(c->pixels) + y * c->pitch, (size_t)c->w * 4);
+    b->from_argb(c->w, c->h, argb.data());
     SDL_FreeSurface(c);
-    b->from_frame(f);
     return true;
 }
 bool Bitmap::LoadJPEG(char* name, int, int, unsigned char) { return load_image(this, name); }
@@ -355,11 +389,12 @@ bool Bitmap::SmackAnimationLoad(char* name, unsigned char lang) {
     anim = name ? legacy::anim_load(name, lang) : nullptr;
     if (!anim) return false;
     frames = (unsigned short)anim->frames.size();
+    if (!rad) { drop_smack(this); smack = new unsigned char[0x40](); rad = reinterpret_cast<_RADBitmap*>(smack); }
     legacy::anim_seek(anim, 0);
     show_anim_frame(this);
     return true;
 }
-void Bitmap::SmackAnimationUnload() { delete anim; anim = nullptr; }
+void Bitmap::SmackAnimationUnload() { delete anim; anim = nullptr; drop_smack(this); }
 void Bitmap::SmackAnimationRewind() { if (anim) { legacy::anim_seek(anim, 0); show_anim_frame(this); } }
 void Bitmap::SmackAnimationJumpTo(int f) {
     if (anim && !anim->frames.empty()) { legacy::anim_seek(anim, f < 0 ? 0 : f % (int)anim->frames.size()); show_anim_frame(this); }

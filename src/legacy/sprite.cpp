@@ -112,7 +112,7 @@ static void unlink(ListObj* n) {
 }
 
 List::List(List* src) : Group(nullptr, nullptr), cur(nullptr), node(nullptr), owns(0) {
-    if (!src) { node = new_header(); owns = 1; }
+    if (!src) { node = new_header(); owns = node; }
     else SetList(src->header());
 }
 List::List(ListObj* h) : Group(nullptr, nullptr), cur(nullptr), node(nullptr), owns(0) { SetList(h); }
@@ -124,7 +124,7 @@ static void free_owned(List* l) {
         delete tail_of(h);
         delete h;
     }
-    l->node = nullptr; l->owns = 0;
+    l->node = nullptr; l->owns = nullptr;
 }
 List::~List() { free_owned(this); }
 ListObj* List::header() const { return find_header(node); }
@@ -138,7 +138,7 @@ void List::SetList(ListObj* p) {
 }
 void List::LinkInto(Group* g, int pos) {
     ListObj* h = header();
-    if (!h) { node = h = new_header(); owns = 1; }
+    if (!h) { node = h = new_header(); owns = h; }
     auto* n = new ListObj;
     n->data = g;
     if (pos == 2) {                               // front
@@ -151,7 +151,7 @@ void List::LinkInto(Group* g, int pos) {
 void List::Push(Group* g) { LinkInto(g, 1); }
 void List::Clear(unsigned char flags) {
     ListObj* h = header();
-    if (!h) { node = new_header(); owns = 1; cur = nullptr; return; }
+    if (!h) { node = new_header(); owns = node; cur = nullptr; return; }
     ListObj* t = tail_of(h);
     ListObj* n = h->next;
     h->next = t; t->prev = h;
@@ -727,6 +727,7 @@ void draw_sprite_tree(Sprite* s, BITMAP* dst, float ox, float oy) {
 // ------------------------------------------------------------------------------ WorldClass
 WorldClass::WorldClass() : Group(nullptr, nullptr) {
     memset(reinterpret_cast<unsigned char*>(this) + offsetof(WorldClass, pad0c), 0, sizeof(WorldClass) - offsetof(WorldClass, pad0c));
+    new (&bitmaps) std::set<Bitmap*>();           // the memset above wiped the member
     legacy::video_init();
     sprites = new std::set<Sprite*>;
     ws = new WorldState;
