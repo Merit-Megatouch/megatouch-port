@@ -72,7 +72,7 @@ extract_code() {
     # the loader's legacy 2D engine: our stand-in, preloaded by megatouch-host (PRELOAD=)
     ln -sf ../../../shared/bin/libmerit_legacy.so "$GD/lib/libmerit_legacy.so"
     # Merit3D draws with OpenGL + GLU (GLU from the cabinet, shared with the Unity player)
-    [ "$FAMILY" = merit3d ] && ln -sf ../../../shared/unity/lib/libGLU.so.1 "$GD/lib/libGLU.so.1"
+    if [ "$FAMILY" = merit3d ]; then ln -sf ../../../shared/unity/lib/libGLU.so.1 "$GD/lib/libGLU.so.1"; fi
   else
     warn "$FAMILY games are not supported yet (docs/roadmap.md)"
   fi

@@ -89,6 +89,7 @@ public:
     bool HighEnough(xml_gameinfo::GameIds, int, int, int);
     int HighestScore(xml_gameinfo::GameIds, int);
     char const* HighestName(xml_gameinfo::GameIds, int);
+    void AbortGame();
 };
 // High scores. Games keep the running score in PlrScore[player]; at game over they call
 // Winner() and HighEnough(winner, ...). On the cabinet "true" opened the loader's name-entry
@@ -140,6 +141,7 @@ char const* HighScoresManager::HighestName(int) { return best().name.c_str(); }
 // Fourplay calls HighEnough(id, 0, 0, -1): the second argument is the player index.
 bool HighScoresManager::HighEnough(xml_gameinfo::GameIds, int player, int, int) { return HighEnough(player, 0); }
 int HighScoresManager::HighestScore(xml_gameinfo::GameIds, int) { return best().score; }
+void HighScoresManager::AbortGame() {}
 char const* HighScoresManager::HighestName(xml_gameinfo::GameIds, int) { return best().name.c_str(); }
 
 // The cabinet's language setting. Locale::Languages: 0 = English, 3 = French, 4 = Spanish, ...
@@ -218,13 +220,18 @@ void Logger::Log(char const* file, char const*, unsigned long line, unsigned lon
 
 // ---------------------------------------------------------------------------
 // MegacGlobals: the loader's global state block. Games read fields inline:
-// +0x24 player count (MEGA_PLAYERS), +0x2038 current GameId; SystemClass object at +0x22dc.
+//   +0x24 player count (MEGA_PLAYERS)       +0x2038 current GameId
+//   +0x22dc SystemClass object               +0x22e0 MouseManager object
+//   +0x5ae4 name of the last touched zone    +0x5b70 VideoClass*    +0x5b74 text buffer
 class MegacGlobals { public: static MegacGlobals* GetInstance(); };
 MegacGlobals* MegacGlobals::GetInstance() {
-    static unsigned char g[0x4000];
+    static unsigned char g[0x8000];
+    static unsigned char video[256];             // the VideoClass object games call through +0x5b70
     static bool init;
     if (!init) {
         init = true;
+        unsigned char* vp = video;
+        memcpy(g + 0x5b70, &vp, sizeof vp);
         const char* p = getenv("MEGA_PLAYERS");
         g[0x24] = (unsigned char)(p ? atoi(p) : 1);
         const char* id = getenv("MEGA_GAME_ID");

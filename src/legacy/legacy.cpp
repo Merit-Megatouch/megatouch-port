@@ -206,7 +206,9 @@ static void blit(const uint32_t* src, int sw, int sh, int sx, int sy,
             int xs = sx + x, xd = dx + x;
             if (xs < 0 || xs >= sw || xd < 0 || xd >= dw) continue;
             uint32_t p = src[ys * sw + xs];
-            if (trans && p == key) continue;
+            // the requested key colour, or a pixel the .dlt run-length skipped (transparent
+            // whatever palette index the game uses for it: 5 in Fourplay, 0x60 in Conquest)
+            if (trans && (p == key || p == kKey)) continue;
             dst[yd * dw + xd] = p;
         }
     }
@@ -261,7 +263,9 @@ static bool find_asset(const char* name, bool lang, const char* ext, std::string
 
 static Anim* anim_load(const char* name, bool lang) {
     std::string path;
-    if (!find_asset(name, lang, ".dlt", path)) { LOG("missing animation %s", name); return nullptr; }
+    if (!find_asset(name, lang, ".dlt", path) && !find_asset(name, lang, ".spr", path) && !find_asset(name, lang, "", path)) {
+        LOG("missing animation %s", name); return nullptr;
+    }
     std::vector<uint8_t> d;
     if (!merit_read_gz(path.c_str(), d) || d.size() < 12) { LOG("unreadable %s", path.c_str()); return nullptr; }
     auto* a = new Anim;
@@ -368,7 +372,11 @@ void BitmapChangeColor(_RADBitmap* b, unsigned char from, unsigned char to) {
     uint32_t f = color_of(from), t = color_of(to);
     for (size_t i = 0; i < (size_t)b->w * b->h; i++) if (b->px[i] == f) b->px[i] = t;
 }
-void BitmapSetPalette(_RADBitmap*) {}                       // 8-bit era; art is RGB565
+void BitmapSetPalette(_RADBitmap*) {}
+void BitmapGetPalette(_RADBitmap*) {}
+unsigned long BitmapWidth(_RADBitmap* b) { return b ? b->w : 0; }
+unsigned long BitmapHeight(_RADBitmap* b) { return b ? b->h : 0; }
+_RADBitmap* SaveBackBmp;                             // a global the games keep a saved-screen bitmap in                       // 8-bit era; art is RGB565
 void BitmapPaletteToPalette(_RADBitmap*, _RADBitmap*) {}
 
 // Copies the dst-sized region of src starting at (sx, sy) into dst.
@@ -447,6 +455,15 @@ void AnimationAdvanceNoPalette(_MSmack* m, unsigned char) {
     a->last = SDL_GetTicks();
     if (a->target) anim_to(a, a->target);
 }
+void AnimationAdvance(_MSmack* m, unsigned char f) { AnimationAdvanceNoPalette(m, f); }
+void ClearPreSmack() {}                               // preloaded animations: we load on demand
+// Blocks until it is time for the animation's next frame.
+void AnimationDelay(_MSmack* m) {
+    auto* a = reinterpret_cast<Anim*>(m);
+    if (!a) return;
+    Uint32 due = a->last + (Uint32)a->delay * 1000 / 60;
+    while (!g_quit && SDL_GetTicks() < due) { pump(); SDL_Delay(1); }
+}
 // Non-zero while it is not yet time for the next frame (delay in 1/60 s).
 int AnimationStillDelay(_MSmack* m) {
     auto* a = reinterpret_cast<Anim*>(m);
@@ -487,6 +504,12 @@ void MouseAdd(char* name, unsigned long x, unsigned long y, unsigned long w, uns
     g_zones.push_back({name ? name : "", (int)x, (int)y, (int)w, (int)h});
 }
 void MouseRemoveAll() { g_zones.clear(); }
+void MouseRemove(char* name) {
+    for (size_t i = 0; i < g_zones.size();) if (name && g_zones[i].name == name) g_zones.erase(g_zones.begin() + i); else i++;
+}
+static std::vector<std::vector<Zone>> g_zoneStack;
+void MousePushAndRemoveAll() { g_zoneStack.push_back(g_zones); g_zones.clear(); }
+void MousePop() { if (!g_zoneStack.empty()) { g_zones = g_zoneStack.back(); g_zoneStack.pop_back(); } }
 void ClearTouch() { pump(); if (touch_debug() && !g_pending.empty()) LOG("ClearTouch drops %zu", g_pending.size()); g_pending.clear(); }
 // Waits up to `ms` for a touch on a registered zone and copies its name into `buf`.
 void InputCharOrDelay(char* buf, unsigned long ms) {
@@ -577,9 +600,549 @@ bool voice_playing(int voice) {
 
 // --- loader objects
 namespace xml_gameinfo { enum GameIds : int {}; }
+namespace xml_gameoptions { enum GameOptionIndex : int {}; }
 
+// Operator game options (NVRAM). Games call NVRAMMap::GamesOpt(&NVRAMData, index); the values
+// were set in the operator menu. Defaults: 0, logged once per index (MEGA_DEBUG_NVRAM=1).
+class NVRAMMap { public: unsigned char GamesOpt(xml_gameoptions::GameOptionIndex) const; };
+unsigned char NVRAMData[0x8000];
+unsigned char NVRAMMap::GamesOpt(xml_gameoptions::GameOptionIndex i) const {
+    static bool dbg = menv("DEBUG_NVRAM") != nullptr;
+    if (dbg) LOG("GamesOpt(%d) -> 0", (int)i);
+    return 0;
+}
+
+class MegacGlobals { public: static MegacGlobals* GetInstance(); };
 // MegacGlobals lives in megatouch-host (src/host/loader_services.cpp), shared with GameDevice games.
 
-// "Quit game?" prompt: home play just quits.
-class SystemClass { public: bool ConfirmExit(unsigned short, unsigned short, Bitmap*, bool); };
+
+
+// =============================================================================================
+// The loader's C++ layer (most legacy games): Bitmap, VideoClass, MouseManager, BmpFont,
+// UniversalTranslator/TextSystem. Reconstructed from the games' call sites (static vs member
+// from the pushes; tools/callsites.py) and the fields they read inline.
+//
+// Bitmap objects are 0x94 bytes, allocated by the games. Fields games touch inline:
+//   +0x0a/0x0c/0x0e colour effect (short r,g,b), +0x54 its flag   +0x30/0x32 scale, +0x34 flag
+//   +0x4c width, +0x50 height (int)
+// Our own data lives at +0x88 (BmpData*) / +0x8c (tag).
+// =============================================================================================
+#include <unistd.h>
+struct _IO_FILE;
+struct FontBase;
+namespace Locale { enum Languages : int {}; }
+
+namespace {
+const uint32_t kBmpTag = 0x58504d42;        // "BMPX"
+struct BmpData { int w = 0, h = 0; std::vector<uint32_t> px; Anim* anim = nullptr; };
+
+// --- video buffers (VideoClass): the 2D screen is VB "screen"; games draw into an open VB and
+// show it. Ids from CreateVB/OpenVB are kept as separate 640x480 buffers.
+std::map<int, std::vector<uint32_t>> g_vbs;
+int g_curVB = -1;                            // -1: draw straight to the screen
+const int kScrapVB = 1000;
+uint32_t g_rgb = 0xff000000;                 // SetRGB colour for Rect
+int g_nextVB = 1;
+
+uint32_t* vb_pixels(int id) {
+    if (id < 0) return g_screen;
+    auto& v = g_vbs[id];
+    if (v.empty()) v.assign(g_screen, g_screen + SW * SH);   // a new buffer starts as the screen
+    return v.data();
+}
+uint32_t* target() { return vb_pixels(g_curVB); }
+void touched_target() { if (g_curVB < 0) g_dirty = true; }
+}
+
+class Bitmap {
+public:
+    Bitmap(int, int, unsigned char, unsigned char);
+    virtual ~Bitmap();                       // games delete through the vtable (slot 1)
+    bool LoadPCX(char*, int, int, unsigned char);
+    bool LoadData(char*, unsigned char, int);
+    bool LoadCompressedData(char*, _IO_FILE*);
+    bool LoadTGA_32(char*);
+    void Display(int, int, int);
+    void DisplayRegion(int, int, int, int, int, int, int);
+    void CopyFromCurrent(int, int);
+    void CopyToBitmap(Bitmap*, int, int, int, int, int, int);
+    bool SmackAnimationLoad(char*, unsigned char);
+    void SmackAnimationJumpTo(int);
+    void SmackAnimationRewind();
+    void SmackAnimationDisplay(int, int, unsigned char);
+    void SmackAnimationUnload();
+    void DisplaySmack(unsigned short, unsigned short, unsigned char);
+    void SetDim(int, int);
+    void CreateColoredSmackTextBox(char const*, FontBase*, signed char, unsigned short, unsigned short,
+                                   short, short, short, unsigned char, bool);
+};
+
+static BmpData* bd(Bitmap* b) {
+    auto* raw = reinterpret_cast<unsigned char*>(b);
+    uint32_t tag; memcpy(&tag, raw + 0x8c, 4);
+    BmpData* d = nullptr;
+    if (tag == kBmpTag) memcpy(&d, raw + 0x88, sizeof d);
+    if (!d) {
+        d = new BmpData;
+        memcpy(raw + 0x88, &d, sizeof d);
+        tag = kBmpTag; memcpy(raw + 0x8c, &tag, 4);
+    }
+    return d;
+}
+static void bmp_resize(Bitmap* b, int w, int h, uint32_t fill) {
+    BmpData* d = bd(b);
+    d->w = w < 0 ? 0 : w; d->h = h < 0 ? 0 : h;
+    d->px.assign((size_t)d->w * d->h, fill);
+    auto* raw = reinterpret_cast<unsigned char*>(b);
+    memcpy(raw + 0x4c, &d->w, 4); memcpy(raw + 0x50, &d->h, 4);
+}
+
+Bitmap::Bitmap(int w, int h, unsigned char, unsigned char) {
+    video_init();
+    memset(reinterpret_cast<unsigned char*>(this) + 4, 0, 0x94 - 4);   // keep the vtable pointer
+    bmp_resize(this, w, h, kKey);
+}
+Bitmap::~Bitmap() { BmpData* d = bd(this); delete d->anim; delete d; memset(reinterpret_cast<unsigned char*>(this) + 0x88, 0, 8); }
+void Bitmap::SetDim(int w, int h) { bmp_resize(this, w, h, kKey); }
+
+// Games name files with or without their extension; try the cabinet's image extensions too.
+static bool read_file(const char* name, std::vector<uint8_t>& d) {
+    std::string path;
+    for (const char* ext : {"", ".img", ".pcx", ".tga", ".dlt", ".spr"})
+        if (find_asset(name, false, ext, path)) return merit_read_gz(path.c_str(), d);
+    return false;
+}
+
+// PCX: run-length rows. 8-bit with a 256-colour palette at the end, or 24-bit as three
+// planes per row (R, G, B lines).
+bool Bitmap::LoadPCX(char* name, int, int, unsigned char) {
+    std::vector<uint8_t> d;
+    if (!name || !read_file(name, d)) { LOG("missing PCX %s", name ? name : "?"); return false; }
+    if (d.size() < 128 || d[0] != 0x0a) { LOG("not a PCX: %s", name); return false; }
+    int w = (d[8] | d[9] << 8) - (d[4] | d[5] << 8) + 1, h = (d[10] | d[11] << 8) - (d[6] | d[7] << 8) + 1;
+    int planes = d[65], bpl = d[66] | d[67] << 8;
+    bool pal8 = planes == 1 && d.size() >= 128 + 769 && d[d.size() - 769] == 12;
+    const uint8_t* pal = pal8 ? &d[d.size() - 768] : nullptr;
+    if (w <= 0 || h <= 0 || w > 4096 || h > 4096 || (planes != 1 && planes != 3)) { LOG("unsupported PCX %s", name); return false; }
+    bmp_resize(this, w, h, kKey);
+    BmpData* b = bd(this);
+    size_t o = 128, end = pal8 ? d.size() - 769 : d.size();
+    std::vector<uint8_t> line((size_t)bpl * planes);
+    for (int y = 0; y < h; y++) {
+        size_t x = 0;
+        while (x < line.size() && o < end) {
+            uint8_t c = d[o++];
+            int n = 1;
+            if ((c & 0xc0) == 0xc0 && o < end) { n = c & 0x3f; c = d[o++]; }
+            while (n-- && x < line.size()) line[x++] = c;
+        }
+        for (int i = 0; i < w; i++) {
+            uint32_t v;
+            if (planes == 3) v = 0xff000000u | line[i] << 16 | line[bpl + i] << 8 | line[2 * bpl + i];
+            else if (pal) { const uint8_t* p = pal + line[i] * 3; v = 0xff000000u | p[0] << 16 | p[1] << 8 | p[2]; }
+            else v = 0xff000000u | line[i] * 0x010101u;
+            b->px[(size_t)y * w + i] = v;
+        }
+    }
+    return true;
+}
+
+// .img: u32 width, u32 height, raw RGB565 (magenta 0xF81F transparent)
+bool Bitmap::LoadData(char* name, unsigned char, int) {
+    std::vector<uint8_t> d;
+    if (!name || !read_file(name, d) || d.size() < 8) { LOG("missing image %s", name ? name : "?"); return false; }
+    uint32_t w, h; memcpy(&w, &d[0], 4); memcpy(&h, &d[4], 4);
+    if (w > 4096 || h > 4096 || 8 + (size_t)w * h * 2 > d.size()) { LOG("bad image %s", name); return false; }
+    bmp_resize(this, w, h, kKey);
+    BmpData* b = bd(this);
+    for (size_t i = 0; i < (size_t)w * h; i++) {
+        uint16_t c = d[8 + 2 * i] | d[9 + 2 * i] << 8;
+        b->px[i] = c == 0xf81f ? kKey : merit_rgb565(c, 255);
+    }
+    return true;
+}
+bool Bitmap::LoadCompressedData(char* name, _IO_FILE*) {
+    // a .dlt picture (first frame) when it is one, else the raw .img layout
+    std::string path;
+    if (name && find_asset(name, false, "", path)) {
+        std::vector<uint8_t> d;
+        if (merit_read_gz(path.c_str(), d)) {
+            size_t off, count;
+            if (merit_container(d, off, count)) {
+                std::vector<MeritFrame> f;
+                merit_read_frames(d, off, f, 1);
+                if (!f.empty()) {
+                    bmp_resize(this, f[0].w, f[0].h, kKey);
+                    bd(this)->px = f[0].argb;
+                    return true;
+                }
+            }
+        }
+    }
+    return LoadData(name, 0, -1);
+}
+bool Bitmap::LoadTGA_32(char* name) {
+    std::vector<uint8_t> d;
+    if (!name || !read_file(name, d) || d.size() < 18) return false;
+    int idlen = d[0], type = d[2], w = d[12] | d[13] << 8, h = d[14] | d[15] << 8, bpp = d[16], desc = d[17];
+    if (type != 2 || (bpp != 32 && bpp != 24)) { LOG("unsupported TGA %s", name); return false; }
+    int bytes = bpp / 8;
+    bmp_resize(this, w, h, kKey);
+    BmpData* b = bd(this);
+    size_t o = 18 + idlen;
+    for (int y = 0; y < h; y++)
+        for (int x = 0; x < w && o + bytes <= d.size(); x++, o += bytes) {
+            int yy = (desc & 0x20) ? y : h - 1 - y;
+            uint32_t a = bytes == 4 ? d[o + 3] : 255;
+            b->px[(size_t)yy * w + x] = a < 8 ? kKey : (0xff000000u | d[o + 2] << 16 | d[o + 1] << 8 | d[o]);
+        }
+    return true;
+}
+
+// Draws into the open video buffer (or the screen); transparent pixels skipped. A non-zero
+// flag also treats pure black as transparent (PCX sprites have no other transparency).
+void Bitmap::Display(int x, int y, int flag) {
+    BmpData* b = bd(this);
+    if (b->w <= 0) return;
+    blit(b->px.data(), b->w, b->h, 0, 0, target(), SW, SH, x, y, b->w, b->h, true, flag ? 0xff000000u : kKey);
+    touched_target();
+}
+void Bitmap::DisplayRegion(int x, int y, int sx, int sy, int w, int h, int) {
+    BmpData* b = bd(this);
+    blit(b->px.data(), b->w, b->h, sx, sy, target(), SW, SH, x, y, w, h, true, kKey);
+    touched_target();
+}
+void Bitmap::CopyFromCurrent(int x, int y) {
+    BmpData* b = bd(this);
+    blit(target(), SW, SH, x, y, b->px.data(), b->w, b->h, 0, 0, b->w, b->h, false, 0);
+}
+void Bitmap::CopyToBitmap(Bitmap* dst, int dx, int dy, int sx, int sy, int w, int h) {
+    if (!dst) return;
+    BmpData* s = bd(this); BmpData* d = bd(dst);
+    blit(s->px.data(), s->w, s->h, sx, sy, d->px.data(), d->w, d->h, dx, dy, w, h, true, kKey);
+}
+
+// Animations attached to a bitmap (.dlt "smacks").
+bool Bitmap::SmackAnimationLoad(char* name, unsigned char lang) {
+    BmpData* b = bd(this);
+    delete b->anim;
+    b->anim = name ? anim_load(name, lang) : nullptr;
+    if (!b->anim) return false;
+    bmp_resize(this, b->anim->w, b->anim->h, kKey);
+    b->anim->target = nullptr;
+    return true;
+}
+void Bitmap::SmackAnimationUnload() { BmpData* b = bd(this); delete b->anim; b->anim = nullptr; }
+void Bitmap::SmackAnimationRewind() { BmpData* b = bd(this); if (b->anim) anim_seek(b->anim, 0); }
+void Bitmap::SmackAnimationJumpTo(int f) {
+    BmpData* b = bd(this);
+    if (b->anim && !b->anim->frames.empty()) anim_seek(b->anim, f < 0 ? 0 : f % (int)b->anim->frames.size());
+}
+// Shows the current frame at (x, y), then steps to the next one.
+void Bitmap::SmackAnimationDisplay(int x, int y, unsigned char) {
+    BmpData* b = bd(this);
+    if (!b->anim) return;
+    Anim* a = b->anim;
+    if (a->canvas.empty()) anim_seek(a, a->cur);
+    blit(a->canvas.data(), a->w, a->h, 0, 0, target(), SW, SH, x, y, a->w, a->h, true, kKey);
+    touched_target();
+    anim_seek(a, (a->cur + 1) % (int)a->frames.size());
+}
+void Bitmap::DisplaySmack(unsigned short x, unsigned short y, unsigned char f) { SmackAnimationDisplay(x, y, f); }
+
+// --- fonts and text boxes. BmpFont(w, h, n) picks a cabinet bitmap font (gamedata/fonts/*.dlt:
+// one glyph per frame, frame = character code) by cell size.
+class BmpFont { public: BmpFont(short, short, unsigned short); };
+
+// FontBase objects are polymorphic: games call their virtual methods (slots 0x10, 0x2c, 0x4c,
+// 0x54, ...). Until each slot's meaning is known, every slot is a stand-in that logs its first
+// call with its arguments (MEGA_DEBUG_FONT=1 logs every call) and returns 0. Slots get real
+// implementations in font_slot() as they are identified.
+namespace {
+int font_slot(int slot, void* self, const int* a);
+template <int N> int font_vfn(void* self, int a0, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9) {
+    int a[10] = {a0, a1, a2, a3, a4, a5, a6, a7, a8, a9};
+    return font_slot(N, self, a);
+}
+template <int... I> struct Seq {};
+template <int N, int... I> struct MakeSeq : MakeSeq<N - 1, N - 1, I...> {};
+template <int... I> struct MakeSeq<0, I...> { typedef Seq<I...> type; };
+template <int... I> void* const* make_font_vtable(Seq<I...>) {
+    static void* const vt[] = {reinterpret_cast<void*>(&font_vfn<I>)...};
+    return vt;
+}
+void* const* font_vtable() { static void* const* vt = make_font_vtable(MakeSeq<48>::type()); return vt; }
+void font_attach(void* obj) { void* const* vt = font_vtable(); memcpy(obj, &vt, sizeof vt); }
+}
+namespace {
+struct GlyphFont { int w = 0, h = 0; std::vector<MeritFrame> glyphs; std::vector<int> adv; };
+std::map<const void*, GlyphFont*> g_fonts;
+GlyphFont* g_defaultFont;
+
+GlyphFont* font_load(const char* file) {
+    std::string path = std::string("/usr/local/gamedata/fonts/") + file;
+    std::vector<uint8_t> d;
+    if (!merit_read_gz(path.c_str(), d)) return nullptr;
+    size_t off, count;
+    if (!merit_container(d, off, count)) return nullptr;
+    auto* f = new GlyphFont;
+    merit_read_frames(d, off, f->glyphs, count);
+    if (f->glyphs.empty()) { delete f; return nullptr; }
+    f->w = f->glyphs[0].w; f->h = f->glyphs[0].h;
+    for (auto& g : f->glyphs) {           // proportional advance: rightmost opaque column + 2
+        int r = -1;
+        for (int y = 0; y < g.h; y++) for (int x = g.w - 1; x > r; x--) if (g.argb[(size_t)y * g.w + x] >> 24) { r = x; break; }
+        f->adv.push_back(r < 0 ? f->w / 2 : r + 2);
+    }
+    return f;
+}
+GlyphFont* font_for(short w, short h) {
+    char names[4][32];
+    snprintf(names[0], 32, "b%dx%d.dlt.gz", w, h); snprintf(names[1], 32, "%dx%d.dlt.gz", w, h);
+    snprintf(names[2], 32, "%dx%dw.dlt.gz", w, h); snprintf(names[3], 32, "%dx%d.dlt.gz", h, h);
+    for (auto& n : names) if (GlyphFont* f = font_load(n)) return f;
+    return nullptr;
+}
+GlyphFont* default_font() {
+    if (!g_defaultFont) g_defaultFont = font_load("12x16.dlt.gz");    // white glyphs, fits the games' text boxes
+    if (!g_defaultFont) g_defaultFont = font_load("b24x24.dlt.gz");
+    return g_defaultFont;
+}
+}
+BmpFont::BmpFont(short w, short h, unsigned short) {
+    video_init();
+    font_attach(this);
+    GlyphFont* f = font_for(w, h);
+    if (!f) { LOG("no bitmap font %dx%d, using the default", w, h); f = default_font(); }
+    g_fonts[this] = f;
+}
+
+// A w x h bitmap with `text` centred, glyphs tinted with (r, g, b) unless all are 0.
+void Bitmap::CreateColoredSmackTextBox(char const* text, FontBase* font, signed char, unsigned short w,
+                                       unsigned short h, short r, short g, short bl, unsigned char, bool) {
+    GlyphFont* f = nullptr;
+    auto it = g_fonts.find(font);
+    f = it != g_fonts.end() ? it->second : default_font();
+    if (!f) return;
+    const unsigned char* t = reinterpret_cast<const unsigned char*>(text ? text : "");
+    int tw = 0;
+    for (const unsigned char* p = t; *p; p++) tw += *p < f->adv.size() ? f->adv[*p] : f->w;
+    int W = w ? w : tw, H = h ? h : f->h;
+    bmp_resize(this, W, H, kKey);
+    BmpData* b = bd(this);
+    int x = (W - tw) / 2, y = (H - f->h) / 2;
+    bool tint = r || g || bl;
+    for (const unsigned char* p = t; *p; p++) {
+        if (*p < f->glyphs.size()) {
+            const MeritFrame& gl = f->glyphs[*p];
+            for (int yy = 0; yy < gl.h; yy++)
+                for (int xx = 0; xx < gl.w; xx++) {
+                    uint32_t c = gl.argb[(size_t)yy * gl.w + xx];
+                    if (!(c >> 24)) continue;
+                    if (tint) {
+                        uint32_t lum = ((c >> 16 & 255) + (c >> 8 & 255) + (c & 255)) / 3;
+                        c = 0xff000000u | (uint32_t)(r * lum / 255 & 255) << 16 | (uint32_t)(g * lum / 255 & 255) << 8 | (uint32_t)(bl * lum / 255 & 255);
+                    }
+                    int X = x + xx, Y = y + yy;
+                    if (X >= 0 && X < W && Y >= 0 && Y < H) b->px[(size_t)Y * W + X] = c;
+                }
+        }
+        x += *p < f->adv.size() ? f->adv[*p] : f->w;
+    }
+}
+
+// The loader's graphics globals: FontBase* fonts at +0x04..+0x80 (games use +0x08, +0x1c, +0x40).
+class MegacGraphics { public: static MegacGraphics* GetInstance(); };
+MegacGraphics* MegacGraphics::GetInstance() {
+    static unsigned char g[0x400];
+    static bool init;
+    if (!init) {
+        init = true;
+        for (int off = 0x04; off <= 0x80; off += 4) {
+            auto* f = new unsigned char[256]();
+            font_attach(f);
+            g_fonts[f] = default_font();
+            memcpy(g + off, &f, sizeof f);
+        }
+    }
+    return reinterpret_cast<MegacGraphics*>(g);
+}
+
+namespace {
+struct FontState { int align = 0; int spacing = 0; };
+std::map<const void*, FontState> g_fontState;
+
+int text_width(GlyphFont* f, const unsigned char* t, int spacing) {
+    int w = 0;
+    for (; *t; t++) w += (*t < f->adv.size() ? f->adv[*t] : f->w) + spacing;
+    return w;
+}
+void text_draw(GlyphFont* f, const unsigned char* t, int x, int y, int spacing) {
+    uint32_t* dst = target();
+    for (; *t; t++) {
+        if (*t < f->glyphs.size()) {
+            const MeritFrame& g = f->glyphs[*t];
+            blit(g.argb.data(), g.w, g.h, 0, 0, dst, SW, SH, x, y, g.w, g.h, true, kKey);
+        }
+        x += (*t < f->adv.size() ? f->adv[*t] : f->w) + spacing;
+    }
+    touched_target();
+}
+
+// Slots identified so far (byte offsets): 0x18 width of a string, 0x24 alignment
+// (0 left, 1 centre, 2 right), 0x2c draw text (text, x, y, width, ...), 0x54 spacing.
+int font_slot(int slot, void* self, const int* a) {
+    static bool all = menv("DEBUG_FONT") != nullptr;
+    static std::map<int, bool> seen;
+    if (all || !seen[slot]) {
+        seen[slot] = true;
+        LOG("font %p slot 0x%x args %d %d %d %d %d %d %d %d", self, slot * 4, a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
+    }
+    auto it = g_fonts.find(self);
+    GlyphFont* f = it != g_fonts.end() && it->second ? it->second : default_font();
+    FontState& st = g_fontState[self];
+    if (!f) return 0;
+    switch (slot * 4) {
+    case 0x18: {                         // width of a string
+        const char* t = reinterpret_cast<const char*>(a[0]);
+        return t ? text_width(f, reinterpret_cast<const unsigned char*>(t), st.spacing) : 0;
+    }
+    case 0x24: st.align = a[0]; return 0;
+    case 0x54: st.spacing = a[0] > 4 ? 0 : a[0]; return 0;   // values seen (10, 12) look like sizes, not gaps
+    case 0x2c: {                         // draw: text, x, y, width (0 = at x)
+        const unsigned char* t = reinterpret_cast<const unsigned char*>(a[0]);
+        if (!t) return 0;
+        int x = a[1], y = a[2], w = a[3], tw = text_width(f, t, st.spacing);
+        if (w > 0) x += st.align == 1 ? (w - tw) / 2 : st.align == 2 ? w - tw : 0;
+        else x -= st.align == 1 ? tw / 2 : st.align == 2 ? tw : 0;
+        text_draw(f, t, x, y, st.spacing);
+        return tw;
+    }
+    }
+    return 0;
+}
+}
+
+// --- VideoClass
+class VideoClass {
+public:
+    void OpenVB(int);
+    void ShowVB(int);
+    void CloseVB();
+    void OpenScrapVB();
+    int CreateVB(short, short);
+    void DestroyVB(int);
+    void CopyVBRegion(int, int, int, int, int, int, int);
+    void CopyFromScreen(int, int, int, int, int, int, bool);
+    static int GetVB();
+    static void ShowVBRegion(int, int, int, int, int, int);
+    static void Rect(int, int, int, int);
+    static void SetRGB(short, short, short);
+    static void ClearVB(int);
+};
+void VideoClass::OpenVB(int id) { video_init(); g_curVB = id; vb_pixels(id); }
+void VideoClass::CloseVB() { g_curVB = -1; }
+void VideoClass::OpenScrapVB() { g_curVB = kScrapVB; vb_pixels(kScrapVB); }
+int VideoClass::GetVB() { return g_curVB; }
+int VideoClass::CreateVB(short, short) { int id = g_nextVB++; vb_pixels(id); return id; }
+void VideoClass::DestroyVB(int id) { g_vbs.erase(id); if (g_curVB == id) g_curVB = -1; }
+void VideoClass::ClearVB(int id) { uint32_t* p = vb_pixels(id); for (int i = 0; i < SW * SH; i++) p[i] = 0xff000000; }
+// Presents a whole buffer (-1: the open one).
+void VideoClass::ShowVB(int id) {
+    if (id == -1) id = g_curVB;
+    if (id >= 0) memcpy(g_screen, vb_pixels(id), sizeof g_screen);
+    g_dirty = true;
+    present();
+    pump();
+}
+void VideoClass::ShowVBRegion(int x, int y, int w, int h, int dx, int dy) {
+    if (g_curVB >= 0) blit(vb_pixels(g_curVB), SW, SH, x, y, g_screen, SW, SH, dx, dy, w, h, false, 0);
+    g_dirty = true;
+    pump();
+}
+// Copies a region of the open buffer (usually the scrap) into buffer `dst`.
+void VideoClass::CopyVBRegion(int sx, int sy, int w, int h, int dx, int dy, int dst) {
+    uint32_t* s = target();
+    blit(s, SW, SH, sx, sy, vb_pixels(dst), SW, SH, dx, dy, w, h, false, 0);
+    if (dst < 0) g_dirty = true;
+}
+void VideoClass::CopyFromScreen(int sx, int sy, int w, int h, int dx, int dy, bool) {
+    blit(g_screen, SW, SH, sx, sy, target(), SW, SH, dx, dy, w, h, false, 0);
+}
+void VideoClass::SetRGB(short r, short g, short b) { g_rgb = 0xff000000u | (r & 255) << 16 | (g & 255) << 8 | (b & 255); }
+void VideoClass::Rect(int x, int y, int w, int h) {
+    uint32_t* t = target();
+    for (int j = y; j < y + h && j < SH; j++)
+        for (int i = x; i < x + w && i < SW; i++) if (i >= 0 && j >= 0) t[j * SW + i] = g_rgb;
+    touched_target();
+}
+
+// --- MouseManager: named zones; CheckLoc reports a touch by writing the zone name into
+// MegacGlobals+0x5ae4 and returning non-zero.
+class MouseManager {
+public:
+    void AddZone(char*, int, int, int, int);
+    void RemoveZone(char*);
+    void RemoveAll(unsigned char);
+    bool CheckLoc(unsigned char, bool);
+};
+void MouseManager::AddZone(char* name, int x, int y, int w, int h) {
+    video_init();
+    if (touch_debug()) LOG("zone %s %d,%d %dx%d", name, x, y, w, h);
+    g_zones.push_back({name ? name : "", x, y, w, h});
+}
+void MouseManager::RemoveZone(char* name) { MouseRemove(name); }
+void MouseManager::RemoveAll(unsigned char) { g_zones.clear(); }
+bool MouseManager::CheckLoc(unsigned char, bool) {
+    pump();
+    if (g_pending.empty()) return false;
+    auto* glob = reinterpret_cast<char*>(MegacGlobals::GetInstance());
+    snprintf(glob + 0x5ae4, 0x80, "%s", g_pending.front().c_str());
+    if (touch_debug()) LOG("CheckLoc -> %s", g_pending.front().c_str());
+    g_pending.erase(g_pending.begin());
+    return true;
+}
+
+// --- translation: the loader's UniversalTranslator / TextSystem over the host's Translator
+class Translator { public: static bool LoadTranslations(char const*, bool); static char const* Translate(char const*); };
+class UniversalTranslator {
+public:
+    UniversalTranslator();
+    ~UniversalTranslator();
+    void SetupTransSys(char const*, unsigned char, Locale::Languages);
+    void ReleaseTransSys();
+    bool nTrans(char*, char const*, int, bool);
+};
+UniversalTranslator::UniversalTranslator() {}
+UniversalTranslator::~UniversalTranslator() {}
+void UniversalTranslator::SetupTransSys(char const* name, unsigned char, Locale::Languages) { Translator::LoadTranslations(name, false); }
+void UniversalTranslator::ReleaseTransSys() {}
+bool UniversalTranslator::nTrans(char* out, char const* key, int len, bool) {
+    if (!out || len <= 0) return false;
+    const char* t = Translator::Translate(key ? key : "");
+    snprintf(out, len, "%s", t);
+    return t != key;
+}
+class TextSystem { public: void LoadTranslations(char const*, bool); void SetCurrentLanguage(Locale::Languages); };
+void TextSystem::LoadTranslations(char const* name, bool) { Translator::LoadTranslations(name, false); }
+void TextSystem::SetCurrentLanguage(Locale::Languages) {}
+TextSystem textSystem;
+
+// --- small helpers
+char FileLoc[256];                            // game data path prefix; empty = the working dir
+bool IsUAEGame(xml_gameinfo::GameIds) { return false; }
+char* CommaStr(char* out, unsigned long n) {
+    std::string s = std::to_string(n), t;
+    for (size_t i = 0; i < s.size(); i++) { if (i && (s.size() - i) % 3 == 0) t += ','; t += s[i]; }
+    if (out) strcpy(out, t.c_str());
+    return out;
+}
+char* _strrev(char* s) {
+    if (!s) return s;
+    for (size_t i = 0, j = strlen(s); i + 1 < j; i++, j--) { char c = s[i]; s[i] = s[j - 1]; s[j - 1] = c; }
+    return s;
+}
+// "Quit game?" prompt: home play just quits. CheckKey: the operator key-switch, never turned.
+class SystemClass { public: bool ConfirmExit(unsigned short, unsigned short, Bitmap*, bool); bool CheckKey(); };
 bool SystemClass::ConfirmExit(unsigned short, unsigned short, Bitmap*, bool) { return true; }
+bool SystemClass::CheckKey() { pump(); return false; }
