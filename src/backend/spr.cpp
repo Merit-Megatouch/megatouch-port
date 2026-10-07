@@ -13,7 +13,9 @@ TexData* load_spr(const char* path) {
     std::vector<uint8_t> d;
     if (!merit_read_gz(path, d)) return nullptr;
     std::vector<MeritFrame> mf;
-    size_t good = merit_read_frames(d, 4, mf);
+    size_t off, count;
+    if (!merit_container(d, off, count)) { fprintf(stderr, "[mega] unknown sprite version in %s\n", path); return nullptr; }
+    size_t good = merit_read_frames(d, off, mf, count);
     if (mf.empty()) return nullptr;
     if (good != mf.size()) fprintf(stderr, "[mega] %zu bad frame(s) in %s\n", mf.size() - good, path);
     std::vector<std::vector<uint32_t>> frames;

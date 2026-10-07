@@ -51,7 +51,7 @@ extract_code() {
   say "engine family: $FAMILY"
   if [ "$FAMILY" = gamedevice ]; then
     # the cabinet backend and the legacy engine it called are replaced by our SDL2 backend
-    rm -f "$GD"/lib/{libgame_device_sprite,libgraphics_sprite,libinput_sprite,libsound_sprite,libmerit2d,libmerit3d,libmeritbasegame,libmerit_threads}.so
+    rm -f "$GD"/lib/{libgame_device_sprite,libgraphics_sprite,libinput_sprite,libsound_sprite,libmerit2d,libmerit3d,libmeritbasegame}.so
     ln -sf ../../../shared/bin/libgame_device_sprite.so "$GD/lib/libgame_device_sprite.so"
     # some games list the other backend libraries without using them: empty stand-ins
     local s; for s in libgraphics_sprite libinput_sprite libsound_sprite; do
@@ -66,9 +66,50 @@ extract_code() {
   fi
 }
 
+# data/usr/local/gamedata as a real folder: the shared parts linked, gamegraphics/ private
+# (legacy assets, and games whose files link into gamegraphics).
+real_gamedata() {
+  local gd="$GD/data/usr/local/gamedata" sub
+  [ -L "$gd" ] && rm "$gd"
+  mkdir -p "$gd/gamegraphics"
+  for sub in config translations help ttf fonts; do
+    ln -sfn "../../../../../../shared/data-common/usr/local/gamedata/$sub" "$gd/$sub"; done
+  ln -sfn ../../../../../../../shared/data-common/usr/local/gamedata/gamegraphics/misc "$gd/gamegraphics/misc"
+}
+
+# Links inside the assets that point at absolute cabinet paths (/usr/local/...) dangle on this
+# machine: extract their targets into data/ and make the links relative.
+fix_links() {
+  local l t top
+  find "$GD/data" -type l 2>/dev/null | while read -r l; do
+    t=$(readlink "$l")
+    case "$t" in
+      /usr/local/gamedata/gamegraphics/*)
+        top=${t#/usr/local/gamedata/gamegraphics/}; top=${top%%/*}
+        real_gamedata
+        if [ ! -e "$GD/data/usr/local/gamedata/gamegraphics/$top" ]; then
+          say "extracting linked /usr/local/gamedata/gamegraphics/$top"
+          cab_rdump root "/usr/local/gamedata/gamegraphics/$top" "$GD/data/usr/local/gamedata/gamegraphics"
+        fi ;;
+      /usr/local/ion_only/*)
+        top=${t#/usr/local/ion_only/}; top=$(echo "$top" | cut -d/ -f1-2)
+        if [ ! -e "$GD/data/usr/local/ion_only/$top" ]; then
+          say "extracting linked /usr/local/ion_only/$top"
+          mkdir -p "$GD/data/usr/local/ion_only/$(dirname "$top")"
+          cab_rdump ion "/$top" "$GD/data/usr/local/ion_only/$(dirname "$top")"
+        fi ;;
+      *) continue ;;
+    esac
+    ln -sfn "$(python3 -c 'import os,sys; print(os.path.relpath(sys.argv[1], os.path.dirname(sys.argv[2])))' "$GD/data${t%/}" "$l")" "$l"
+  done
+}
+
 # Assets + links to shared data; sets ASSET_DIR.
 extract_assets() {
   local part="" src=""
+  # a few catalogue entries name the folder without the g_ prefix it has on disk
+  if ! cab_exists ion "/games/$DIR" && ! cab_exists root "/usr/local/games/$DIR" && ! cab_exists root "/usr/local/gamedata/gamegraphics/$DIR" \
+     && cab_exists ion "/games/g_$DIR"; then DIR="g_$DIR"; fi
   if { [ "$FAMILY" = legacy ] || [ "$FAMILY" = merit3d ]; } && cab_exists root "/usr/local/gamedata/gamegraphics/$DIR"; then
     ASSET_DIR="usr/local/gamedata/gamegraphics/$DIR"; part=root; src="/usr/local/gamedata/gamegraphics/$DIR"
   elif cab_exists ion "/games/$DIR"; then ASSET_DIR="usr/local/ion_only/games/$DIR"; part=ion; src="/games/$DIR"
@@ -92,18 +133,26 @@ extract_assets() {
   fi
   # shared cabinet data (read-only links) + a private, writable /var/merit
   if [ "$FAMILY" = legacy ] || [ "$FAMILY" = merit3d ]; then
-    # legacy assets live inside /usr/local/gamedata, so that folder is real: shared parts linked
-    local sub; for sub in config translations help ttf fonts; do
-      ln -sfn "../../../../../../shared/data-common/usr/local/gamedata/$sub" "$GD/data/usr/local/gamedata/$sub"; done
-    mkdir -p "$GD/data/usr/local/gamedata/gamegraphics"
-    ln -sfn ../../../../../../../shared/data-common/usr/local/gamedata/gamegraphics/misc "$GD/data/usr/local/gamedata/gamegraphics/misc"
-  else
+    real_gamedata
+  elif [ ! -d "$GD/data/usr/local/gamedata" ] || [ -L "$GD/data/usr/local/gamedata" ]; then
     ln -sfn ../../../../../shared/data-common/usr/local/gamedata "$GD/data/usr/local/gamedata"
   fi
   ln -sfn ../../../../../../shared/data-common/usr/local/games/default "$GD/data/usr/local/games/default"
   ln -sfn ../../../shared/data-common/etc   "$GD/data/etc"
   ln -sfn ../../../shared/data-common/pango "$GD/data/pango"
   [ -d "$GD/data/var/merit" ] || { mkdir -p "$GD/data/var"; cp -r "$R/shared/data-common/var-template/merit" "$GD/data/var/"; }
+  # downloadable content packs (photo hunt puzzles...): /usr/local/ion_only/content, shared
+  if cab_exists ion "/content/$DIR"; then
+    rm -rf "$GD/data/usr/local/ion_only/content"
+    ln -sfn ../../../../../../shared/data-common/usr/local/ion_only/content "$GD/data/usr/local/ion_only/content"
+  fi
+  local pass n0 n1
+  for pass in 1 2 3 4; do      # extracted targets can hold further links
+    n0=$(find "$GD/data" -type l | wc -l)
+    fix_links
+    n1=$(find "$GD/data" -type l | wc -l)
+    [ "$n0" = "$n1" ] && [ -z "$(find "$GD/data" -type l -lname '/usr/local/*' | head -1)" ] && break
+  done
   # runtime, host and launcher are shared
   ln -sfn ../../shared/runtime "$GD/runtime"
   ln -sf ../../shared/bin/megatouch-host "$GD/megatouch-host"
@@ -149,6 +198,24 @@ EOF
     fi
   fi
   [ "$ID" -ge 0 ] 2>/dev/null || warn "no numeric GameId for $GAMEID_NAME — set GAME_ID in game.conf"
+}
+
+# Cabinet libraries the loader had already loaded (so games never list them): when the game
+# needs their symbols, extract them and preload them. Settings → libsettings.so.
+preload_cabinet_libs() {
+  [ "$FAMILY" = gamedevice ] || return 0
+  "$R/tools/analyze.sh" "$GD" >/dev/null
+  local raw="$R/build/unresolved/$(basename "$GD").txt" add=""
+  grep -q '^_ZN8Settings\|^_ZTI8Settings' "$raw" 2>/dev/null && add="$add libsettings.so"
+  [ -n "$add" ] || return 0
+  local l f
+  for l in $add; do
+    say "preloading cabinet library $l"
+    "$R/scripts/lib/extract-libs.sh" "$GD/lib" "$l" 2>/dev/null || true
+  done
+  for f in "$GD"/lib/*; do [ -e "$R/shared/runtime/$(basename "$f")" ] && rm -f "$f"; done
+  if grep -q '^PRELOAD=' "$GD/game.conf"; then sed -i "s/^PRELOAD=\(.*\)/PRELOAD=\1$add/" "$GD/game.conf"
+  else echo "PRELOAD=${add# }" >> "$GD/game.conf"; fi
 }
 
 # notes/scaffold.md (regenerated) and NOTES.md (created once, yours to edit).
@@ -285,6 +352,7 @@ say "$DESC  ($GAMEID_NAME → $DLL.so, assets '$DIR')"
 extract_code
 extract_assets
 write_config
+preload_cabinet_libs
 UNRES=$(write_notes)
 game_repo_init "$GD" "$DLL" "$DESC"
 say "games/$DLL ready (its own git repo; publish with: make publish GAME=$DLL)"

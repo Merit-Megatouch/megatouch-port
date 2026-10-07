@@ -2,6 +2,7 @@
 // and the resource manager singleton (Graphics::BaseResourceManager).
 
 #include "backend.h"
+#include <unistd.h>
 #include <SDL2/SDL_image.h>
 #include <cstring>
 
@@ -171,8 +172,14 @@ static TexData* load_image(const std::string& file) {
     double t0 = now_ms();
     struct Done { double t0; ~Done() { g_fs.imgLoads++; g_fs.imgMs += now_ms() - t0; } } done{t0};
     TexData* d = nullptr;
-    if (file.find(".spr") != std::string::npos) d = load_spr(file.c_str());
-    else d = load_with_sdl_image(file.c_str());
+    std::string path = file;
+    // content-pack images are named relative to the content root (photo hunt pictures)
+    if (!path.empty() && path[0] != '/' && access(path.c_str(), F_OK) != 0) {
+        std::string c = "/usr/local/ion_only/content/" + path;
+        if (access(c.c_str(), F_OK) == 0) path = c;
+    }
+    if (path.find(".spr") != std::string::npos) d = load_spr(path.c_str());
+    else d = load_with_sdl_image(path.c_str());
     if (!d) LOG("failed to load image %s (%s)", file.c_str(), SDL_GetError());
     return d;
 }

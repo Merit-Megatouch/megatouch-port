@@ -7,8 +7,11 @@
 //   2  n opaque RGB565 pixels follow (one word each)
 //   5  n translucent pixels follow, two words each: RGB565 colour, then a word whose
 //      low byte is a 5-bit alpha (0..31)
-// Containers: .spr = u32 version 2, frames...; .dlt = u32 version 3, u16 width, height,
-// frame count, frame delay, frames... A frame record is { u32 dataBytes; u32 w; u32 h; data }.
+// Containers (a frame record is { u32 dataBytes; u32 w; u32 h; data }):
+//   version 2 (.spr)  u32 2, frame records...
+//   version 3 (.dlt)  u32 3, u16 width, height, frameCount, frameDelay, records (delta-coded)
+//   version 4 (.spr)  u32 4, u16 frameCount, u32 offset[frameCount] (absolute), records
+//                     (newer GameDevice games; *_DSK / *_DYN images)
 #pragma once
 #include <zlib.h>
 #include <cstdint>
@@ -86,4 +89,16 @@ inline size_t merit_read_frames(const std::vector<uint8_t>& d, size_t o, std::ve
         o += 12 + sz;
     }
     return frames.size() - bad;
+}
+
+// Where the frame records start and how many there are (-1 = until the end of the data).
+inline bool merit_container(const std::vector<uint8_t>& d, size_t& off, size_t& count) {
+    if (d.size() < 4) return false;
+    uint32_t ver; memcpy(&ver, &d[0], 4);
+    switch (ver) {
+    case 2: off = 4; count = (size_t)-1; return true;
+    case 3: { if (d.size() < 12) return false; uint16_t n; memcpy(&n, &d[8], 2); off = 12; count = n; return true; }
+    case 4: { if (d.size() < 6) return false; uint16_t n; memcpy(&n, &d[4], 2); off = 6 + 4 * (size_t)n; count = n; return true; }
+    default: return false;
+    }
 }

@@ -267,8 +267,8 @@ static Anim* anim_load(const char* name, bool lang) {
     auto* a = new Anim;
     uint32_t ver; uint16_t hdr[4];
     memcpy(&ver, &d[0], 4); memcpy(hdr, &d[4], 8);
-    size_t off = ver == 3 ? 12 : 4;                 // 3 = .dlt header, 2 = plain .spr layout
-    unsigned count = ver == 3 ? hdr[2] : (unsigned)-1;
+    size_t off, count;
+    if (!merit_container(d, off, count)) { LOG("unknown version in %s", path.c_str()); delete a; return nullptr; }
     if (ver == 3 && hdr[3]) a->delay = hdr[3];
     merit_read_frames(d, off, a->frames, count);
     if (a->frames.empty()) { LOG("no frames in %s", path.c_str()); delete a; return nullptr; }
@@ -578,20 +578,7 @@ bool voice_playing(int voice) {
 // --- loader objects
 namespace xml_gameinfo { enum GameIds : int {}; }
 
-// The loader's global state. Games read fields inline: +0x24 player count, +0x2038 current
-// GameId; a SystemClass object lives at +0x22dc.
-class MegacGlobals { public: static MegacGlobals* GetInstance(); };
-MegacGlobals* MegacGlobals::GetInstance() {
-    static unsigned char g[0x4000];
-    static bool init;
-    if (!init) {
-        init = true;
-        g[0x24] = (unsigned char)menv_int("PLAYERS", 1);
-        int id = menv_int("GAME_ID", 0);
-        memcpy(g + 0x2038, &id, 4);
-    }
-    return reinterpret_cast<MegacGlobals*>(g);
-}
+// MegacGlobals lives in megatouch-host (src/host/loader_services.cpp), shared with GameDevice games.
 
 // "Quit game?" prompt: home play just quits.
 class SystemClass { public: bool ConfirmExit(unsigned short, unsigned short, Bitmap*, bool); };

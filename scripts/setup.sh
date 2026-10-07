@@ -81,7 +81,7 @@ fi
 # ------------------------------------------------------------------ python helpers
 step "python helpers (toolchain/venv: pyelftools, capstone)"
 if [ ! -x "$T/venv/bin/python" ]; then
-  python3 -m venv "$T/venv" && "$T/venv/bin/pip" install -q pyelftools capstone
+  python3 -m venv "$T/venv" && "$T/venv/bin/python" -m pip install -q pyelftools capstone pillow
 fi
 
 # ------------------------------------------------------------------ Ghidra (optional)
@@ -140,6 +140,13 @@ if [ ! -d "$S/data-common/usr/local/gamedata/gamegraphics/misc" ]; then
   step "shared legacy game assets (shared/data-common/.../gamegraphics/misc)"
   mkdir -p "$S/data-common/usr/local/gamedata/gamegraphics"
   cab_rdump root /usr/local/gamedata/gamegraphics/misc "$S/data-common/usr/local/gamedata/gamegraphics"
+fi
+
+# downloadable content packs (photo hunt puzzles by year, shared picture sets): one copy for all
+if [ ! -d "$S/data-common/usr/local/ion_only/content" ]; then
+  step "content packs (shared/data-common/usr/local/ion_only/content)"
+  mkdir -p "$S/data-common/usr/local/ion_only"
+  cab_rdump ion /content "$S/data-common/usr/local/ion_only"
 fi
 
 # ------------------------------------------------------------------ shared runtime

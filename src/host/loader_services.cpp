@@ -2,6 +2,7 @@
 // directly. tools/analyze.sh lists any a new game needs that are not here yet.
 // Before adding one, disassemble a caller: static vs member functions mangle the same but
 // are called differently (Translator::Translate is static).
+#include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -198,7 +199,67 @@ char* ustrupr(char* s) {
 
 class Logger {
 public:
+    enum LOG_LEVEL : int {}; enum LOG_READER : int {}; enum LOG_TYPE : int {};
     static void SetApplicationID(xml_gameinfo::GameIds);
+    static void Log(char const* file, char const* func, unsigned long line, unsigned long thread, LOG_LEVEL,
+                    LOG_READER, LOG_TYPE, char const* category, char const* report, bool, char const* fmt, ...);
 };
 void Logger::SetApplicationID(xml_gameinfo::GameIds) {}
+// The cabinet's logging call (libmerit_threads, libsettings, libmerit3d...). MEGA_DEBUG_LOG=1 prints it.
+void Logger::Log(char const* file, char const*, unsigned long line, unsigned long, LOG_LEVEL lvl,
+                 LOG_READER, LOG_TYPE, char const*, char const*, bool, char const* fmt, ...) {
+    static bool on = getenv("MEGA_DEBUG_LOG") != nullptr;
+    if (!on || !fmt) return;
+    const char* base = file ? strrchr(file, '/') : nullptr;
+    fprintf(stderr, "[log %d] %s:%lu: ", (int)lvl, base ? base + 1 : (file ? file : "?"), line);
+    va_list ap; va_start(ap, fmt); vfprintf(stderr, fmt, ap); va_end(ap);
+    fputc('\n', stderr);
+}
+
+// ---------------------------------------------------------------------------
+// MegacGlobals: the loader's global state block. Games read fields inline:
+// +0x24 player count (MEGA_PLAYERS), +0x2038 current GameId; SystemClass object at +0x22dc.
+class MegacGlobals { public: static MegacGlobals* GetInstance(); };
+MegacGlobals* MegacGlobals::GetInstance() {
+    static unsigned char g[0x4000];
+    static bool init;
+    if (!init) {
+        init = true;
+        const char* p = getenv("MEGA_PLAYERS");
+        g[0x24] = (unsigned char)(p ? atoi(p) : 1);
+        const char* id = getenv("MEGA_GAME_ID");
+        int gid = id ? atoi(id) : 0;
+        memcpy(g + 0x2038, &gid, 4);
+    }
+    return reinterpret_cast<MegacGlobals*>(g);
+}
+
+// Cabinet marquee lights: nothing to light. LightShow() returns the manager Play() is called on.
+class LightShowManager { public: enum Sequences : int {}; void Play(Sequences, bool, bool); };
+LightShowManager* LightShow() { static char inst[64]; return reinterpret_cast<LightShowManager*>(inst); }
+void LightShowManager::Play(Sequences, bool, bool) {}
+
+// In-game adverts: none. (Returns std::string by value: the compiler handles the hidden pointer.)
+namespace ads { class in_game_ads { public: static std::string get_ad_name(xml_gameinfo::GameIds); }; }
+std::string ads::in_game_ads::get_ad_name(xml_gameinfo::GameIds) { return std::string(); }
+
+// "Champion Edition" tournament mode: not running.
+class ChampEditionI {
+public:
+    static void DisplayMadeIt(int, int);
+    static void DisplayPrizePool(int, int);
+    static int GetCurrentLeaderScore(int);
+    static int GetCurrentNumberOfRounds();
+};
+void ChampEditionI::DisplayMadeIt(int, int) {}
+void ChampEditionI::DisplayPrizePool(int, int) {}
+int ChampEditionI::GetCurrentLeaderScore(int) { return 0; }
+int ChampEditionI::GetCurrentNumberOfRounds() { return 0; }
+
+class Profiler { public: static Profiler* GetInstance(); void DumpResults(); };
+Profiler* Profiler::GetInstance() { static char inst[64]; return reinterpret_cast<Profiler*>(inst); }
+void Profiler::DumpResults() {}
+
+// libmerit_threads: the loader's main-thread handle
+extern "C" { unsigned long MainThread; }
 

@@ -76,7 +76,14 @@ int rename(const char* a, const char* b) { REAL(rename); RPATH(a); RPATH(b); ret
 int symlink(const char* a, const char* b) { REAL(symlink); RPATH(b); return real_symlink(a, b); }
 char* realpath(const char* path, char* out) { REAL(realpath); RPATH(path); return real_realpath(path, out); }
 int stat64(const char* path, struct stat64* st) { REAL(stat64); RPATH(path); return real_stat64(path, st); }
-int lstat64(const char* path, struct stat64* st) { REAL(lstat64); RPATH(path); return real_lstat64(path, st); }
+// Inside data/ the links are ours (sharing files with shared/), not the cabinet's: a redirected
+// lstat follows them, so the game sees a folder where the cabinet had a folder.
+int lstat64(const char* path, struct stat64* st) {
+    REAL(lstat64); REAL(stat64);
+    const char* orig = path;
+    RPATH(path);
+    return path != orig ? real_stat64(path, st) : real_lstat64(path, st);
+}
 
 // The 2008-era libraries call the old glibc stat/readdir entry points directly, with the
 // original 32-bit struct layouts. Those fail with EOVERFLOW on filesystems with 64-bit
@@ -121,9 +128,11 @@ int __xstat(int, const char* path, void* st) {
     return to_old(stat64(path, &n), n, st);
 }
 int __lxstat(int, const char* path, void* st) {
+    REAL(lstat64); REAL(stat64);
+    const char* orig = path;
     RPATH(path);
     struct stat64 n;
-    return to_old(lstat64(path, &n), n, st);
+    return to_old(path != orig ? real_stat64(path, &n) : real_lstat64(path, &n), n, st);
 }
 int __fxstat(int, int fd, void* st) {
     struct stat64 n;
