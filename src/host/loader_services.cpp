@@ -157,11 +157,17 @@ public:
     ~ContinueControl();
     bool display(unsigned int, unsigned int);
     bool display(unsigned int, unsigned int, bool (*)());   // with a poll callback (tennis)
+    bool display(unsigned int, unsigned int, unsigned int); // pool, minigolf
+    bool display();                                          // beer pong
+    static bool allowed();                                   // false: games skip the prompt
 };
 ContinueControl::ContinueControl() {}
 ContinueControl::~ContinueControl() {}
 bool ContinueControl::display(unsigned int, unsigned int) { return true; }
 bool ContinueControl::display(unsigned int, unsigned int, bool (*)()) { return true; }
+bool ContinueControl::display(unsigned int, unsigned int, unsigned int) { return true; }
+bool ContinueControl::display() { return true; }
+bool ContinueControl::allowed() { return false; }
 
 class HighScoresManager {
 public:
@@ -238,7 +244,7 @@ public:
     int Active() const;
     int Base() const;
     int LegacyFallback(Languages);
-    int IndexOf(Languages);
+    static int IndexOf(Languages);              // static: callers pass one argument
 };
 LanguageManager* LanguageManager::GetInstance() { static char inst[64]; return reinterpret_cast<LanguageManager*>(inst); }
 int LanguageManager::Active() const { return 0; }
@@ -422,9 +428,19 @@ void ChampEditionI::DisplayPrizePool(int, int) {}
 int ChampEditionI::GetCurrentLeaderScore(int) { return 0; }
 int ChampEditionI::GetCurrentNumberOfRounds() { return 0; }
 
-class Profiler { public: static Profiler* GetInstance(); void DumpResults(); };
+class Profiler {
+public:
+    static Profiler* GetInstance();
+    static void DelInstance();
+    void DumpResults();
+    void Start(std::string);
+    void Stop(std::string);
+};
 Profiler* Profiler::GetInstance() { static char inst[64]; return reinterpret_cast<Profiler*>(inst); }
+void Profiler::DelInstance() {}
 void Profiler::DumpResults() {}
+void Profiler::Start(std::string) {}
+void Profiler::Stop(std::string) {}
 
 // libmerit_threads: the loader's main-thread handle
 extern "C" { unsigned long MainThread; }

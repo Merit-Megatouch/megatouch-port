@@ -276,15 +276,19 @@ char* TextUtils::MeritStringToUTF8(char const* s) {
     return out;
 }
 char* TextUtils::MeritStringToUTF8(char const* s, Locale::Languages) { return MeritStringToUTF8(s); }
-// Pango markup: escape the characters markup gives meaning to
+// Callers wrap text in markup first, so tags stay: only a bare '&' is escaped (merit3d.md §1.6)
 char* TextUtils::ConvertToMarkup(char const* s) {
     static char bufs[4][2048];
     static int k;
     char* out = bufs[k++ & 3];
     size_t o = 0;
     for (const char* p = s ? s : ""; *p && o + 7 < sizeof bufs[0]; p++) {
-        const char* rep = *p == '&' ? "&amp;" : *p == '<' ? "&lt;" : *p == '>' ? "&gt;" : nullptr;
-        if (rep) { strcpy(out + o, rep); o += strlen(rep); } else out[o++] = *p;
+        if (*p == '&') {
+            const char* e = strchr(p, ';');
+            bool entity = e && e - p < 8 && (isalpha((unsigned char)p[1]) || p[1] == '#');
+            if (!entity) { strcpy(out + o, "&amp;"); o += 5; continue; }
+        }
+        out[o++] = *p;
     }
     out[o] = 0;
     return out;

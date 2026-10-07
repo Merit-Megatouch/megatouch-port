@@ -579,3 +579,34 @@ __attribute__((constructor)) static void allegro_ctor() {
     g_driver.linear = 1; g_driver.windowed = 1;
     gfx_driver = &g_driver;
 }
+
+// ------------------------------------------------------------------------------ AllegroGL glue
+// The loader opened the GL window before the game started (merit3d.md §5); games only flip.
+extern "C" {
+void allegro_gl_flip(void) {
+    if (SDL_Window* w = legacy::window()) SDL_GL_SwapWindow(w);
+    legacy::gl_frame_done();
+    legacy::pump();
+}
+// a function-pointer variable in libagl (NULL: libmerit3d then uses glXGetProcAddress itself)
+void* (*__aglXGetProcAddressARB)(const unsigned char*) = nullptr;
+// swaps rows top<->bottom in place; one row = 2*row16 bytes (merit3d.md §5.5)
+void FlipBitmapVert(void* pixels, int row16, int height) {
+    if (!pixels || row16 <= 0 || height <= 1) return;
+    size_t row = (size_t)row16 * 2;
+    std::vector<unsigned char> tmp(row);
+    auto* p = static_cast<unsigned char*>(pixels);
+    for (int y = 0; y < height / 2; y++) {
+        memcpy(tmp.data(), p + y * row, row);
+        memmove(p + y * row, p + (size_t)(height - 1 - y) * row, row);
+        memcpy(p + (size_t)(height - 1 - y) * row, tmp.data(), row);
+    }
+}
+// cabinet liballeg extension: buttons pressed since the game last cleared it
+volatile int mouse_button_presses_cached;
+// audio streams (libmvideo's video sound): none, so videos play silently
+void* play_audio_stream(int, int, int, int, int, int) { return nullptr; }
+void* get_audio_stream_buffer(void*) { return nullptr; }
+void free_audio_stream_buffer(void*) {}
+void stop_audio_stream(void*) {}
+}

@@ -37,7 +37,7 @@ extern "C" int stb_vorbis_decode_memory(const unsigned char* mem, int len, int* 
 #include <algorithm>
 
 // ---------------------------------------------------------------------------------- types
-extern "C" { extern volatile int mouse_x, mouse_y, mouse_b, mouse_pos; }
+extern "C" { extern volatile int mouse_x, mouse_y, mouse_b, mouse_pos, mouse_button_presses_cached; }
 struct _MSmack;
 struct SoundBase;
 
@@ -69,6 +69,8 @@ static bool touch_debug() { static bool on = menv("DEBUG_TOUCH") != nullptr; ret
 __attribute__((constructor)) static void legacy_screen_ctor() {
     screen = legacy::al_wrap32(g_fallbackScreen, SW, SH);
     legacy::al_set_mode(legacy::screen_w(), legacy::screen_h());
+    // Merit3D/AllegroGL games call OpenGL straight away: the loader had the context open
+    if (g_gl) legacy::video_init();
 }
 
 static void video_init() {
@@ -198,6 +200,7 @@ static void pump() {
     static const bool shots = menv("SHOT_DIR");
     if (g_zdirty) zlist_redraw();
     mouse_x = g_mouseX; mouse_y = g_mouseY; mouse_b = g_mouseDown ? 1 : 0; mouse_pos = g_mouseX << 16 | g_mouseY;
+    if (g_mouseDown) mouse_button_presses_cached |= 1;
     if (!g_gl && (g_dirty || (shots && SDL_GetTicks() - g_lastPresent >= 1000)) && SDL_GetTicks() - g_lastPresent >= 15) present();
 }
 
@@ -635,6 +638,24 @@ namespace legacy {
 void video_init() { ::video_init(); }
 void pump() { ::pump(); }
 void screen_touched() { g_dirty = true; }
+// GL mode: MEGA_SHOT_DIR screenshots of the GL back buffer every MEGA_SHOT_EVERY swaps
+void gl_frame_done() {
+    static const char* dir = menv("SHOT_DIR");
+    static int every = menv_int("SHOT_EVERY", 60), n;
+    if (!dir || !g_gl || ++n % every) return;
+    int w = screen_w(), h = screen_h();
+    std::vector<uint8_t> px((size_t)w * h * 4);
+    using ReadPixels = void (*)(int, int, int, int, unsigned, unsigned, void*);
+    static auto rp = reinterpret_cast<ReadPixels>(SDL_GL_GetProcAddress("glReadPixels"));
+    if (!rp) return;
+    rp(0, 0, w, h, 0x1908 /*GL_RGBA*/, 0x1401 /*GL_UNSIGNED_BYTE*/, px.data());
+    SDL_Surface* s = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_ABGR8888);
+    for (int y = 0; y < h; y++) memcpy(static_cast<uint8_t*>(s->pixels) + y * s->pitch, &px[(size_t)(h - 1 - y) * w * 4], (size_t)w * 4);
+    char path[1024];
+    snprintf(path, sizeof path, "%s/frame%05d.bmp", dir, n);
+    SDL_SaveBMP(s, path);
+    SDL_FreeSurface(s);
+}
 void warp_mouse(int x, int y) { g_mouseX = x; g_mouseY = y; }
 bool gl_mode() { return g_gl; }
 SDL_Window* window() { return g_win; }
@@ -884,16 +905,7 @@ bool UniversalTranslator::nTrans(char* out, char const* key, int len, bool) {
     snprintf(out, len, "%s", t);
     return t != key;
 }
-class TextSystem {
-public:
-    void LoadTranslations(char const*, bool);
-    void LoadTranslations(xml_gameinfo::GameIds);
-    void SetCurrentLanguage(Locale::Languages);
-};
-void TextSystem::LoadTranslations(xml_gameinfo::GameIds id) { Translator::LoadTranslations(id); }
-void TextSystem::LoadTranslations(char const* name, bool) { Translator::LoadTranslations(name, false); }
-void TextSystem::SetCurrentLanguage(Locale::Languages) {}
-TextSystem textSystem;
+// TextSystem / TextDesc / textSystem: text_system.cpp
 
 // --- small helpers
 char FileLoc[256];                            // game data path prefix; empty = the working dir
@@ -1137,6 +1149,13 @@ void GAME_MoveGraphic(void* g, unsigned char steps, unsigned long x1, unsigned l
 
 void AnimationBackToStart(_MSmack* m) { AnimationGoto(m, 1); }   // frames are 1-based
 extern "C" void voice_start(int) {}
+extern "C" void voice_stop(int voice) { legacy::stop_voice(voice); }
+// Allegro returns the SAMPLE* a voice plays (NULL when idle); callers only test it
+extern "C" void* voice_check(int voice) { static char sample[64]; return legacy::voice_playing(voice) ? sample : nullptr; }
+extern "C" void voice_ramp_volume(int voice, int, int vol) { legacy::set_voice_volume(voice, vol); }
+extern "C" void voice_set_frequency(int, int) {}
+extern "C" void voice_sweep_frequency(int, int, int) {}
+extern "C" void voice_set_pan(int, int) {}
 // Seniors-edition help overlay: not shown
 void SeniorsHelp(int, bool) {}
 

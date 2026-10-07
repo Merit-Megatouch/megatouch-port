@@ -44,7 +44,8 @@ public:
     bool MouseGetButtonReleased(int) const;
     void MouseEnable(bool);
     void MouseSetButton(int, int);
-    void* GetMouse();
+    struct Mouse_T { int x, y, b0, b1, b2, wheel; };
+    Mouse_T GetMouse();                          // by value (hidden result pointer), merit3d.md §7.3
     bool JoystickGetButton(int) const;
     int JoystickGetX() const;
     int JoystickGetY() const;
@@ -70,7 +71,10 @@ bool InputManager::MouseGetButton(int b) const { return b == 0 && legacy::mouse_
 bool InputManager::MouseGetButtonReleased(int b) const { return b == 0 && g_released; }
 void InputManager::MouseEnable(bool) {}
 void InputManager::MouseSetButton(int, int) {}
-void* InputManager::GetMouse() { static char mouse[64]; return mouse; }
+InputManager::Mouse_T InputManager::GetMouse() {
+    legacy::pump();
+    return Mouse_T{legacy::mouse_x(), legacy::mouse_y(), legacy::mouse_down() ? 1 : 0, 0, 0, 0};
+}
 bool InputManager::JoystickGetButton(int) const { return false; }
 int InputManager::JoystickGetX() const { return 0; }
 int InputManager::JoystickGetY() const { return 0; }
@@ -163,4 +167,38 @@ void MegacGlobals::RestoreScreen() {
     memcpy(screen->line[0], g_screens.back().data(), (size_t)SW * SH * 4);
     g_screens.pop_back();
     legacy::touched_target();
+}
+
+// ------------------------------------------------------------------------------ misc (merit3d.md §6)
+// the loader's per-frame service hook (input, coins, IPC): pump input
+void DoRegularProcessing() { legacy::pump(); }
+bool debug_check_address(void* p) { return p != nullptr; }
+void Heartbeat_WaitForAll(unsigned long, bool) {}
+namespace xml_gameinfo { enum GameIds : int {}; }
+// MyMerit player cards: none loaded
+class MyMeritManager {
+public:
+    static MyMeritManager* Instance();
+    bool PlayerLoaded() const;
+    char const* Name() const;
+    int GetGameLevel(xml_gameinfo::GameIds);
+    void SetGameLevel(xml_gameinfo::GameIds, int);
+};
+MyMeritManager* MyMeritManager::Instance() { alignas(8) static unsigned char inst[0x100]; return reinterpret_cast<MyMeritManager*>(inst); }
+bool MyMeritManager::PlayerLoaded() const { return false; }
+char const* MyMeritManager::Name() const { return ""; }
+int MyMeritManager::GetGameLevel(xml_gameinfo::GameIds) { return 0; }
+void MyMeritManager::SetGameLevel(xml_gameinfo::GameIds, int) {}
+// coin-jam notifications: callbacks kept, never fired (no coin mechanism)
+class CoinJamManager {
+public:
+    static CoinJamManager* Instance();
+    void RegisterCallback(void (*)(bool));
+    void UnregisterCallback(void (*)(bool));
+};
+namespace { std::vector<void (*)(bool)> g_coinjam; }
+CoinJamManager* CoinJamManager::Instance() { static char inst[16]; return reinterpret_cast<CoinJamManager*>(inst); }
+void CoinJamManager::RegisterCallback(void (*cb)(bool)) { g_coinjam.push_back(cb); }
+void CoinJamManager::UnregisterCallback(void (*cb)(bool)) {
+    for (size_t i = 0; i < g_coinjam.size(); i++) if (g_coinjam[i] == cb) { g_coinjam.erase(g_coinjam.begin() + i); break; }
 }

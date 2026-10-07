@@ -167,4 +167,101 @@ void ttf_draw(BITMAP* dst, const char* text_in, int bx, int by, int bw, int bh, 
     }
 }
 
+
+// Glyph coverage (0..255) of `text` laid out in a w x h box: word-wrapped at w, '\n' breaks,
+// halign 0 left / 1 centre / 2 right, valign 0 top / 1 centre / 2 bottom, `line_gap` extra pixels
+// between lines. Pango markup is dropped; <b> selects the bold face.
+void ttf_coverage(const char* markup, int w, int h, int px, int halign, int valign, bool bold, const char* family,
+                  int line_gap, std::vector<unsigned char>& out) {
+    out.assign((size_t)std::max(0, w) * std::max(0, h), 0);
+    if (!markup || w <= 0 || h <= 0 || px <= 0) return;
+    if (strstr(markup, "<b>")) bold = true;
+    std::string text = plain(markup);
+    Font* f = font_for(family, bold);
+    if (!f->ok) return;
+    float sc = stbtt_ScaleForPixelHeight(&f->info, (float)px);
+    int asc, desc, gap;
+    stbtt_GetFontVMetrics(&f->info, &asc, &desc, &gap);
+    int lh = (int)((asc - desc) * sc) + line_gap;
+    if (lh < 1) lh = 1;
+    // wrap
+    std::vector<std::string> lines;
+    {
+        std::string cur, word;
+        auto fits = [&](const std::string& t) { return ttf_measure(t.c_str(), px, bold, family, 0) <= w; };
+        auto flush = [&]() {
+            if (word.empty()) return;
+            std::string t = cur.empty() ? word : cur + " " + word;
+            if (!cur.empty() && !fits(t)) { lines.push_back(cur); cur = word; } else cur = t;
+            word.clear();
+        };
+        for (const char* p = text.c_str(); *p; p++) {
+            if (*p == '\n') { flush(); lines.push_back(cur); cur.clear(); }
+            else if (*p == ' ') flush();
+            else word += *p;
+        }
+        flush();
+        if (!cur.empty() || lines.empty()) lines.push_back(cur);
+    }
+    int total = (int)lines.size() * lh;
+    int y0 = valign == 1 ? (h - total) / 2 : valign == 2 ? h - total : 0;
+    for (size_t li = 0; li < lines.size(); li++) {
+        const std::string& l = lines[li];
+        int lw = ttf_measure(l.c_str(), px, bold, family, 0);
+        float x = halign == 1 ? (w - lw) / 2.0f : halign == 2 ? (float)(w - lw) : 0.0f;
+        int base = y0 + (int)li * lh + (int)(asc * sc);
+        int prev = 0;
+        for (const unsigned char* p = (const unsigned char*)l.c_str(); *p;) {
+            int cp = next_cp(p);
+            if (prev) x += sc * stbtt_GetCodepointKernAdvance(&f->info, prev, cp);
+            int gw, gh, ox, oy;
+            unsigned char* bm = stbtt_GetCodepointBitmapSubpixel(&f->info, sc, sc, x - (int)x, 0, cp, &gw, &gh, &ox, &oy);
+            for (int j = 0; j < gh; j++)
+                for (int i = 0; i < gw; i++) {
+                    int X = (int)x + ox + i, Y = base + oy + j;
+                    if (X < 0 || Y < 0 || X >= w || Y >= h) continue;
+                    unsigned char& o = out[(size_t)Y * w + X];
+                    o = std::max(o, bm[j * gw + i]);
+                }
+            stbtt_FreeBitmap(bm, nullptr);
+            int adv, lsb;
+            stbtt_GetCodepointHMetrics(&f->info, cp, &adv, &lsb);
+            x += sc * adv;
+            prev = cp;
+        }
+    }
+}
+
+// size of `markup` laid out at px, wrapped at max_w
+void ttf_text_size(const char* markup, int px, bool bold, const char* family, int line_gap, int max_w, int& w, int& h) {
+    w = h = 0;
+    if (!markup) return;
+    if (strstr(markup, "<b>")) bold = true;
+    std::string text = plain(markup);
+    Font* f = font_for(family, bold);
+    if (!f->ok) return;
+    float sc = stbtt_ScaleForPixelHeight(&f->info, (float)px);
+    int asc, desc, gap;
+    stbtt_GetFontVMetrics(&f->info, &asc, &desc, &gap);
+    int lh = (int)((asc - desc) * sc) + line_gap;
+    std::vector<std::string> lines;
+    std::string cur, word;
+    auto fits = [&](const std::string& t) { return max_w <= 0 || ttf_measure(t.c_str(), px, bold, family, 0) <= max_w; };
+    auto flush = [&]() {
+        if (word.empty()) return;
+        std::string t = cur.empty() ? word : cur + " " + word;
+        if (!cur.empty() && !fits(t)) { lines.push_back(cur); cur = word; } else cur = t;
+        word.clear();
+    };
+    for (const char* p = text.c_str(); *p; p++) {
+        if (*p == '\n') { flush(); lines.push_back(cur); cur.clear(); }
+        else if (*p == ' ') flush();
+        else word += *p;
+    }
+    flush();
+    if (!cur.empty() || lines.empty()) lines.push_back(cur);
+    for (auto& l : lines) w = std::max(w, ttf_measure(l.c_str(), px, bold, family, 0));
+    h = (int)lines.size() * std::max(1, lh);
+}
+
 }  // namespace legacy

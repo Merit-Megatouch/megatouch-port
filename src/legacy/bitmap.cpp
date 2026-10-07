@@ -219,7 +219,6 @@ void Bitmap::setCData(unsigned short* p) {
     if (p && al) { destroy_bitmap(al); al = nullptr; }   // decoded on DeCompress
 }
 void Bitmap::freeCData() { free(cdata); cdata = nullptr; }
-void Bitmap::TTFtoCData(unsigned char*, unsigned char*, int, int) {}
 Bitmap* Bitmap::NextAnim() { return next; }
 Bitmap* Bitmap::PrevAnim() { return prev; }
 void Bitmap::NextAnim(Bitmap* b) { next = b; }
