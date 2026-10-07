@@ -21,7 +21,7 @@ def entries(path):
             m = re.search(rf'<{t}>\s*(.*?)\s*</{t}>', block, re.S)
             return m.group(1) if m else ''
         yield {'GAMEID_NAME': tag('GameId'), 'DLL': tag('DLLName'), 'DIR': tag('Directory'),
-               'DESC': tag('Description'), 'RES': tag('UseResolution')}
+               'DESC': tag('Description'), 'RES': tag('UseResolution'), 'ALT': tag('DLLSupportFileName')}
 
 
 def main():

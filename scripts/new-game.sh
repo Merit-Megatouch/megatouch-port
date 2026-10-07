@@ -32,8 +32,20 @@ identify_game() {
     done
     info=$(python3 -I "$R/tools/gameinfo.py" "$NAME" "$TMP/gamedata.xml" 2>/dev/null) || { echo "'$NAME' not found in gamedata.xml"; exit 1; }
   fi
+  ALT=""
   eval "$info"
   [ -n "$DLL" ] || { echo "no DLLName for $NAME"; exit 1; }
+  # a few entries name a folder that doesn't exist; the support-file name is the real one
+  local found=0
+  cab_exists ion "/games/$DIR" && found=1
+  if [ "$DLL" != launcher ]; then   # Unity games only ever live in /games/<dir>
+    cab_exists root "/usr/local/games/$DIR" && found=1
+    cab_exists root "/usr/local/gamedata/gamegraphics/$DIR" && found=1
+  fi
+  if [ $found = 0 ]; then
+    if [ -n "$ALT" ] && cab_exists ion "/games/$ALT"; then DIR=$ALT
+    elif cab_exists ion "/games/g_$DIR"; then DIR="g_$DIR"; fi
+  fi
 }
 
 # Game library + its dependency closure; sets FAMILY.
