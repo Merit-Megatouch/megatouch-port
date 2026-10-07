@@ -157,3 +157,21 @@
 [submodule "games/g_monster_madness"]
 	path = games/g_monster_madness
 	url = https://github.com/Merit-Megatouch/g_monster_madness.git
+[submodule "games/conquest"]
+	path = games/conquest
+	url = https://github.com/Merit-Megatouch/conquest.git
+[submodule "games/nine"]
+	path = games/nine
+	url = https://github.com/Merit-Megatouch/nine.git
+[submodule "games/bgammon"]
+	path = games/bgammon
+	url = https://github.com/Merit-Megatouch/bgammon.git
+[submodule "games/airhockey"]
+	path = games/airhockey
+	url = https://github.com/Merit-Megatouch/airhockey.git
+[submodule "games/puckshot"]
+	path = games/puckshot
+	url = https://github.com/Merit-Megatouch/puckshot.git
+[submodule "games/goal"]
+	path = games/goal
+	url = https://github.com/Merit-Megatouch/goal.git
