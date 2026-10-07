@@ -80,9 +80,15 @@ game refuses to run because of them, list it here for the owner instead of worki
 - BitmapTextTTF(bmp, text, x, y, w, h, c1, c2, c3, size, align, bold, family, spacing): c1..c3
   meaning unknown (0,0,-255 / 0,-100,-255 / 0,0,0) — drawn white for now. Check against a real
   screenshot when possible.
-- Next: Sprite/WorldClass engine. Games subclass Sprite (typeinfo for Sprite imported) so its
-  object layout and vtable order must be inferred from game code (start with funkymonkey, goal,
-  moondrop, wildapes, tennis, chess — decompiled in games/*/decomp).
+- Sprite engine implemented (`src/legacy/sprite.{h,cpp}`) from `docs/reference/sprite-engine.md`
+  (agent-derived ABI: vtable orders, sizes, offsets). Bitmap rewritten (`bitmap.{h,cpp}`) with a
+  16-bit Allegro BITMAP at +0x2c, frame chains, compressed data (setCData/DeCompress), z-list.
+  Worlds without SetBack: show the VB the game drew into, else restore only under sprites.
+- File formats added: archive records (`LoadCompressedData(name, FILE*)`), FLIC (.flc/.fli).
+- `tools/legacy-batch.sh [secs]` smoke-tests every legacy game (stubs regenerated) →
+  build/smoke/legacy-batch.txt. Host crash reports now print pc, frame walk and a stack scan.
+- Running (2026-10-07): fourplay conquest nine bgammon airhockey quickcell puckshot goal tennis
+  checkerz royal chug21 battle31 strippoker funkymonkey wildapes moondrop chess qbzone brickbreaker.
 
 ### Beer Pong 21 (`games/beer_pong_challenge`, Merit3D) — not committed as a game repo yet
 - Loads with `make stubs`; enters `Merit3d::Game::Run`; crashed in `Text2d::Create` because
