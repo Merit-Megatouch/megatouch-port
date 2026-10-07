@@ -508,3 +508,51 @@
 [submodule "games/VideoSales"]
 	path = games/VideoSales
 	url = https://github.com/Merit-Megatouch/VideoSales.git
+[submodule "games/boxing"]
+	path = games/boxing
+	url = https://github.com/Merit-Megatouch/boxing.git
+[submodule "games/deflection"]
+	path = games/deflection
+	url = https://github.com/Merit-Megatouch/deflection.git
+[submodule "games/outlaw_poker"]
+	path = games/outlaw_poker
+	url = https://github.com/Merit-Megatouch/outlaw_poker.git
+[submodule "games/pack_rabbit"]
+	path = games/pack_rabbit
+	url = https://github.com/Merit-Megatouch/pack_rabbit.git
+[submodule "games/tuxedo_run"]
+	path = games/tuxedo_run
+	url = https://github.com/Merit-Megatouch/tuxedo_run.git
+[submodule "games/snake"]
+	path = games/snake
+	url = https://github.com/Merit-Megatouch/snake.git
+[submodule "games/racing"]
+	path = games/racing
+	url = https://github.com/Merit-Megatouch/racing.git
+[submodule "games/shooter"]
+	path = games/shooter
+	url = https://github.com/Merit-Megatouch/shooter.git
+[submodule "games/beer_pong"]
+	path = games/beer_pong
+	url = https://github.com/Merit-Megatouch/beer_pong.git
+[submodule "games/euchre"]
+	path = games/euchre
+	url = https://github.com/Merit-Megatouch/euchre.git
+[submodule "games/hearts"]
+	path = games/hearts
+	url = https://github.com/Merit-Megatouch/hearts.git
+[submodule "games/spades"]
+	path = games/spades
+	url = https://github.com/Merit-Megatouch/spades.git
+[submodule "games/snubble"]
+	path = games/snubble
+	url = https://github.com/Merit-Megatouch/snubble.git
+[submodule "games/breakout"]
+	path = games/breakout
+	url = https://github.com/Merit-Megatouch/breakout.git
+[submodule "games/racepoker"]
+	path = games/racepoker
+	url = https://github.com/Merit-Megatouch/racepoker.git
+[submodule "games/motormatch"]
+	path = games/motormatch
+	url = https://github.com/Merit-Megatouch/motormatch.git
