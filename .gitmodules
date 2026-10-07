@@ -178,3 +178,246 @@
 [submodule "games/avalanche_jack"]
 	path = games/avalanche_jack
 	url = https://github.com/Merit-Megatouch/avalanche_jack.git
+[submodule "games/battlegroup"]
+	path = games/battlegroup
+	url = https://github.com/Merit-Megatouch/battlegroup.git
+[submodule "games/bigroller"]
+	path = games/bigroller
+	url = https://github.com/Merit-Megatouch/bigroller.git
+[submodule "games/boxdrop"]
+	path = games/boxdrop
+	url = https://github.com/Merit-Megatouch/boxdrop.git
+[submodule "games/boxxi"]
+	path = games/boxxi
+	url = https://github.com/Merit-Megatouch/boxxi.git
+[submodule "games/boxxi2"]
+	path = games/boxxi2
+	url = https://github.com/Merit-Megatouch/boxxi2.git
+[submodule "games/brainquest"]
+	path = games/brainquest
+	url = https://github.com/Merit-Megatouch/brainquest.git
+[submodule "games/brickbreaker"]
+	path = games/brickbreaker
+	url = https://github.com/Merit-Megatouch/brickbreaker.git
+[submodule "games/cardbandits"]
+	path = games/cardbandits
+	url = https://github.com/Merit-Megatouch/cardbandits.git
+[submodule "games/castlebandits"]
+	path = games/castlebandits
+	url = https://github.com/Merit-Megatouch/castlebandits.git
+[submodule "games/cell_chaos"]
+	path = games/cell_chaos
+	url = https://github.com/Merit-Megatouch/cell_chaos.git
+[submodule "games/celookout"]
+	path = games/celookout
+	url = https://github.com/Merit-Megatouch/celookout.git
+[submodule "games/checkerz"]
+	path = games/checkerz
+	url = https://github.com/Merit-Megatouch/checkerz.git
+[submodule "games/chess"]
+	path = games/chess
+	url = https://github.com/Merit-Megatouch/chess.git
+[submodule "games/chlookout"]
+	path = games/chlookout
+	url = https://github.com/Merit-Megatouch/chlookout.git
+[submodule "games/chug_monkey"]
+	path = games/chug_monkey
+	url = https://github.com/Merit-Megatouch/chug_monkey.git
+[submodule "games/coco_loco"]
+	path = games/coco_loco
+	url = https://github.com/Merit-Megatouch/coco_loco.git
+[submodule "games/dodge_bull"]
+	path = games/dodge_bull
+	url = https://github.com/Merit-Megatouch/dodge_bull.git
+[submodule "games/dominoes"]
+	path = games/dominoes
+	url = https://github.com/Merit-Megatouch/dominoes.git
+[submodule "games/draggle"]
+	path = games/draggle
+	url = https://github.com/Merit-Megatouch/draggle.git
+[submodule "games/eboxxi"]
+	path = games/eboxxi
+	url = https://github.com/Merit-Megatouch/eboxxi.git
+[submodule "games/elevenball"]
+	path = games/elevenball
+	url = https://github.com/Merit-Megatouch/elevenball.git
+[submodule "games/elevenup"]
+	path = games/elevenup
+	url = https://github.com/Merit-Megatouch/elevenup.git
+[submodule "games/elookout"]
+	path = games/elookout
+	url = https://github.com/Merit-Megatouch/elookout.git
+[submodule "games/ephunt_new"]
+	path = games/ephunt_new
+	url = https://github.com/Merit-Megatouch/ephunt_new.git
+[submodule "games/feedingfrosty"]
+	path = games/feedingfrosty
+	url = https://github.com/Merit-Megatouch/feedingfrosty.git
+[submodule "games/funkymonkey"]
+	path = games/funkymonkey
+	url = https://github.com/Merit-Megatouch/funkymonkey.git
+[submodule "games/g_hunks_card_bandits"]
+	path = games/g_hunks_card_bandits
+	url = https://github.com/Merit-Megatouch/g_hunks_card_bandits.git
+[submodule "games/g_hunks_super_boxxi"]
+	path = games/g_hunks_super_boxxi
+	url = https://github.com/Merit-Megatouch/g_hunks_super_boxxi.git
+[submodule "games/g_panty_bandits"]
+	path = games/g_panty_bandits
+	url = https://github.com/Merit-Megatouch/g_panty_bandits.git
+[submodule "games/g_penthouse_castle_bandits"]
+	path = games/g_penthouse_castle_bandits
+	url = https://github.com/Merit-Megatouch/g_penthouse_castle_bandits.git
+[submodule "games/g_penthouse_super_boxxi"]
+	path = games/g_penthouse_super_boxxi
+	url = https://github.com/Merit-Megatouch/g_penthouse_super_boxxi.git
+[submodule "games/h2hgenderbender"]
+	path = games/h2hgenderbender
+	url = https://github.com/Merit-Megatouch/h2hgenderbender.git
+[submodule "games/hoopjones"]
+	path = games/hoopjones
+	url = https://github.com/Merit-Megatouch/hoopjones.git
+[submodule "games/htmysteryphraze"]
+	path = games/htmysteryphraze
+	url = https://github.com/Merit-Megatouch/htmysteryphraze.git
+[submodule "games/htquizshow"]
+	path = games/htquizshow
+	url = https://github.com/Merit-Megatouch/htquizshow.git
+[submodule "games/ink_rally"]
+	path = games/ink_rally
+	url = https://github.com/Merit-Megatouch/ink_rally.git
+[submodule "games/kid_phunt"]
+	path = games/kid_phunt
+	url = https://github.com/Merit-Megatouch/kid_phunt.git
+[submodule "games/kids_color"]
+	path = games/kids_color
+	url = https://github.com/Merit-Megatouch/kids_color.git
+[submodule "games/lookout"]
+	path = games/lookout
+	url = https://github.com/Merit-Megatouch/lookout.git
+[submodule "games/lucky_elevens"]
+	path = games/lucky_elevens
+	url = https://github.com/Merit-Megatouch/lucky_elevens.git
+[submodule "games/magiccharms"]
+	path = games/magiccharms
+	url = https://github.com/Merit-Megatouch/magiccharms.git
+[submodule "games/meritthon"]
+	path = games/meritthon
+	url = https://github.com/Merit-Megatouch/meritthon.git
+[submodule "games/meteorshower"]
+	path = games/meteorshower
+	url = https://github.com/Merit-Megatouch/meteorshower.git
+[submodule "games/monstermadness"]
+	path = games/monstermadness
+	url = https://github.com/Merit-Megatouch/monstermadness.git
+[submodule "games/moondrop"]
+	path = games/moondrop
+	url = https://github.com/Merit-Megatouch/moondrop.git
+[submodule "games/my_ex"]
+	path = games/my_ex
+	url = https://github.com/Merit-Megatouch/my_ex.git
+[submodule "games/mysteryphraze"]
+	path = games/mysteryphraze
+	url = https://github.com/Merit-Megatouch/mysteryphraze.git
+[submodule "games/new_pile_on"]
+	path = games/new_pile_on
+	url = https://github.com/Merit-Megatouch/new_pile_on.git
+[submodule "games/office_bash"]
+	path = games/office_bash
+	url = https://github.com/Merit-Megatouch/office_bash.git
+[submodule "games/pephunt_new"]
+	path = games/pephunt_new
+	url = https://github.com/Merit-Megatouch/pephunt_new.git
+[submodule "games/phphunt_new"]
+	path = games/phphunt_new
+	url = https://github.com/Merit-Megatouch/phphunt_new.git
+[submodule "games/phunt_new"]
+	path = games/phunt_new
+	url = https://github.com/Merit-Megatouch/phunt_new.git
+[submodule "games/pixmix"]
+	path = games/pixmix
+	url = https://github.com/Merit-Megatouch/pixmix.git
+[submodule "games/powertrivia"]
+	path = games/powertrivia
+	url = https://github.com/Merit-Megatouch/powertrivia.git
+[submodule "games/psh2htrivia"]
+	path = games/psh2htrivia
+	url = https://github.com/Merit-Megatouch/psh2htrivia.git
+[submodule "games/psolitaire"]
+	path = games/psolitaire
+	url = https://github.com/Merit-Megatouch/psolitaire.git
+[submodule "games/qbzone"]
+	path = games/qbzone
+	url = https://github.com/Merit-Megatouch/qbzone.git
+[submodule "games/qshot"]
+	path = games/qshot
+	url = https://github.com/Merit-Megatouch/qshot.git
+[submodule "games/quickcell"]
+	path = games/quickcell
+	url = https://github.com/Merit-Megatouch/quickcell.git
+[submodule "games/quikmatch"]
+	path = games/quikmatch
+	url = https://github.com/Merit-Megatouch/quikmatch.git
+[submodule "games/quizshow_new"]
+	path = games/quizshow_new
+	url = https://github.com/Merit-Megatouch/quizshow_new.git
+[submodule "games/reversetriv"]
+	path = games/reversetriv
+	url = https://github.com/Merit-Megatouch/reversetriv.git
+[submodule "games/royal"]
+	path = games/royal
+	url = https://github.com/Merit-Megatouch/royal.git
+[submodule "games/run21"]
+	path = games/run21
+	url = https://github.com/Merit-Megatouch/run21.git
+[submodule "games/solitaire"]
+	path = games/solitaire
+	url = https://github.com/Merit-Megatouch/solitaire.git
+[submodule "games/spider_kings"]
+	path = games/spider_kings
+	url = https://github.com/Merit-Megatouch/spider_kings.git
+[submodule "games/stairs"]
+	path = games/stairs
+	url = https://github.com/Merit-Megatouch/stairs.git
+[submodule "games/strippoker"]
+	path = games/strippoker
+	url = https://github.com/Merit-Megatouch/strippoker.git
+[submodule "games/sudoku"]
+	path = games/sudoku
+	url = https://github.com/Merit-Megatouch/sudoku.git
+[submodule "games/symbolstairs"]
+	path = games/symbolstairs
+	url = https://github.com/Merit-Megatouch/symbolstairs.git
+[submodule "games/symboltritowers"]
+	path = games/symboltritowers
+	url = https://github.com/Merit-Megatouch/symboltritowers.git
+[submodule "games/taiplay_new"]
+	path = games/taiplay_new
+	url = https://github.com/Merit-Megatouch/taiplay_new.git
+[submodule "games/tennis"]
+	path = games/tennis
+	url = https://github.com/Merit-Megatouch/tennis.git
+[submodule "games/texasholdem"]
+	path = games/texasholdem
+	url = https://github.com/Merit-Megatouch/texasholdem.git
+[submodule "games/tic_tac_trivia"]
+	path = games/tic_tac_trivia
+	url = https://github.com/Merit-Megatouch/tic_tac_trivia.git
+[submodule "games/tricky_fish"]
+	path = games/tricky_fish
+	url = https://github.com/Merit-Megatouch/tricky_fish.git
+[submodule "games/tritowers"]
+	path = games/tritowers
+	url = https://github.com/Merit-Megatouch/tritowers.git
+[submodule "games/trivia"]
+	path = games/trivia
+	url = https://github.com/Merit-Megatouch/trivia.git
+[submodule "games/wildapes"]
+	path = games/wildapes
+	url = https://github.com/Merit-Megatouch/wildapes.git
+[submodule "games/worddojo"]
+	path = games/worddojo
+	url = https://github.com/Merit-Megatouch/worddojo.git
+[submodule "games/zip21"]
+	path = games/zip21
+	url = https://github.com/Merit-Megatouch/zip21.git
