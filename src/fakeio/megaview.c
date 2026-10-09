@@ -49,6 +49,7 @@ static void *(*XDefaultVisual_)(void *, int);
 static XImage *(*XGetImage_)(void *, XID, int, int, unsigned, unsigned, unsigned long, int);
 static int (*XDestroyImage_)(XImage *);
 static unsigned char (*XKeysymToKeycode_)(void *, unsigned long);
+static void *(*XSetErrorHandler_)(int (*)(void *, void *));
 static int (*XShmQueryExtension_)(void *);
 static XImage *(*XShmCreateImage_)(void *, void *, unsigned, int, char *, XShmSegmentInfo *, unsigned, unsigned);
 static int (*XShmAttach_)(void *, XShmSegmentInfo *), (*XShmDetach_)(void *, XShmSegmentInfo *);
@@ -65,7 +66,7 @@ static int load_x(void) {
     if (!x || !e || !t) { fprintf(stderr, "[megaview] %s\n", dlerror()); return 0; }
 #define L(h, n) if (!(*(void **)&n##_ = dlsym(h, #n))) { fprintf(stderr, "[megaview] no %s\n", #n); return 0; }
     L(x, XOpenDisplay) L(x, XDefaultRootWindow) L(x, XFlush) L(x, XSync)
-    L(x, XGetGeometry) L(x, XDefaultVisual) L(x, XGetImage) L(x, XDestroyImage) L(x, XKeysymToKeycode)
+    L(x, XGetGeometry) L(x, XDefaultVisual) L(x, XGetImage) L(x, XDestroyImage) L(x, XKeysymToKeycode) L(x, XSetErrorHandler)
     L(e, XShmQueryExtension) L(e, XShmCreateImage) L(e, XShmAttach) L(e, XShmDetach) L(e, XShmGetImage)
     L(t, XTestFakeMotionEvent) L(t, XTestFakeButtonEvent) L(t, XTestFakeKeyEvent)
 #undef L
@@ -106,12 +107,22 @@ static int setup_capture(int w, int h) {
     return 1;
 }
 
+/* X errors are expected: when the cabinet changes resolution, a grab of the old size fails with
+ * BadMatch. Xlib's default handler would exit (and closing the viewer stops the loader), so note
+ * the error and re-read the screen size on the next frame instead. */
+static volatile int x_error;
+static int on_x_error(void *d, void *ev) { (void)d; (void)ev; x_error = 1; return 0; }
+
 /* copy the nested screen; returns the image (32 bpp BGRX) or NULL */
 static XImage *grab(void) {
-    if (use_shm) return XShmGetImage_(nd, nroot, img, 0, 0, AllPlanes) ? img : NULL;
+    x_error = 0;
+    if (use_shm) {
+        int ok = XShmGetImage_(nd, nroot, img, 0, 0, AllPlanes);
+        return ok && !x_error ? img : NULL;
+    }
     if (img) { XDestroyImage_(img); img = NULL; }
     img = XGetImage_(nd, nroot, 0, 0, cw, ch, AllPlanes, ZPixmap);
-    return img;
+    return x_error ? NULL : img;
 }
 
 /* ---- input ---- */
@@ -149,6 +160,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < 200 && !(nd = XOpenDisplay_(ndisp)); i++) usleep(50000);
     if (!nd) { fprintf(stderr, "[megaview] cannot open %s\n", ndisp); return 1; }
     nroot = XDefaultRootWindow_(nd);
+    XSetErrorHandler_(on_x_error);
     use_shm = XShmQueryExtension_(nd) && !getenv("MEGAVIEW_NOSHM");
 
     /* the window */
@@ -165,6 +177,7 @@ int main(int argc, char **argv) {
     SDL_Renderer *ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!ren) ren = SDL_CreateRenderer(win, -1, 0);
     if (!ren) { fprintf(stderr, "[megaview] %s\n", SDL_GetError()); return 1; }
+    XSetErrorHandler_(on_x_error);     /* again: SDL may have installed its own */
     SDL_RendererInfo ri;
     SDL_GetRendererInfo(ren, &ri);
     fprintf(stderr, "[megaview] %s -> window (%s renderer, %s)\n", ndisp, ri.name, use_shm ? "MIT-SHM" : "XGetImage");
@@ -177,7 +190,7 @@ int main(int argc, char **argv) {
     int tw = 0, th = 0, frame = 0, redraw = 1;
     for (;;) {
         /* the cabinet changes resolution with RandR: follow the nested root's size */
-        if (frame++ % 15 == 0 || !tex) {
+        if (frame++ % 15 == 0 || !tex || x_error) {   /* a failed grab: the size changed */
             XGetGeometry_(nd, nroot, &r, &gx, &gy, &w, &h, &bw, &dep);
             if ((int)w != tw || (int)h != th) {
                 if (tex) SDL_DestroyTexture(tex);
