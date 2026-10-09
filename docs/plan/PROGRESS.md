@@ -126,10 +126,9 @@ run. idle (attract mode) belongs to the front end, not the games list.
 
 ## Loader (phase 2) — started 2026-10-07
 
-**First version done: `./menu`** (src/frontend/menu.cpp, docs/guides/frontend.md): attract,
-categories, game grid with the cabinet's logos, game info + player count, launch and return,
-high scores, operator setup (free play/credits/language/volume). Next: apply volume, per-game
-high-score tables, help screens (gamedata/help), jukebox, in-game exit/continue overlay.
+**Superseded (2026-10-09):** the hand-written front end (`./menu`, src/frontend) was removed;
+the cabinet's own loader runs unmodified instead (docs/guides/cabinet-loader.md). The notes
+below are kept as history.
 
 - Real loader: `/usr/local/bin/loader` (2.9 MB, packed). Menu art: `/usr/local/gamedata/menugraphics`,
   operator: `/usr/local/gamedata/opsetup`, settings `/var/merit/settings.xml`, attract videos

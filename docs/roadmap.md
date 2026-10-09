@@ -73,10 +73,10 @@ normal shared objects; the work is in the loader services they expect.
 
 ### 5. The loader, part 2: the cabinet itself
 
-The game-select menu, attract mode (the `idle/*.mov` videos), operator settings
-(`/var/merit/settings.xml`), credits and free play, high-score tables and name entry,
-languages. The result is a front end that lists the ported games and launches them, which
-replaces `make run` for players.
+Done differently: instead of rewriting the menu, attract mode, operator settings, credits and
+high scores, the cabinet's own loader now runs unmodified with stand-in hardware
+([guides/cabinet-loader.md](guides/cabinet-loader.md)). A hand-written front end (`./menu`) was
+started for this and removed on 2026-10-09 once the real loader worked.
 
 ### 6. Windows native (optional)
 
