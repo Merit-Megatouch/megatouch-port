@@ -6,7 +6,7 @@ rm -f /var/config/commandline
 start_bin=${MEGA_LOADER_BIN:-/usr/local/bin/start}
 
 # what the cabinet's network looks like once configured (troubleshooting: /var/merit/fakeio/net.txt)
-for i in $(seq 40); do grep -q "eth0:" /proc/net/dev && break; sleep 0.1; done
+for i in $(seq 40); do grep -q "eth0:" /proc/net/dev && break; sleep 0.1 2>/dev/null || sleep 1; done
 (sleep 25; mkdir -p /var/merit/fakeio; { /sbin/ifconfig -a; cat /proc/net/route; cat /etc/resolv.conf; } > /var/merit/fakeio/net.txt 2>&1) &
 
 xsetroot -solid black 2>/dev/null &

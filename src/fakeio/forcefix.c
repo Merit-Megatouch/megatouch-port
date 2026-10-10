@@ -18,8 +18,10 @@
  *     SOH <52 bytes> CR, SOH "0" CR;
  *   - SP1 (set it): SOH "A" CR, then the loader writes 52 raw bytes, then SOH "0" CR. The block
  *     is kept in /var/merit/fakeio/microtouch-block1.bin;
+ *   - NM (name): "Merit SPR", the name the 2005 software expects of a Force's controller;
  *   - CX (calibrate: the controller reports each of two targets touched): OK, then both targets
  *     at once, so the first-boot calibration goes straight to its "MOVE CURSOR" check.
+ * MEGA_FORCEFIX_TRACE=1 logs the port opens and every command.
  * The coordinates themselves don't come from here: touches reach the loader as X pointer
  * events, as from the driver's X input.
  */
@@ -29,6 +31,7 @@
 #include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <poll.h>
 #include <sys/socket.h>
@@ -64,7 +67,20 @@ static void load_block1(unsigned char *b) {
     }
 }
 
+static int trace = -1;
+static void tracef(const char *fmt, ...) {
+    if (trace < 0) trace = getenv("MEGA_FORCEFIX_TRACE") && *getenv("MEGA_FORCEFIX_TRACE") == '1';
+    if (!trace) return;
+    va_list ap;
+    va_start(ap, fmt);
+    fprintf(stderr, "[forcefix] ");
+    vfprintf(stderr, fmt, ap);
+    fputc('\n', stderr);
+    va_end(ap);
+}
+
 static void command(struct tw *t, const char *c) {
+    tracef("touch controller command \"%s\"", c);
     if (!strcmp(c, "GP1")) {
         unsigned char b[BLOCK1 + 2];
         reply(t, "A");
@@ -77,6 +93,11 @@ static void command(struct tw *t, const char *c) {
         reply(t, "A");
         t->want_block = BLOCK1;
         t->len = 0;
+    } else if (!strcmp(c, "NM")) {
+        /* name: the 2005 software (Maxx Crown) on a Force requires Merit's own controller here
+         * (Is_H2H_Microtouch: the answer must start "Merit SPR"), or it stops with "Touch Screen
+         * controller not responding" */
+        reply(t, "Merit SPR");
     } else if (!strcmp(c, "CX")) {
         reply(t, "0");
         reply(t, "1");          /* first target touched */
@@ -111,6 +132,7 @@ static void controller_input(struct tw *t, const unsigned char *p, size_t n) {
 
 static int tw_open(int flags) {
     int sv[2];
+    tracef("touch controller port opened (flags %#x)", flags);
     if (!real_write) real_write = (ssize_t (*)(int, const void *, size_t))dlsym(RTLD_NEXT, "write");
     if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) < 0) return -1;
     if (sv[0] >= MAXFD) { close(sv[0]); close(sv[1]); errno = EMFILE; return -1; }
@@ -118,6 +140,15 @@ static int tw_open(int flags) {
     memset(&tw[sv[0]], 0, sizeof tw[0]);
     tw[sv[0]].peer = sv[1];
     return sv[0];
+}
+
+ssize_t read(int fd, void *buf, size_t n) {
+    static ssize_t (*real)(int, void *, size_t);
+    if (!real) real = (ssize_t (*)(int, void *, size_t))dlsym(RTLD_NEXT, "read");
+    ssize_t r = real(fd, buf, n);
+    if (fd >= 0 && fd < MAXFD && tw[fd].peer)
+        tracef("touch controller read %zd byte(s)%s%.*s", r, r > 1 ? ": " : "", r > 1 ? (int)r - 1 : 0, (char *)buf + 1);
+    return r;
 }
 
 ssize_t write(int fd, const void *buf, size_t n) {
@@ -135,10 +166,37 @@ ssize_t write(int fd, const void *buf, size_t n) {
  * /dev/null here and the clock ioctls on it succeed. */
 static char is_rtc[MAXFD];
 
+/* /proc/pci: Linux 2.4's text PCI listing, which the 2005 software (Maxx Crown) reads for its
+ * platform: an Intel 810 with a CMI8738 is a Force. Modern kernels have no /proc/pci, and a file
+ * can't be mounted into procfs, so the path leads to our listing instead. */
+#define PROC_PCI "/opt/fakeio/proc-pci.force810"
+static const char *pci_path(const char *path) {
+    return path && !strcmp(path, "/proc/pci") ? PROC_PCI : path;
+}
+
+FILE *fopen(const char *path, const char *mode) {
+    static FILE *(*real)(const char *, const char *);
+    if (!real) real = (FILE *(*)(const char *, const char *))dlsym(RTLD_NEXT, "fopen");
+    return real(pci_path(path), mode);
+}
+FILE *fopen64(const char *path, const char *mode) {
+    static FILE *(*real)(const char *, const char *);
+    if (!real) real = (FILE *(*)(const char *, const char *))dlsym(RTLD_NEXT, "fopen64");
+    return real(pci_path(path), mode);
+}
+/* the cabinet's own exists() (libamlx) is asked first */
+int exists(const char *path) {
+    static int (*real)(const char *);
+    if (!real) real = (int (*)(const char *))dlsym(RTLD_NEXT, "exists");
+    if (path && !strcmp(path, "/proc/pci")) return 1;
+    return real ? real(path) : access(path, F_OK) == 0;
+}
+
 #define WRAP_OPEN(name)                                                          \
     int name(const char *path, int flags, ...) {                                 \
         static int (*real)(const char *, int, ...);                              \
         if (!real) real = (int (*)(const char *, int, ...))dlsym(RTLD_NEXT, #name); \
+        path = pci_path(path);                                                   \
         if (!strncmp(path, "/dev/twscreen", 13)) return tw_open(flags);          \
         if (!strcmp(path, "/dev/rtc") || !strcmp(path, "/dev/rtc0")) {           \
             int fd = real("/dev/null", O_RDWR | O_CLOEXEC);                      \
@@ -156,6 +214,7 @@ int close(int fd) {
     static int (*real)(int);
     if (!real) real = (int (*)(int))dlsym(RTLD_NEXT, "close");
     if (fd >= 0 && fd < MAXFD && tw[fd].peer) {
+        tracef("touch controller port closed");
         real(tw[fd].peer);
         tw[fd].peer = 0;
     }

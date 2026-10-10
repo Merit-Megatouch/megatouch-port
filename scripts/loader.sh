@@ -30,6 +30,7 @@
 #                        lines are left out of the terminal; the console log has everything)
 #   MEGA_LOADER_BACKUP   auto (default: a snapshot at every start), daily or none
 #   MEGA_LOADER_KEY=none no security-key image (scripts/loader-key.sh makes one when missing)
+#   MEGA_LOADER_PRELOAD  more libraries to preload in the sandbox (paths as the cabinet sees them)
 #   MEGA_LOADER_MENU=keep don't add licensed games that are on no menu page (scripts/loader-menu.sh)
 #   MEGA_LOADER_NET      slirp (default: own network namespace + virtual eth0), host, or
 #                        lan[:NAME] (a network shared with other cabinets: linked play)
@@ -229,11 +230,11 @@ env=(
   --setenv MEGAIO_TRACE "${MEGAIO_TRACE:-0}"
   --setenv MEGAIO_JOYSTICK "${MEGAIO_JOYSTICK:-0}"
   --setenv TERM "${TERM:-xterm}"
-  --setenv LD_PRELOAD "/opt/fakeio/startfix.so /opt/fakeio/crashlog.so /opt/fakeio/ossfake.so /opt/fakeio/zlibcompat.so /opt/fakeio/soundfix.so /opt/fakeio/gameevents.so$PLATFORM_PRELOAD"
+  --setenv LD_PRELOAD "/opt/fakeio/startfix.so /opt/fakeio/crashlog.so /opt/fakeio/ossfake.so /opt/fakeio/zlibcompat.so /opt/fakeio/soundfix.so /opt/fakeio/gameevents.so$PLATFORM_PRELOAD${MEGA_LOADER_PRELOAD:+ $MEGA_LOADER_PRELOAD}"
 )
 # the stand-ins' optional settings, passed in when set (docs/reference/commands.md#cabinet-loader)
 for v in MEGAIO_SERIAL MEGAIO_OPERATOR_KEY MEGAIO_PLAYER_KEY MEGAIO_NO_KEYS MEGAIO_LIGHTSHOW \
-         OSSFAKE_TRACE OSSFAKE_FMOD_OUTPUT MEGA_ZLIB; do
+         OSSFAKE_TRACE OSSFAKE_FMOD_OUTPUT MEGA_ZLIB MEGA_USBFS_TRACE MEGA_FORCEFIX_TRACE MEGA_FORCE_VIDEOMODE; do
   [ -n "${!v:-}" ] && env+=(--setenv "$v" "${!v}")
 done
 # MEGA_EXTRA_ENV="A=1 B=2": extra variables for debugging

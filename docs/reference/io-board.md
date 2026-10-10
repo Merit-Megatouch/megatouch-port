@@ -220,6 +220,30 @@ or **F4** plugs the printer in until a printout is done.
 | `1FE0` | 16 | Cabinet serial number |
 | `1FEF` | 12 | `u32 pin, u32 ~pin, u32 time_set` – the board-level operator PIN (`get/set/clear_operator_pin`) |
 
+## The older board (EZ-USB AN2131)
+
+The 2005 software (Maxx Crown V16.10; [maxx](maxx.md)) drives an older USB board: USB ID
+`0100:0200`, an original EZ-USB whose CPU is started through **CPUCS `0x7F92`** (the FX1's is
+`0xE600`). The firmware is downloaded the same way (vendor request 0xA0 into RAM) and the command
+numbers are the same (vendor request 0xA1, value = command | flags << 8, index = argument), but
+each command leaves its result at another address and sets a **done flag** the host clears first
+and then polls:
+
+| Command | Done flag | Data |
+| --- | --- | --- |
+| 0x01 key ROM ID | `0x1C4A` | ID at `0x1B40` (8 bytes, XOR 0x08) |
+| 0x06 I/O poll (value 6, `| 0x100`, `| 0x200` flags; index = heartbeat << 8 \| outputs) | `0x1C4B` | status at `0x1C90` (15 bytes) |
+| 0x02 DS1991 subkeys | `0x1C48` | passwords in at `0x1CA0` (24 bytes); out `0x1B48–0x1C33` (3 × 56 + 64 + 2) |
+| 0x04 session value | `0x1C38` | 4 bytes at `0x1C34` |
+| 0x0A / 0x09 EEPROM read / write | `0x1C49` (read) | `0x1CC0` |
+| 0x05 books printer line | `0x1C49` | line at `0x1C50` (64), status `0x1C4C`, `0x1C5A`, `0x1C5F`, `0x1EBE` |
+| 0x07 clear card swipe | — | card data `0x1CC0–0x1DBF` |
+| 0x03 disable Texas Hold'em | — | — |
+
+At start the host also reads 4 bytes at `0x1C3C` (index 1); the value `0x93190210` means "possible
+watchdog timer reset". The fake board switches to this map when the firmware is started through
+`0x7F92` (`fakeio.c`, `old_command`).
+
 ## The two 1-Wire buses
 
 The firmware bit-bangs two separate 1-Wire buses on EZ-USB port C (pin masks `0x40` and `0x20`).

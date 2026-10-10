@@ -29,6 +29,7 @@
 #define USBFS "/proc/bus/usb"
 #define USBDEVFS_CONTROL 0xc0105500u
 #define DEVICE_PATH USBFS "/001/002"
+#define OLD_DEVICE_PATH USBFS "/001/003"
 #define MAXFD 1024
 
 static const unsigned char descriptor[18] = {
@@ -36,13 +37,24 @@ static const unsigned char descriptor[18] = {
     0xb4, 0x04, 0x73, 0x64, 0x01, 0x00,               /* 04b4:6473, rev 0.01 */
     0x00, 0x00, 0x00, 0x01,                           /* no strings, one configuration */
 };
+/* The Maxx Crown loader (2005) looks for the board as 0100:0200 (usb_open(0x100, 0x200)); the
+ * same fake board is listed a second time under those IDs, as device 3. */
+static const unsigned char old_descriptor[18] = {
+    0x12, 0x01, 0x10, 0x01, 0xff, 0xff, 0xff, 0x40,
+    0x00, 0x01, 0x00, 0x02, 0x01, 0x00,               /* 0100:0200 */
+    0x00, 0x00, 0x00, 0x01,
+};
 static const char devices[] =
     "T:  Bus=01 Lev=00 Prnt=00 Port=00 Cnt=00 Dev#=  1 Spd=12  MxCh= 2\n"
     "P:  Vendor=0000 ProdID=0000 Rev= 2.04\n"
     "\n"
     "T:  Bus=01 Lev=01 Prnt=01 Port=00 Cnt=01 Dev#=  2 Spd=12  MxCh= 0\n"
     "D:  Ver= 1.10 Cls=ff(vend.) Sub=ff Prot=ff MxPS=64 #Cfgs=  1\n"
-    "P:  Vendor=04b4 ProdID=6473 Rev= 0.01\n";
+    "P:  Vendor=04b4 ProdID=6473 Rev= 0.01\n"
+    "\n"
+    "T:  Bus=01 Lev=01 Prnt=01 Port=01 Cnt=02 Dev#=  3 Spd=12  MxCh= 0\n"
+    "D:  Ver= 1.10 Cls=ff(vend.) Sub=ff Prot=ff MxPS=64 #Cfgs=  1\n"
+    "P:  Vendor=0100 ProdID=0200 Rev= 0.01\n";
 
 static char is_board[MAXFD];
 static int trace = -1;
@@ -69,8 +81,9 @@ static int memfile(const char *name, const void *data, size_t len) {
 
 static int fake_open(const char *path) {
     if (!strcmp(path, USBFS "/devices")) return memfile("usb-devices", devices, sizeof devices - 1);
-    if (!strcmp(path, DEVICE_PATH)) {
-        int fd = memfile("usb-board", descriptor, sizeof descriptor);
+    if (!strcmp(path, DEVICE_PATH) || !strcmp(path, OLD_DEVICE_PATH)) {
+        int old = !strcmp(path, OLD_DEVICE_PATH);
+        int fd = memfile("usb-board", old ? old_descriptor : descriptor, sizeof descriptor);
         if (fd >= 0 && fd < MAXFD) is_board[fd] = 1;
         tracef("board opened (fd %d)", fd);
         return fd;

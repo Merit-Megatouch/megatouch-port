@@ -445,7 +445,61 @@ static void do_poll(uint8_t flags, uint16_t heartbeat) {
     }
 }
 
+/* The older board (original EZ-USB AN2131, USB 0100:0200; Maxx Crown and Force software of 2005,
+ * started through CPUCS 0x7F92): the same command numbers, but each command's results go to other
+ * RAM addresses and the host waits for a done flag the firmware sets (io-board.md, "The older
+ * board"). */
+static int old_board;
+enum {
+    O_KEYID = 0x1B40, O_KEYDATA = 0x1B48, O_DECRYPT = 0x1C34, O_DECRYPT_DONE = 0x1C38,
+    O_KEYDATA_DONE = 0x1C48, O_EE_DONE = 0x1C49, O_KEYID_DONE = 0x1C4A, O_POLL_DONE = 0x1C4B,
+    O_MDBUF = 0x1C50, O_STATUS = 0x1C90, O_PASSWORDS = 0x1CA0, O_EEBUF = 0x1CC0,
+};
+
+static void old_command(uint8_t cmd, uint8_t arg, uint16_t idx) {
+    switch (cmd) {
+    case 0x01: {                                                        /* security key ROM ID */
+        uint8_t id[8];
+        key_rom_id(id);
+        for (int i = 0; i < 8; i++) xd[O_KEYID + i] = id[i] ^ 0x08;
+        xd[O_KEYID_DONE] = 1;
+        return;
+    }
+    case 0x06:                                                          /* I/O poll */
+        do_poll(arg, idx);
+        memcpy(xd + O_STATUS, xd + X_STATUS, 15);
+        xd[O_POLL_DONE] = 1;
+        return;
+    case 0x04:                                                          /* session value */
+        for (int i = 0; i < 4; i++) xd[O_DECRYPT + i] = (uint8_t)rand();
+        xd[O_DECRYPT_DONE] = 1;
+        return;
+    case 0x02:                                                          /* DS1991 subkeys */
+        TRACE("old board: key data requested (no DS1991 key image yet)");
+        memset(xd + O_KEYDATA, 0, 0x40 * 3 + 0x2C);
+        xd[O_KEYDATA_DONE] = 1;
+        return;
+    case 0x0A:                                                          /* EEPROM read */
+        memcpy(xd + O_EEBUF, eeprom + (idx & 0x1FFF), arg);
+        xd[O_EE_DONE] = 1;
+        return;
+    case 0x09:                                                          /* EEPROM write */
+        memcpy(eeprom + (idx & 0x1FFF), xd + O_EEBUF, arg);
+        save("eeprom.bin", eeprom, sizeof eeprom);
+        xd[O_EE_DONE] = 1;
+        return;
+    case 0x05:                                                          /* books printer line */
+        TRACE("old board: printer line (no printer)");
+        xd[O_EE_DONE] = 1;
+        return;
+    default:
+        logf_("old board: command %#04x arg %#04x idx %#06x (not handled)", cmd, arg, idx);
+        return;
+    }
+}
+
 static void command(uint8_t cmd, uint8_t arg, uint16_t idx) {
+    if (old_board) { old_command(cmd, arg, idx); return; }
     switch (cmd) {
     case 0x03: memcpy(xd + MBOX, xd + idx, arg); return;              /* RAM → mailbox */
     case 0x0E: memcpy(xd + idx, xd + MBOX, arg); ram_written(idx, arg); return;   /* mailbox → RAM */
@@ -587,6 +641,12 @@ int libusb_control_transfer(libusb_device_handle *h, uint8_t type, uint8_t req, 
             if (value < MBOX) ram_written(value, len);
             if (value == 0xE600 && len == 1 && data[0] == 0) {
                 logf_("firmware started");
+                old_board = 0;
+                board_reset();
+            }
+            if (value == 0x7F92 && len == 1 && data[0] == 0) {   /* AN2131 CPUCS: the older board */
+                logf_("firmware started (older EZ-USB board)");
+                old_board = 1;
                 board_reset();
             }
         }

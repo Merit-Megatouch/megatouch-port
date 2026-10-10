@@ -58,9 +58,17 @@ right; the volume label is.
 | Unlabelled: V24.04, V28.10 | `070917_1718`, `091204_0300` | disc 1: `part1`, `part2`, `part5`; disc 2: `part6` | platform not checked |
 | Unlabelled: V27.04, V29.11 | `090805_1537`, `081203_0708` | `part1`, `part2`, `part5` | |
 | Unlabelled: V32.03, V32.11 | `090928_1617`, `091207_1021` | ION layout (PG3002-01) | |
-| Maxx Crown, Jade 2, Sapphire, Ruby; `vips40` | "disc 1…", "DISK1…", "10.07" | `part1`, `part2`, `part5`/`part6`, Ruby also `part3`, `part7`, `dospart*` | the Maxx line; not tried |
-| Maxx Diamond, Double Diamond, Emerald, MAXX2K upgrade, XL 5000/6000/Extreme, "2k plus update" | dates 1998–2002 | none | not partimage discs (older installers) |
-| Maxx Ruby 2, Ruby Update, `ruby_force_2003_v10-02_update` | — | — | not ISO 9660 images |
+| Maxx Ruby (2 discs), `maxx_ruby_d1/d2` | **V10.07** (volume "10.07") | `part1`, `part2`, `part3`, `part6`, `part7`; disc 2 `dospart1`, `dospart2` | Linux (`/bin/version`) |
+| Maxx Ruby 2 (2 discs) | V10.0 (volume "10.0") | as Ruby | **raw CD images** (2352-byte sectors): convert to ISO first (2048 bytes of each sector from offset 16) |
+| Maxx Ruby Update | — | none: replacement files (`START`, `LIBGFXOLD_SO_1_0.1`, `LIBTMAXX_SO_1_0.1`, `OPSETUP.SO` …) | raw CD image |
+| Maxx Sapphire (3 discs), `maxx_sapphire_v12-01` | **PG3002-01 V12.01** | `part1`, `part2`, `part6`; discs 2–3 `part2` | Linux, isolinux |
+| Maxx Jade 2 (4 discs) | **PG3002-01 V15.10** | `part1`, `part2`, `part5` (over all four), `part6` | Linux; the same version number as Force 2005.5, but different discs |
+| Maxx Crown (3 discs), two copies | **PG3002-01 V16.10** | `part1`, `part2`, `part5` (over all three), `part6` | `Megatouch Maxx Crown …` and `maxx_crown_v16-10_reva_…` have the same version but different checksums |
+| `vips40` | **PG4000-01 V4.00** | `part1`, `part2`, `part5` | another product line (PG4000); not identified |
+| Maxx Diamond Rev-B v6.03, Double Diamond, Emerald Rev F (2 discs each) | 2000–2001 (`001107`, `010327`, `011226`) | none | DOS: a `DISKIMGC.001` disk image, `D2000.EXE`, DOS4GW, a boot floppy image |
+| MAXX 2000 upgrade V4 (2 discs) | 1999 (`991213`, `991210`) | none | DOS: `.UDF` upgrade files (`301TO302.UDF` …) |
+| Megatouch XL 5000, Super 5000, Extreme, XL 6000; "2k plus update" | 1998 (`980121` …); XL 6000 `121227_1616`; 2k plus `000502` | none | DOS: game libraries (`*DLL.LIB`) and Smacker folders |
+| `ruby_force_2003_v10-02_update` | — | — | **not a disc**: an HTML page saved from a file-sharing site |
 
 ## The image
 

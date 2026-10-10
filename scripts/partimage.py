@@ -216,7 +216,8 @@ def disc_volumes(n, isos):
     found = {}
     for iso in isos:
         for name in iso.listdir('lib/images'):
-            m = re.fullmatch(r'part%d\.gz\.(\d{3})' % n, name, re.I)
+            # partN.gz.NNN; discs with plain ISO 9660 names (no Joliet) have partN_gz.NNN
+            m = re.fullmatch(r'part%d[._]gz\.(\d{3})' % n, name, re.I)
             if m:
                 found[int(m.group(1))] = (iso, 'lib/images/' + name)
     if not found:
@@ -233,7 +234,7 @@ def disc_info(isos):
     out = []
     for iso in isos:
         ver = iso.read('share/version.dat') or b''
-        parts = sorted({re.sub(r'\.gz\.\d+$', '', n) for n in iso.listdir('lib/images')})
+        parts = sorted({re.sub(r'[._]gz\.\d+$', '', n) for n in iso.listdir('lib/images')})
         out.append((iso, ver.decode(errors='replace').splitlines()[0] if ver else '?', parts))
     return out
 

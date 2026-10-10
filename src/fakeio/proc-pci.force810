@@ -1,0 +1,29 @@
+PCI devices found:
+  Bus  0, device   0, function  0:
+    Host bridge: Intel Corp. 82810 GMCH [Graphics Memory Controller Hub] (rev 3).
+  Bus  0, device   1, function  0:
+    VGA compatible controller: Intel Corp. 82810 CGC [Chipset Graphics Controller] (rev 3).
+      Prefetchable 32 bit memory at 0xf8000000 [0xfbffffff].
+      Non-prefetchable 32 bit memory at 0xffa80000 [0xffafffff].
+  Bus  0, device  30, function  0:
+    PCI bridge: Intel Corp. 82801AA PCI (rev 2).
+      Master Capable.  No bursts.  Min Gnt=6.
+  Bus  0, device  31, function  0:
+    ISA bridge: Intel Corp. 82801AA ISA Bridge (LPC) (rev 2).
+  Bus  0, device  31, function  1:
+    IDE interface: Intel Corp. 82801AA IDE (rev 2).
+      I/O at 0xffa0 [0xffaf].
+  Bus  0, device  31, function  2:
+    USB Controller: Intel Corp. 82801AA USB (rev 2).
+      IRQ 11.
+      I/O at 0xef40 [0xef5f].
+  Bus  1, device   9, function  0:
+    Multimedia audio controller: C-Media Electronics Inc CM8738 (rev 16).
+      IRQ 10.
+      Master Capable.  Latency=32.  Min Gnt=2.Max Lat=24.
+      I/O at 0xdc00 [0xdcff].
+  Bus  1, device  10, function  0:
+    Ethernet controller: Realtek Semiconductor Co., Ltd. RTL-8139 (rev 16).
+      IRQ 9.
+      Master Capable.  Latency=32.  Min Gnt=32.Max Lat=64.
+      I/O at 0xd800 [0xd8ff].
