@@ -183,6 +183,8 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 | `scripts/loader.sh shell` / `run <cmd>` | A shell / a command inside the cabinet's userland (joins a running cabinet's display) |
 | `scripts/loader-backup.sh [label]` / `--list` / `--restore FILE` | Snapshot / list / restore `build/loader/var/merit` (`--auto` keeps the newest 20) |
 | `scripts/loader-option.sh --list` / `NAME\|INDEX [0\|1]` | Show or set the 120 NVRAM game options (cabinet stopped) |
+| `scripts/loader-identity.sh [--new\|--set SERIAL ID\|--apply]` | This cabinet's serial and MegaNet ID: show, new random ones, set, apply (done at every start) |
+| `scripts/loader.sh run /opt/fakeio/netcfg [meganet-id ID\|server NAME\|megalink-id ID]` | Show or change network settings through the cabinet's own network library (cabinet stopped) |
 | `scripts/loader-key.sh [--force\|--show]` | Make or decode the security-key image `var/merit/fakeio/key.bin` |
 | `build/loader/bin/megaio …` | Drive the fake I/O board from a terminal: `coin`, `setup`, `calibrate`, `dip`, `fob`, `status` |
 
@@ -196,6 +198,7 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 | `MEGA_LOADER_X` | `xephyr` | `host`: draw on the desktop's X server directly (no resolution changes) |
 | `MEGA_LOADER_NET` | `slirp` | `slirp`: own network namespace with a virtual wired `eth0` (NAT, DHCP 10.0.2.15). `host`: the desktop's network (the cabinet then shows none) |
 | `MEGA_LOADER_BACKUP` | `auto` | Settings snapshot at start: `auto` (every start, newest 20), `daily` (one a day, newest 14), `none` |
+| `MEGA_LOADER_IDENTITY` | on | `off`: don't apply `<var>.identity` (serial for a new board EEPROM, MegaNet ID) at start |
 | `MEGA_LOADER_KEY` | make | `none`: no security-key image is made (key-gated options stay locked off) |
 | `MEGA_LOADER_BIN` | `/usr/local/bin/start` | Program to start inside the sandbox |
 | `MEGA_EXTRA_ENV` | — | `"A=1 B=2"`: extra variables passed into the sandbox (debugging) |

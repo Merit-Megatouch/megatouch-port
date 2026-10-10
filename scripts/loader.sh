@@ -25,6 +25,7 @@
 #   MEGA_LOADER_DISPLAY  nested display number (default 55)
 #   MEGA_LOADER_VIEW     megaview (default: scalable window, F11 fullscreen) or xephyr (Xephyr's
 #                        own window, always the cabinet's exact resolution)
+#   MEGA_LOADER_IDENTITY=off  don't apply this cabinet's identity (scripts/loader-identity.sh)
 #   MEGA_LOADER_BACKUP   auto (default: a snapshot at every start), daily or none
 #   MEGA_LOADER_KEY=none no security-key image (scripts/loader-key.sh makes one when missing)
 #   MEGA_LOADER_NET      slirp (default: own network namespace + virtual eth0) or host
@@ -154,6 +155,11 @@ env=(
   --setenv TERM "${TERM:-xterm}"
   --setenv LD_PRELOAD "/opt/fakeio/startfix.so /opt/fakeio/crashlog.so /opt/fakeio/ossfake.so /opt/fakeio/zlibcompat.so /opt/fakeio/soundfix.so"
 )
+# the stand-ins' optional settings, passed in when set (docs/reference/commands.md#cabinet-loader)
+for v in MEGAIO_SERIAL MEGAIO_OPERATOR_KEY MEGAIO_PLAYER_KEY MEGAIO_NO_KEYS OSSFAKE_TRACE \
+         OSSFAKE_FMOD_OUTPUT MEGA_ZLIB; do
+  [ -n "${!v:-}" ] && env+=(--setenv "$v" "${!v}")
+done
 # MEGA_EXTRA_ENV="A=1 B=2": extra variables for debugging
 for kv in ${MEGA_EXTRA_ENV:-}; do env+=(--setenv "${kv%%=*}" "${kv#*=}"); done
 [ -n "${WAYLAND_DISPLAY:-}" ] && env+=(--setenv XDG_RUNTIME_DIR /mnt/wslg/runtime-dir)
@@ -207,6 +213,12 @@ case "${1:-}" in
         auto) "$P/scripts/loader-backup.sh" --auto || true ;;
         daily) "$P/scripts/loader-backup.sh" --daily || true ;;
       esac
+    fi
+    # this cabinet's identity (serial, MegaNet ID: scripts/loader-identity.sh)
+    if [ "${MEGA_LOADER_IDENTITY:-on}" != off ]; then
+      "$P/scripts/loader-identity.sh" --apply || true
+      ser=$(sed -n 's/^SERIAL=//p' "${MEGA_LOADER_VAR:-$B/var}.identity" 2>/dev/null)
+      [ -n "$ser" ] && [ -z "${MEGAIO_SERIAL:-}" ] && env+=(--setenv MEGAIO_SERIAL "$ser")
     fi
     # the security-key image the fake board serves, made once from this /var's NVRAM
     [ "${MEGA_LOADER_KEY:-make}" = none ] || "$P/scripts/loader-key.sh" >/dev/null || true

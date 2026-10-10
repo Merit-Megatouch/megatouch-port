@@ -120,6 +120,9 @@ say "Setting up (first time 10-20 minutes, mostly downloads)"
 make setup
 make loader-setup
 make loader
+say "This cabinet's identity"
+scripts/loader-identity.sh
+echo "Give the MegaNet ID to a MegaNet server's operator to have this cabinet activated."
 
 # ---------------------------------------------------------------- start it easily
 if [ "$SHORTCUT" = 1 ] && [ "$KIOSK" = 0 ]; then

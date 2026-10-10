@@ -234,7 +234,14 @@ gone; community servers exist. To use one:
    example `us.oerinet.net`) → *Enter*.
 3. Back on *Network Summary*: **Connect to MegaNet/Update from Server**. The server's operator
    usually has to activate your machine first; tell them your **MegaNet ID** (shown on
-   *Network Summary*).
+   *Network Summary*, or `scripts/loader-identity.sh`).
+
+**Each install is its own machine.** A new install gets its own hardware serial number and
+MegaNet ID (an install that already had a cabinet keeps the one it had, so its registration
+stays valid). `scripts/loader-identity.sh` shows them; `--new` picks new random ones and
+`--set SERIAL MEGANET_ID` sets them (cabinet stopped). They are kept in
+`build/loader/var.identity`, which `make loader-reset` doesn't touch; keep a copy with your
+backups if the server knows your machine.
 
 Good to know before connecting: a MegaNet connection sends the server your cabinet's books,
 logs and crash reports (as the real cabinet did), and the server can change settings, menus and
@@ -347,6 +354,7 @@ meant for Linux boxes.
 | Path | What |
 | --- | --- |
 | `cabinet.local.conf` | Your image path |
+| `build/loader/var.identity` | This cabinet's serial number and MegaNet ID |
 | `build/loader/var/merit/` | The cabinet's state (settings, books, high scores, keys) |
 | `build/loader/backups/` | Backups of that state |
 | `build/loader/var/merit/logging/logs/` | The cabinet's own logs (`*.running.log` is the current run) |
