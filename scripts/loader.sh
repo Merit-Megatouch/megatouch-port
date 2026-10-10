@@ -57,11 +57,21 @@ SBTMP=/tmp
 # a Force's extra library directories, and its stand-ins: usbfs for the I/O board, forcefix
 # (video modes, MicroTouch controller), and the runtime's newer Ogg/Vorbis over the cabinet's
 # 2005 ones (which PulseAudio's libsndfile can't use)
-PLATFORM_LIBS="" PLATFORM_PRELOAD="" TITLE=ION
+PLATFORM_LIBS="" PLATFORM_PRELOAD="" TITLE=ION KEY_PLATFORM=$PLATFORM
 if [ "$PLATFORM" = force ]; then
   TITLE=Force
   PLATFORM_LIBS=":/usr/X11R6/lib:/usr/local/lib/merit:/usr/mozilla/lib"
   PLATFORM_PRELOAD=" /opt/fakeio/usbfsfake.so /opt/fakeio/forcefix.so /opt/rt/libogg.so.0 /opt/rt/libvorbis.so.0 /opt/rt/libvorbisenc.so.2"
+fi
+# the 2005 software (Maxx Crown, /usr/local/share/forceonly) runs as a Force, with its own SQLite
+# (the runtime's is the ION's, which writes another encryption format) and the older DS1991 key
+if [ "$PLATFORM" = force ] && [ -d "$C/root/usr/local/share/forceonly" ]; then
+  TITLE=Maxx KEY_PLATFORM=maxx
+  # its own SQLite and text stack (with the runtime's newer Pango it spins on "font size >= 0")
+  for l in libsqlite.so.0 libexpat.so.0 libfreetype.so.6 libfontconfig.so.1 libglib-2.0.so.0 \
+           libgmodule-2.0.so.0 libgobject-2.0.so.0 libpango-1.0.so.0 libpangoft2-1.0.so.0; do
+    PLATFORM_PRELOAD="$PLATFORM_PRELOAD /usr/local/lib/$l"
+  done
 fi
 [ -L "$C/root/tmp" ] && SBTMP=$(readlink "$C/root/tmp")
 if [ "$C" != "$B" ]; then
@@ -356,7 +366,15 @@ HWXML
       echo "wrote the simulated hardware's hardware.xml (ION, widescreen)"
     fi
     # the security-key image the fake board serves, made once from this /var's NVRAM
-    [ "${MEGA_LOADER_KEY:-make}" = none ] || MEGA_KEY_PLATFORM=$PLATFORM "$P/scripts/loader-key.sh" >/dev/null || true
+    [ "${MEGA_LOADER_KEY:-make}" = none ] || MEGA_KEY_PLATFORM=$KEY_PLATFORM "$P/scripts/loader-key.sh" >/dev/null || true
+    # the 2005 software on a Force shows the Force menu background, which the Maxx discs don't have
+    # (it came on the Force's own media): the Maxx one, as an operator background (/var/merit/menu)
+    if [ "$KEY_PLATFORM" = maxx ]; then
+      MV="${MEGA_LOADER_VAR:-$B/var}/merit/menu"
+      if [ ! -e "$MV/forcebkg.spr" ] && [ -f "$C/root/usr/local/share/merit/menugraphics/main/2k3/maxxbkg.spr" ]; then
+        mkdir -p "$MV" && cp "$C/root/usr/local/share/merit/menugraphics/main/2k3/maxxbkg.spr" "$MV/forcebkg.spr"
+      fi
+    fi
     # games the key licenses but no menu page lists (the 2014 factory menu leaves some out): put
     # them on the menu once; a game the operator takes off again stays off (scripts/loader-menu.sh)
     if [ "$PLATFORM" = ion ] && [ "${MEGA_LOADER_MENU:-fill}" != keep ] && [ -f "${MEGA_LOADER_VAR:-$B/var}/merit/nvram.dat" ]; then

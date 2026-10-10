@@ -68,6 +68,12 @@ static uint8_t xd[0x10000];
 static uint8_t eeprom[0x2000];
 static uint8_t keyimg[8 * 1024];
 static int have_key;
+/* the older board's DS1991 key (key-ds1991.bin: ROM ID, then 3 x (8-byte subkey ID, 48 bytes) and
+ * the 64-byte scratchpad, in plain text: scripts/loader-key.sh), and the session value the host
+ * holds (its default 0x29292929 until it asks for one with command 4) */
+static uint8_t ds1991[8 + 3 * 56 + 64];
+static int have_ds1991;
+static uint8_t session[4] = {0x29, 0x29, 0x29, 0x29};
 static char dir[512];
 static int trace;
 static struct megaio_ctl *ctl;
@@ -184,6 +190,7 @@ static void init_state(void) {
         save("eeprom.bin", eeprom, sizeof eeprom);
     }
     have_key = load("key.bin", keyimg, sizeof keyimg);
+    have_ds1991 = load("key-ds1991.bin", ds1991, sizeof ds1991);
     lightshow = getenv("MEGAIO_LIGHTSHOW") && *getenv("MEGAIO_LIGHTSHOW") == '1';
     open_ctl();
     open_events();
@@ -200,6 +207,7 @@ static void board_reset(void) {
     xd[X_STATUS + 8] = 0xFF;
     xd[X_JOYSTICK] = getenv("MEGAIO_JOYSTICK") && *getenv("MEGAIO_JOYSTICK") == '1';
     if (lightshow) xd[X_LS_PRESENT] = 0x80;           /* USBIO::LightshowWasDetected */
+    memset(session, 0x29, sizeof session);            /* the older board's host starts with this (USBIO::FixKey) */
 }
 
 /* One light-show packet (LightShowManager): byte 0 = 1, byte 1 = command, then arguments.
@@ -456,11 +464,54 @@ enum {
     O_MDBUF = 0x1C50, O_STATUS = 0x1C90, O_PASSWORDS = 0x1CA0, O_EEBUF = 0x1CC0,
 };
 
+/* What the board hands over for a DS1991 key: the loader (USBReadKeyData, then decrypt) undoes a
+ * transport scrambling with the session value and then a cipher keyed by ROM ID bytes 1-5, so
+ * the plain image is put through both the other way (docs/reference/maxx.md, "The security key"). */
+static void ds1991_out(uint8_t *out) {
+    const uint8_t *id = ds1991, *s = session;
+    uint8_t k[4], ct[3 * 56 + 64];
+    k[0] = (uint8_t)(id[3] - id[4] - id[5]) ^ id[1] ^ 0x7f;
+    k[1] = (uint8_t)(id[1] + id[2] - id[3] - id[4]) ^ 0xf3;
+    k[2] = (uint8_t)(id[4] + 0xbc) ^ (uint8_t)(id[2] * 2 + id[1]);
+    k[3] = (uint8_t)(id[4] * 2 + id[5] + id[1] + 0x7f);
+    /* the cipher: state 0x12/0x78/0x37 advanced over the 8-byte passwords, 0xF3 for the scratchpad */
+    static const uint8_t start[4] = {0xC2, 0x28, 0xE7, 0xF3};
+    memcpy(ct, ds1991 + 8, sizeof ct);
+    for (int b = 0; b < 4; b++) {
+        uint8_t c = start[b];
+        int parts = b < 3 ? 2 : 1;
+        for (int p = 0; p < parts; p++) {
+            uint8_t *q = b < 3 ? ct + b * 56 + (p ? 8 : 0) : ct + 3 * 56;
+            int n = b < 3 ? (p ? 48 : 8) : 0x3c;
+            for (int j = 0; j < n; j++, c += 0x16) q[j] = (uint8_t)((q[j] ^ k[j % 4]) + c);
+        }
+    }
+    /* the transport scrambling, as USBReadKeyData undoes it (extra bytes 0xE8/0xE9 = 0) */
+    uint8_t *id1 = ct, *d1 = ct + 8, *id2 = ct + 56, *d2 = ct + 64, *id3 = ct + 112, *d3 = ct + 120, *sc = ct + 168;
+    memset(out, 0, 0xEC);
+    for (int i = 0; i < 8; i++) {
+        out[i] = (uint8_t)(id1[i] - s[0]) ^ s[i & 3];
+        out[0x38 + i] = (uint8_t)(id2[i] - (s[3] ^ 0x41));
+        out[0x70 + i] = (uint8_t)(id3[i] + (s[2] ^ s[i & 3]));
+    }
+    for (int i = 0; i < 48; i++) {
+        uint8_t m = i == 0 ? (uint8_t)((s[1] + s[0]) - s[2]) ^ s[3] : d1[i - 1];
+        out[8 + i] = d1[i] ^ m;
+        out[0x40 + i] = d2[i];
+        out[0x78 + i] = d3[i];
+    }
+    memcpy(out + 0xA8, sc, 64);
+    out[0xA8 + 0x3d] ^= s[0];
+    out[0xA8 + 0x3e] ^= s[1];
+    out[0xA8 + 0x3f] ^= s[2];
+}
+
 static void old_command(uint8_t cmd, uint8_t arg, uint16_t idx) {
     switch (cmd) {
     case 0x01: {                                                        /* security key ROM ID */
         uint8_t id[8];
         key_rom_id(id);
+        if (have_ds1991) memcpy(id, ds1991, 8);
         for (int i = 0; i < 8; i++) xd[O_KEYID + i] = id[i] ^ 0x08;
         xd[O_KEYID_DONE] = 1;
         return;
@@ -471,12 +522,13 @@ static void old_command(uint8_t cmd, uint8_t arg, uint16_t idx) {
         xd[O_POLL_DONE] = 1;
         return;
     case 0x04:                                                          /* session value */
-        for (int i = 0; i < 4; i++) xd[O_DECRYPT + i] = (uint8_t)rand();
+        for (int i = 0; i < 4; i++) xd[O_DECRYPT + i] = session[i] = (uint8_t)rand();
         xd[O_DECRYPT_DONE] = 1;
         return;
     case 0x02:                                                          /* DS1991 subkeys */
-        TRACE("old board: key data requested (no DS1991 key image yet)");
-        memset(xd + O_KEYDATA, 0, 0x40 * 3 + 0x2C);
+        if (have_ds1991) ds1991_out(xd + O_KEYDATA);
+        else memset(xd + O_KEYDATA, 0, 0xEC);
+        TRACE("old board: DS1991 key data %s", have_ds1991 ? "served" : "requested (no key-ds1991.bin)");
         xd[O_KEYDATA_DONE] = 1;
         return;
     case 0x0A:                                                          /* EEPROM read */

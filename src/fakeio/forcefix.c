@@ -357,3 +357,19 @@ int poll(struct pollfd *fds, nfds_t n, int timeout) {
     }
     return r;
 }
+
+/* The CPU. The Force had an Intel Celeron (family 6); the 2005 software checks Allegro's
+ * cpu_family for it (ForceChk1, which also decides which cabinet code the security key must
+ * carry), so on an AMD or a newer Intel PC it would take the cabinet for something else.
+ * Allegro's check_cpu (CPUID) runs as usual and the result is then made the Force's. */
+void check_cpu(void) {
+    static void (*real)(void);
+    if (!real) real = (void (*)(void))dlsym(RTLD_NEXT, "check_cpu");
+    if (real) real();
+    int *family = (int *)dlsym(RTLD_DEFAULT, "cpu_family");
+    int *model = (int *)dlsym(RTLD_DEFAULT, "cpu_model");
+    char *vendor = (char *)dlsym(RTLD_DEFAULT, "cpu_vendor");
+    if (family) *family = 6;
+    if (model) *model = 8;                       /* Celeron (Coppermine) */
+    if (vendor) strcpy(vendor, "GenuineIntel");
+}

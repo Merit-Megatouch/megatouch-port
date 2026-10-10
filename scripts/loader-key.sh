@@ -53,6 +53,15 @@ if [ -f "$P/cabinet.local.conf" ]; then
     [ -n "${!k+x}" ] || eval "export $line"
   done < <(grep -E '^KEY_(COUNTRY|LANGUAGES|PLAYER_LANGUAGES)=' "$P/cabinet.local.conf")
 fi
+# the 2005 software (Maxx Crown) reads only the older DS1991 key: key-ds1991.bin (scripts/lib/ds1991key.py)
+if [ "${MEGA_KEY_PLATFORM:-}" = maxx ]; then
+  K91="$VAR/merit/fakeio/key-ds1991.bin"
+  if [ "$mode" = --show ]; then exec python3 "$P/scripts/lib/ds1991key.py" --show "$K91"; fi
+  [ -d "$VAR/merit" ] || { echo "no cabinet state at $VAR (make loader-setup)" >&2; exit 1; }
+  [ -f "$K91" ] && [ "$mode" != --force ] && { echo "$K91 exists (--force to rewrite)"; exit 0; }
+  mkdir -p "$(dirname "$K91")"
+  exec python3 "$P/scripts/lib/ds1991key.py" "$mode" "$K91"
+fi
 if [ "$mode" != --show ] && [ "$mode" != --languages ] && [ "$mode" != --countries ]; then
   [ -d "$VAR/merit" ] || { echo "no cabinet state at $VAR (make loader-setup)" >&2; exit 1; }
   [ -f "$KEY" ] && [ "$mode" != --force ] && { echo "$KEY exists (--force to rewrite)"; exit 0; }

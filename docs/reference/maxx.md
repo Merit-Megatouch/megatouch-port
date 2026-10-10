@@ -3,9 +3,13 @@
 The Megatouch Maxx was the cabinet line before the Force. Its last Linux release, **Crown**
 (`PG3002-01 V16.10`, three discs), is being brought up in the cabinet loader; this page records
 what is known so far. The discs of the whole line are listed in
-[cabinet → every installer disc](cabinet.md#every-installer-disc-as-seen-2026-10-11). Status: the
-loader starts, finds and starts the I/O board, passes the touchscreen check and stops at the
-security key (a DS1991 key image doesn't exist yet).
+[cabinet → every installer disc](cabinet.md#every-installer-disc-as-seen-2026-10-11).
+
+**Status (2026-10-11):** it runs as a Force (`MEGA_LOADER_CABINET=build/maxx`, a tree unpacked by
+hand; `make loader-setup` doesn't build Maxx yet) to its main menu, with a DS1991 key image the
+fake board serves. Not right yet: red and blue are swapped in the menu graphics (sprites; the
+PCX splash is correct), only Puzzles, Quiz & Word and Kids Club appear, and the default language
+comes out German (the key's default-language byte is one off for this release).
 
 ## The discs and the system
 
@@ -64,6 +68,21 @@ Failed checks show a message and then run `t_i_l` after clearing the stack up to
 itself crashes (SIGSEGV in `memset`): a crash in libc's `memset` with a return address in the
 loader is this loop.
 
+## Libraries
+
+The runtime's copies of libraries the cabinet also ships (the ION's SQLite 2, glib, Pango,
+FreeType, Fontconfig, Expat) don't suit this release: SQLite writes another encryption format
+("write bad cypher version [252]"), and with the newer Pango the menu spins on
+`pango_font_description_set_size: assertion 'size >= 0'` (millions of log lines). `loader.sh`
+preloads Crown's own copies of those (not GL or X).
+
+## Menu background
+
+On a Force the menu wants `main/2k3/forcebkg`, which these Maxx discs don't have (only `maxxbkg`,
+`pzbkg`); `BuildMainScreen` first looks for an operator background in `/var/merit/menu/`, so
+`loader.sh` puts the Maxx one there as `forcebkg.spr`. Without it the menu crashes in
+`SetBackgroundBmp` (a null bitmap) right after the first-boot calibration.
+
 ## Databases
 
 The loader's encrypted SQLite 2 is its own `libsqlite.so.0`; the ION's copy in the runtime writes
@@ -81,9 +100,30 @@ from `0x1B48`) or, without USB, bit-banged directly (`ReadKeyData`).
   `merit_encrypt` (state `0x12 0x78 0x37 0xF3`, one per subkey), then XOR 0x18 / 0x19 / 0x1A.
 - **Transport scrambling:** IDs and data are mixed with the board's 4-byte session value
   (command 4, at `0x1C34`) and two more bytes after the scratchpad (`+0xE8`, `+0xE9`).
-- **Cipher** (`decrypt`): a 4-byte key from ROM ID bytes 1–3 (and a 2-byte global that is
-  always 0); each byte `out = (in − c) XOR key[i % 4]`, `c` starting at the subkey's state and
-  growing by 0x16 per byte, through ID, data and scratchpad.
+- **Cipher** (`decrypt`): a 4-byte key from ROM ID bytes 1–5: `((id3 − id4) − id5) ^ id1 ^ 0x7F`,
+  `(((id1 + id2) − id3) − id4) ^ 0xF3`, `(id4 + 0xBC) ^ (2·id2 + id1)`, `2·id4 + id5 + id1 + 0x7F`
+  (the "global" next to `k_laser` is ROM ID bytes 4–5). Each byte `out = (in − c) XOR key[i % 4]`,
+  `i` restarting at each ID / data / scratchpad part, `c` running on: it starts at 0xC2, 0x28, 0xE7
+  for the three subkeys (0x12, 0x78, 0x37 advanced by 8 × 0x16 over the passwords) and 0xF3 for
+  the scratchpad, and grows by 0x16 per byte. Verified: the loader decodes the served key byte
+  for byte as written.
+- **Transport scrambling** (session value S): ID 1 `(S[i&3] ^ r) + S0`, ID 2 `(S3 ^ 0x41) + r`,
+  ID 3 `r − (S2 ^ S[i&3])`; data 1 is chained (`d[i] = r[i] ^ d[i−1]`, `d[0] = r[0] ^ (((S1 + S0)
+  − S2) ^ S3)`, because `k_data1` follows `k_id3` in memory); data 2 and 3 XOR the bytes after the
+  scratchpad (+0xE8, +0xE9); scratchpad bytes 0x3D–0x3F XOR S0–S2. S is 0x29292929
+  (`USBIO::FixKey`) until command 4 hands out a new one.
+- **ROM ID** (`FUN_0823e140`, "KEY RANGE MISMATCH"): family 0x82, bytes 6–5 = `00 40`, bytes 4–1
+  between 0x31380 and 0x53FFF. Ours: `82 00 50 04 00 40 00 ed`.
+- **The Force check** (`ForceChk1`, which picks the cabinet-code variant): platform 4, a USB board,
+  two flags, and Allegro's `cpu_family == 6` (the Force's Celeron). `forcefix.so` reports family 6
+  on any PC, so the key's Force flag (subkey 3 data `+0x1C` bit 3) always matches.
+- **Pages:** each 64-byte page holds its subkey's ID at +0 and data at +0x10; the ION 2014
+  `KeyManager` reads legacy keys the same way (P1/P2/P3 at `+0x3F0`/`+0x430`/`+0x470`), so its legacy
+  branches name fields: NJ exception P1+0x10, Champion Edition cost P1+0x11, language mask P1+0x13
+  (Crown: big-endian, `mask = v·2 + 1`), lockout P1+0x37, cabinet code P1+0x38, ID 2 = date
+  `MM/DD/YY`, default language P2+0x2E, prices P2+0x2F/0x3A/0x3B, locale P2+0x30 (10 chars), country
+  P2+0x3E, ID 3 = revision; options: option *i* at legacy position `LEGACY[i]` (2-bit codes in
+  subkey 3 data bytes 0–15, single bits from data byte 0x10; table in `scripts/lib/ds1991key.py`).
 - **Checked at start** (`FUN_0823ff40`): ID 1 starts `SA`; ID 2's last two characters are `0`/`9`
   and a digit `0`–`5` or `9`; ID 3 starts `R`; subkey 1's data bytes `0x28–0x2F` are the cabinet
   code `87 23 87 9F E2 43 24 98` (+1 on the first byte if a hardware flag in subkey 3 `+0x2C`
@@ -96,6 +136,7 @@ from `0x1B48`) or, without USB, bit-banged directly (`ReadKeyData`).
 
 ## Open questions
 
-- The rest of the DS1991 layout (options, languages, country, MegaNet and TournaMAXX settings).
-- What `DAT_087a5694` (the platform test next to the hardware flag) returns on a Force.
+- The rest of the DS1991 layout (which categories and games it offers; options; languages).
+- Why sprites come out with red and blue swapped (the colour conversion is linked into the loader:
+  `_colorconv_blit_*`, `_rgb_*_shift_*`).
 - The ISA board's protocol (ports 0x228–0x22D), for running Crown as a Maxx.
