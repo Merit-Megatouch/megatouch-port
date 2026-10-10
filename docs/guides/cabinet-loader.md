@@ -3,12 +3,17 @@
 The Megatouch ION loader from the disk image (menus, attract mode, Operator Setup, coins,
 operator and player keys, and every game it launches) runs unmodified on Linux / WSL2. The
 missing cabinet hardware is replaced by stand-ins: a fake USB I/O board, a fake touchscreen
-controller, an OSS sound device that plays through PulseAudio, and a nested X server that can
-change resolution the way the cabinet does.
+controller, a security-key image, an OSS sound device that plays through PulseAudio, a virtual
+wired network, and a nested X server that changes resolution the way the cabinet does, shown
+scaled in a normal window.
+
+This is the technical guide. **Operators**: the [operator guide](operator-guide.md) covers
+installing, running and setting up the cabinet step by step.
 
 ```bash
-make loader-setup     # once: extract the image's partitions, download Xephyr (~5 GB, a few minutes)
-make loader-run       # builds the stand-ins and starts the loader in its own window
+make setup            # once: the 32-bit runtime the cabinet's programs run on
+make loader-setup     # once: extract the image's partitions (~11 GB), download Xephyr, Xvfb, SDL2, slirp4netns
+make loader-run       # builds the stand-ins and starts the cabinet in its own window
 ```
 
 The loader takes about 20 seconds to start (24 s on the real cabinet), then plays its attract
@@ -208,6 +213,13 @@ coins giving credits with free play off; classic games (Tri Towers) and Unity ga
 Solitaire, Cardboard Chaos, Super Run 21) launched from the menu with sound; returning to the
 menu when a game's player exits.
 
+Since then (2026-10-07 to 10-09): Super Boxxi (cabinet zlib); the sidebar and its switcher;
+DHCP on the virtual network, the Connection Wizard (wired), MegaNet registration check and
+updates from a community server, TournaMAXX listing the server's tournaments; the key image
+(Operator Setup's key-gated options, Tournament Mode, the MegaNet page); Trix added to the menu
+via Game Setup and played through several tricks at 1280×800; Milky Way Mini Golf started; the
+scalable window following resolution changes, with touches mapped at any size.
+
 ## Known issues
 
 - *Hardware Serial Number* and S.M.A.R.T. warnings in the log are expected (no disk). `wlan0`
@@ -217,3 +229,6 @@ menu when a game's player exits.
   options are locked off. `scripts/loader-key.sh` makes one.
 - The shell helpers (`scripts/loader.sh run …`) join display `:55` only while a loader runs;
   otherwise they use the desktop's display.
+- Not every game has been tried. Linked play between cabinets (MegaLink) needs cabinets on one
+  network and is not set up yet ([roadmap](../roadmap.md)).
+- WSLg's sound server can hang (no sound in any Linux app); `wsl --shutdown` fixes it.

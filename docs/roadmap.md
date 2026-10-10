@@ -1,13 +1,28 @@
-# Roadmap: the whole platform
+# Roadmap
 
-This repository aims to run **every game on the Megatouch ION cabinet** off the cabinet, and in the
-end to replace **the loader itself**, the protected program that runs the menu, credits,
-settings and the 2D engine that most games are built on.
+The main route is **the cabinet itself**: the Megatouch ION's own software, unmodified, with its
+hardware simulated ([cabinet-loader](guides/cabinet-loader.md)). It already runs the menus, the
+games, Operator Setup, coins, keys, MegaNet and TournaMAXX. The second route, **standalone
+ports** of single games, came first and is kept for development (below).
 
-Each game is its own repo under `games/`. Everything shared (backends, host, the eventual loader,
-tools, docs) lives here. A fix made for one game helps every game of its family.
+## The cabinet
 
-## Where things stand
+**Done:** boot, menus, every stand-in (I/O board, touchscreen, sound, security key, network,
+display), Operator Setup, coins and keys, MegaNet and TournaMAXX, settings and backups, a
+scalable fullscreen window, the [operator guide](guides/operator-guide.md).
+
+**Next:**
+
+1. **Try every game** from the menus and fix what misbehaves (as with Super Boxxi and Trix).
+2. **Linked cabinets (MegaLink).** Several installs, on one PC, a LAN or the internet, on one
+   virtual cabinet network: a small virtual switch per install (replacing slirp4netns) with its
+   own internet router, plus an optional hub that joins installs. First step: two cabinets on one
+   PC, to learn how MegaLink finds its partners.
+3. **A unique identity per install** (serial, MegaNet ID, key image), so each install is its own
+   machine to MegaNet servers and to linked play.
+4. **Easier installs:** a one-command installer and a Windows shortcut.
+
+## Standalone ports: where things stand
 
 | Family | Games | Status | What porting takes |
 | --- | ---: | --- | --- |
@@ -19,7 +34,7 @@ tools, docs) lives here. A fix made for one game helps every game of its family.
 
 Per-game list: [reference/games.md](reference/games.md).
 
-## Milestones
+## Standalone ports: milestones
 
 ### 1. Finish the GameDevice family (now)
 

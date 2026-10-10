@@ -5,7 +5,7 @@
 #   scripts/loader.sh shell            a shell inside the sandbox (cabinet userland)
 #   scripts/loader.sh run <cmd> ...    run any command inside the sandbox
 #
-# Layout (made by `make loader-root`, all under build/loader/, git-ignored):
+# Layout (made by `make loader-setup`, all under build/loader/, git-ignored):
 #   root/  the sideB-root partition      → /
 #   var/   the sideB-var partition       → /var       (writable: settings, NVRAM, logs)
 #   home/  the sideB-home partition      → /home
@@ -32,7 +32,7 @@
 set -euo pipefail
 P=$(cd "$(dirname "$0")/.." && pwd)
 B="$P/build/loader"
-[ -d "$B/root/usr/local/bin" ] || { echo "no cabinet root: run make loader-root" >&2; exit 1; }
+[ -d "$B/root/usr/local/bin" ] || { echo "no cabinet root: run make loader-setup" >&2; exit 1; }
 [ -f "$B/bin/libusb-1.0.so.0" ] || { echo "no fake I/O board: run make loader" >&2; exit 1; }
 
 ION="$B/ion"                                   # the full ion_only partition (make loader-setup)

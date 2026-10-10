@@ -1,39 +1,40 @@
 # megatouch-port documentation
 
-The goal is every game from the Megatouch ION cabinet running on a normal PC (Linux or WSL2),
-using the original game and engine binaries, and in the end a replacement for the cabinet's
-loader itself. Three GameDevice games, one Unity game and one legacy game are playable today; the [roadmap](roadmap.md) covers
-the remaining 200-odd.
+This project runs a Megatouch ION (2014) cabinet's own software, unmodified, on a PC (Linux or
+Windows with WSL2), with the cabinet's hardware simulated: menus, every game, Operator Setup,
+coins, keys, MegaNet and TournaMAXX. An older route, standalone ports of single games, is kept
+for development.
 
 ## Start here
 
 | I want to… | Read |
 | --- | --- |
-| Play Trix or Word Dojo 2 | [Quick start](guides/quick-start.md) |
-| Run the cabinet's original loader (menus, operator setup, coins, keys) | [Cabinet loader](guides/cabinet-loader.md) |
-| Port another game | [Porting a game](guides/porting-a-game.md), then the [survey](reference/gamedevice-survey.md) to pick one |
+| **Run a cabinet on my PC and look after it** | [Operator guide](guides/operator-guide.md) |
+| Install from scratch, step by step | [Quick start](guides/quick-start.md) |
 | Fix something that doesn't work | [Troubleshooting](guides/troubleshooting.md) |
-| Find out why a game crashes or lags | [Debugging](guides/debugging.md) |
-| Push my work | [Contributing](guides/contributing.md) |
+| Know how the cabinet is simulated | [Cabinet loader](guides/cabinet-loader.md), [I/O board](reference/io-board.md) |
+| Look up a command or setting | [Commands](reference/commands.md) |
 | Know what's next for the project | [Roadmap](roadmap.md) |
-| Understand how it works | [Architecture](reference/architecture.md) |
+| Port a single game (developers) | [Porting a game](guides/porting-a-game.md) |
+| Push my work | [Contributing](guides/contributing.md) |
 
 ## Guides (task-oriented)
 
 | Guide | Contents |
 | --- | --- |
-| [quick-start](guides/quick-start.md) | WSL install, packages, clone, image, `make setup`, play, Windows shortcut, standalone copy |
-| [porting-a-game](guides/porting-a-game.md) | Scaffold → stand-ins → first run → play-through → commit, worked through on Word Dojo 2 |
-| [debugging](guides/debugging.md) | Symptom → tool table; crash traces, screenshots, autoclick, paths, sound, profiler, ABI questions |
-| [troubleshooting](guides/troubleshooting.md) | Setup, launch, gameplay and git problems with fixes |
-| [cabinet-loader](guides/cabinet-loader.md) | The original loader in a sandbox: setup, controls (F1 setup, F5-F8 coins, F9/F10 keys), operator key, stand-ins, known issues |
-| [contributing](guides/contributing.md) | Main repo vs game repos, everyday git, publishing, credentials, what to update, testing |
+| [operator-guide](guides/operator-guide.md) | Install, start/stop, the window, controls, first-time setup, Operator Setup map, coins and free play, operator and player keys, the game menu, network/MegaNet/TournaMAXX, game options, backups, updating, problems |
+| [quick-start](guides/quick-start.md) | WSL, packages, clone, image path, `make setup`, `make loader-setup`, first run |
+| [troubleshooting](guides/troubleshooting.md) | Setup and cabinet problems with fixes; then the standalone ports |
+| [cabinet-loader](guides/cabinet-loader.md) | How the cabinet runs: every stand-in and compatibility fix, network, licence key and options, backups, settings |
+| [porting-a-game](guides/porting-a-game.md) | Standalone ports: scaffold → stand-ins → first run → play-through → commit, worked through on Word Dojo 2 |
+| [debugging](guides/debugging.md) | Standalone ports: symptom → tool table; crash traces, screenshots, sound, profiler |
+| [contributing](guides/contributing.md) | Main repo vs game repos, everyday git, publishing, what to update, testing |
 
 ## Reference (look things up)
 
 | Reference | Contents |
 | --- | --- |
-| [commands](reference/commands.md) | Every make target, `game.conf` key, `MEGA_*` variable, engine debug flag and tool |
+| [commands](reference/commands.md) | Every make target and script, the cabinet loader's settings, `game.conf` keys, `MEGA_*` variables, engine debug flags and tools |
 | [architecture](reference/architecture.md) | Components, startup sequence, frame loop, file, image and sound data flow, repo layout |
 | [engine-abi](reference/engine-abi.md) | Classes, sizes, field offsets, vtable slots; which slots our backend fills; adding a class |
 | [loader-services](reference/loader-services.md) | Every loader stand-in with behaviour and the game that needed it; what unported games still need |
@@ -44,7 +45,7 @@ the remaining 200-odd.
 | [known-bugs](reference/known-bugs.md) | Open issues; every bug fixed so far by category; diagnosing a new crash |
 | [games](reference/games.md) | All 194 cabinet games: GameId, library, family, resolution, port status *(generated: `make docs`)* |
 | [gamedevice-survey](reference/gamedevice-survey.md) | Each GameDevice game's missing loader symbols, easiest first *(generated: `make survey`)* |
-| [io-board](reference/io-board.md) | USB I/O board protocol, encrypted loader, security key and operator fob (iButton) formats |
+| [io-board](reference/io-board.md) | USB I/O board protocol, encrypted loader, security key (licence, option values, the key image) and operator fob (iButton) formats |
 | [glossary](reference/glossary.md) | Terms used throughout |
 
 ## History
@@ -60,7 +61,7 @@ fix exists. Paths in it are from before the reorganisation.
 | [data/games-catalogue.tsv](data/games-catalogue.tsv) | Name, GameId and Active flag for each game in `/var/merit/settings.xml` |
 | [data/engine-families.tsv](data/engine-families.tsv) | Engine family of each of the 178 game libraries |
 
-## In one screen
+## The standalone ports in one screen
 
 1. **Read the image** with `debugfs` at partition offsets: no mounting, no root.
 2. **Catalogue games** from `settings.xml` and `gamedata.xml`.

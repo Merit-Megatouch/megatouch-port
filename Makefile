@@ -12,8 +12,8 @@
 #   make publish GAME=...          push a game repo to GitHub (submodule of this repo); GAME=all for everything
 #   make stubs GAME=...            placeholder loader functions so a game loads (each logs its first call)
 #   make docs                      regenerate the game catalogue; make survey for the porting survey (slow)
-#   make loader-setup              the cabinet's own loader: extract its partitions, fetch Xephyr (once)
-#   make loader / loader-run       build our stand-in devices / run the original loader (Xephyr window)
+#   make loader-setup              the cabinet's own loader: extract its partitions, fetch display/network helpers (once)
+#   make loader / loader-run       build our stand-in devices / run the cabinet (scalable window, F11 fullscreen)
 #   make loader-reset              put the loader's /var back as it was on the image (backed up first)
 #   make loader-backup / loader-restore BACKUP=<file>   snapshot / restore the loader's settings
 #   make help                      this text

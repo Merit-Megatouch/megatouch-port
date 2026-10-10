@@ -5,6 +5,7 @@ and every environment variable. Run `make help` for the short version.
 
 - [Make targets](#make-targets)
 - [game.conf](#gameconf)
+- [Cabinet loader](#cabinet-loader)
 - [Environment variables](#environment-variables)
 - [Engine debug flags](#engine-debug-flags)
 - [Tools](#tools)
@@ -29,9 +30,9 @@ the game's DLLName, for example `g_trix`.
 | `make publish GAME=<name>\|all` | Push to GitHub, creating repos and submodules as needed | seconds |
 | `make docs` | Regenerate [games.md](games.md) | 30 s |
 | `make survey` | Regenerate [gamedevice-survey.md](gamedevice-survey.md) | 5–10 min |
-| `make loader-setup` | The cabinet's own loader: dump its partitions to `build/loader/`, download and patch Xephyr ([guide](../guides/cabinet-loader.md)) | 3–10 min |
+| `make loader-setup` | The cabinet's own loader: dump its partitions to `build/loader/`; download Xephyr (patched), Xvfb, SDL2 and slirp4netns into `toolchain/debug/` ([guide](../guides/cabinet-loader.md)) | 3–10 min |
 | `make loader` | Build the loader's stand-ins into `build/loader/bin/` | seconds |
-| `make loader-run` | Run the cabinet's loader in a Xephyr window | — |
+| `make loader-run` | Build the stand-ins and run the cabinet in a scalable window (F11 fullscreen) | — |
 | `make loader-reset` | Restore the loader's `/var` from `build/loader/var.orig` (backed up first) | seconds |
 | `make loader-backup` / `make loader-restore BACKUP=<file>` | Snapshot / restore the loader's `/var/merit` (`build/loader/backups`) | seconds |
 | `scripts/loader-option.sh --list` / `NAME 0\|1` | Show / set the loader's game options (loader stopped) | seconds |
@@ -166,9 +167,66 @@ always wins.
 
 Unity games have no `LIB`/`ASSET_DIR`; see [unity.md](unity.md).
 
+## Cabinet loader
+
+Settings of `make loader-run` (`scripts/loader.sh`) and its stand-ins, given as environment
+variables, e.g. `MEGA_LOADER_VIEW=xephyr make loader-run`. Operators rarely need any of them; see
+the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide](../guides/cabinet-loader.md).
+
+### Scripts
+
+| Command | What it does |
+| --- | --- |
+| `scripts/loader.sh` | What `make loader-run` runs: start the cabinet |
+| `scripts/loader.sh shell` / `run <cmd>` | A shell / a command inside the cabinet's userland (joins a running cabinet's display) |
+| `scripts/loader-backup.sh [label]` / `--list` / `--restore FILE` | Snapshot / list / restore `build/loader/var/merit` (`--auto` keeps the newest 20) |
+| `scripts/loader-option.sh --list` / `NAME\|INDEX [0\|1]` | Show or set the 120 NVRAM game options (cabinet stopped) |
+| `scripts/loader-key.sh [--force\|--show]` | Make or decode the security-key image `var/merit/fakeio/key.bin` |
+| `build/loader/bin/megaio …` | Drive the fake I/O board from a terminal: `coin`, `setup`, `calibrate`, `dip`, `fob`, `status` |
+
+### The sandbox, display and network
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `MEGA_LOADER_VAR` | `build/loader/var` | Directory used as the cabinet's `/var` (a second, throwaway session: a copy of `build/loader/var.orig`, with its own `MEGA_LOADER_DISPLAY`) |
+| `MEGA_LOADER_DISPLAY` | `55` | Nested X display number (Xvfb uses 100 + this) |
+| `MEGA_LOADER_VIEW` | `megaview` | `megaview`: scalable window. `xephyr`: Xephyr's own window, always the cabinet's exact resolution |
+| `MEGA_LOADER_X` | `xephyr` | `host`: draw on the desktop's X server directly (no resolution changes) |
+| `MEGA_LOADER_NET` | `slirp` | `slirp`: own network namespace with a virtual wired `eth0` (NAT, DHCP 10.0.2.15). `host`: the desktop's network (the cabinet then shows none) |
+| `MEGA_LOADER_KEY` | make | `none`: no security-key image is made (key-gated options stay locked off) |
+| `MEGA_LOADER_BIN` | `/usr/local/bin/start` | Program to start inside the sandbox |
+| `MEGA_EXTRA_ENV` | — | `"A=1 B=2"`: extra variables passed into the sandbox (debugging) |
+
+### The window (megaview)
+
+| Variable | Effect |
+| --- | --- |
+| `MEGAVIEW_FULLSCREEN=1` | Start fullscreen (F11 / Alt+Enter toggle it anyway) |
+| `MEGAVIEW_STRETCH=1` | Stretch instead of keeping the cabinet's shape (Ctrl+Alt+S toggles) |
+| `MEGAVIEW_SCALE=<n>` | Initial window size: n × the cabinet's resolution (default 2 for 640×480) |
+| `MEGAVIEW_STATS=1` | Per-frame grab / upload / draw times in `build/loader/megaview.log` |
+| `MEGAVIEW_DEBUG=1` | Log mouse buttons as sent to the cabinet |
+| `MEGAVIEW_NOSHM=1` | Grab with `XGetImage` instead of MIT-SHM |
+| `MEGAVIEW_XTST=<path>` | libXtst to use (set by the launcher for the 32-bit fallback build) |
+
+### The fake I/O board and other stand-ins
+
+| Variable | Effect |
+| --- | --- |
+| `MEGAIO_JOYSTICK=1` | Joystick accessory present: arrow keys, Space / Enter |
+| `MEGAIO_OPERATOR_KEY` / `MEGAIO_PLAYER_KEY` | ROM IDs (16 hex digits, family `02`, valid CRC) for F9 / F10. Defaults `024d454741100130` / `02504c4159455205` |
+| `MEGAIO_SERIAL` | Cabinet serial number written into a **new** board EEPROM (default `043010MRE60023`) |
+| `MEGAIO_KEY_ID` | Security-key ROM ID used by `loader-key.sh` / `loader-option.sh` to encode / decode `key.bin` (default `8c14fc020040000e`) |
+| `MEGAIO_NO_KEYS=1` | Don't read F-key hotkeys from the display |
+| `MEGAIO_TRACE=1` | Log every I/O board command |
+| `MEGAIO_DIR` | Board state directory inside the sandbox (set by the launcher: `/var/merit/fakeio`) |
+| `OSSFAKE_TRACE=1` | Log every sound ioctl |
+| `OSSFAKE_FMOD_OUTPUT=<n>` | FMOD output for Unity games (default PulseAudio) |
+| `MEGA_ZLIB=modern` | Don't route the cabinet's `gz*` calls to its own zlib 1.2.3 |
+
 ## Environment variables
 
-All are read with the `MEGA_` prefix. The old `TRIX_` prefix still works for each one.
+The standalone ports' settings. All are read with the `MEGA_` prefix. The old `TRIX_` prefix still works for each one.
 
 ### Set by game.conf (see above)
 `MEGA_LIB MEGA_ASSET_DIR MEGA_GAME_ID MEGA_WIDTH MEGA_HEIGHT MEGA_LANGUAGE MEGA_TITLE MEGA_CARD_FANNING`

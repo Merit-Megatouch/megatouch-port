@@ -1,55 +1,51 @@
-# Quick start: from nothing to playing Trix
+# Quick start: from a bare PC to a running cabinet
 
-This takes about 15 minutes on a fresh machine, most of it downloads. You need the cabinet disk
-image (`Megatouch ION 2014 HDD Keyless.img`, 60 GB) or a snapshot made from it. The repository
-contains no cabinet code or assets.
+About 20 minutes on a fresh machine, most of it downloads. You need the cabinet disk image
+(`Megatouch ION 2014 HDD Keyless.img`, 60 GB). The repository contains no cabinet software.
+
+Once it runs, the [Operator guide](operator-guide.md) explains everything else.
 
 ## 1. A Linux shell
 
-**Windows 10/11:** install WSL2 with Ubuntu. Open PowerShell as administrator:
+**Windows 10/11:** install WSL2 with Ubuntu. Open PowerShell **as administrator**:
 
 ```powershell
 wsl --install -d Ubuntu
 ```
 
-Reboot, open "Ubuntu" from the Start menu and pick a user name. WSLg (the part that shows Linux
-windows on the Windows desktop, with sound) comes with current WSL. Check with `wsl --version`
-in PowerShell: it should list a WSLg version. If it doesn't, run `wsl --update`.
+Reboot, open **Ubuntu** from the Start menu and pick a user name. WSLg (the part that shows
+Linux windows on the Windows desktop, with sound) comes with current WSL. Check with
+`wsl --version` in PowerShell: it should list a WSLg version. If it doesn't, run `wsl --update`.
 
-**Linux:** any recent Ubuntu works. Other distributions need `apt-get` and `dpkg-deb`, because
-setup downloads Ubuntu's i386 packages.
+**Linux:** a recent Ubuntu. Other distributions need `apt-get` and `dpkg-deb`, because setup
+downloads Ubuntu packages.
 
 ## 2. Host packages (the only step that needs sudo)
 
 ```bash
 sudo apt update
-sudo apt install git gcc g++ make python3 python3-venv curl e2fsprogs binutils
+sudo apt install git gcc g++ make python3 python3-venv curl e2fsprogs binutils bubblewrap
 ```
-
-What each one is for:
 
 | Package | Used for |
 | --- | --- |
-| `gcc g++` | Building the 32-bit host and backend. Setup adds 32-bit support locally, so `gcc-multilib` is not needed. |
-| `make` | Every command |
-| `python3 python3-venv` | Helper tools, and a private venv with pyelftools and capstone |
-| `curl` | Ghidra download (optional) |
-| `e2fsprogs` | `debugfs`, which reads the image's ext3 partitions without mounting them |
-| `binutils` | `readelf`, `nm`, `objdump`, `c++filt` |
-| `git` | Cloning |
+| `e2fsprogs` | `debugfs`, which reads the image's partitions without mounting them |
+| `bubblewrap` | `bwrap`, the rootless sandbox the cabinet runs in |
+| `gcc g++ make binutils` | Building the simulated hardware (32-bit support is added locally, no `gcc-multilib`) |
+| `python3 python3-venv` | Helper scripts |
+| `git curl` | Cloning, downloads |
+
+Nothing else is installed system-wide: everything setup downloads stays inside the repository.
 
 ## 3. Clone
 
 ```bash
-git clone --recurse-submodules https://github.com/Merit-Megatouch/megatouch-port ~/megatouch-port
+git clone https://github.com/Merit-Megatouch/megatouch-port ~/megatouch-port
 cd ~/megatouch-port
 ```
 
-Clone it **inside the Linux filesystem** (`~/...`), not under `/mnt/c`. The Windows drives are
-10–50× slower for the many small files involved, and their 64-bit inode numbers are exactly what
-the old engine trips over.
-
-If you cloned without `--recurse-submodules`, run `git submodule update --init`.
+Clone it **inside the Linux filesystem** (`~/...`), not under `/mnt/c`: the Windows drives are
+much slower for the many small files involved.
 
 ## 4. Point it at the cabinet image
 
@@ -57,58 +53,46 @@ If you cloned without `--recurse-submodules`, run `git submodule update --init`.
 echo 'IMG="/mnt/e/path/to/Megatouch ION 2014 HDD Keyless.img"' > cabinet.local.conf
 ```
 
-The image can stay on a Windows drive: it is only read. `cabinet.local.conf` is gitignored.
-If you have a snapshot folder instead (see [make snapshot](../reference/commands.md#make-snapshot)),
-put it at `./cabinet/` and skip this step.
+The image can stay on a Windows drive (`E:\` is `/mnt/e/`); it is only read. Keep the quotes,
+the name has spaces. `cabinet.local.conf` is not committed.
 
-## 5. Set up and build (once, about 3 minutes)
-
-```bash
-make setup
-```
-
-This builds, all inside the repository and with no root:
-
-- `toolchain/`: 32-bit gcc support, i386 SDL2/Mesa/PulseAudio packages and a Python venv.
-- `shared/runtime/`: the 32-bit runtime that games run on.
-- `shared/data-common/`: the cabinet data every game uses (fonts, translations, config, Pango modules).
-- `shared/bin/`: the host program and the SDL2 backend.
-
-It is safe to re-run; finished steps are skipped. Details are in
-[reference/commands.md](../reference/commands.md#make-setup).
-
-## 6. Extract the games and play
+## 5. Set up (once)
 
 ```bash
-make games               # for each games/<name>: extract its code and assets from the cabinet
-make run GAME=g_trix     # a 1280×800 window opens
+make setup           # 32-bit runtime and compiler support (toolchain/, shared/)
+make loader-setup    # the cabinet's partitions → build/loader/; display, sound and network helpers
 ```
 
-Controls: click or tap with the mouse. **F11** toggles fullscreen. Close the window to quit. The
-window can be resized, and the picture scales with the aspect ratio kept.
+`make loader-setup` copies the cabinet's root, var, home and game partitions out of the image
+(about 11 GB) and downloads Xephyr, Xvfb, SDL2 and slirp4netns from Ubuntu into `toolchain/debug/`.
+Both commands are safe to re-run; finished steps are skipped, and the cabinet's settings in
+`build/loader/var` are never overwritten once they exist.
 
-## 7. Optional: Windows shortcut
-
-Make a desktop shortcut with this target:
-
-```
-C:\Windows\System32\wsl.exe ~/megatouch-port/games/g_trix/run
-```
-
-To have no console window, use `wslg.exe` instead of `wsl.exe` (it ships with current WSL).
-
-## 8. Optional: copy a game somewhere else
+## 6. Run
 
 ```bash
-make package GAME=g_trix DEST=~/trix-standalone
+make loader-run
 ```
 
-This makes a folder with every symlink resolved: runtime, libraries, data and a `run` script.
-Copy it to any x86-64 Linux or WSL2 machine and start `./run`. It does not need the repository
-or the image.
+The **Megatouch ION (cabinet loader)** window opens; after about 20 seconds the attract loop
+runs. Click to touch. **F1** opens Operator Setup, **F5–F8** insert coins, **F11** is fullscreen.
+Close the window to stop.
 
 ## Where next
 
-- Something went wrong: [troubleshooting](troubleshooting.md).
-- Port another game: [porting a game](porting-a-game.md).
-- What every command and setting does: [commands reference](../reference/commands.md).
+- Setting the cabinet up and looking after it: the [Operator guide](operator-guide.md).
+- Something went wrong: [troubleshooting](troubleshooting.md#cabinet-loader).
+- Every command and setting: [commands reference](../reference/commands.md).
+
+## Appendix: standalone game ports (developers)
+
+The older route runs single games without the cabinet. It needs the game submodules and one more
+step:
+
+```bash
+git submodule update --init      # or clone with --recurse-submodules
+make games                       # extract each game's code and assets from the image
+make run GAME=g_trix             # one game in a window
+```
+
+See [porting a game](porting-a-game.md). Operators don't need this.

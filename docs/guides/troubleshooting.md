@@ -1,12 +1,13 @@
 # Troubleshooting
 
-Problems you might hit while setting up or playing, and what to do about each one. For
-debugging a game you're porting, see [debugging](debugging.md).
+Problems you might hit while setting up or running the cabinet, and what to do about each one.
+The [cabinet loader](#cabinet-loader) section is the one operators need; the sections after it are
+for the standalone game ports. For debugging a game you're porting, see [debugging](debugging.md).
 
 ## Setup
 
-**`missing: debugfs`** (or another tool)
-: `sudo apt install e2fsprogs binutils gcc g++ make python3 python3-venv curl`.
+**`missing: debugfs`**, **`missing tool: bwrap`** (or another tool)
+: `sudo apt install e2fsprogs binutils gcc g++ make python3 python3-venv curl bubblewrap`.
 
 **`cabinet image not found: ''`**
 : Create `cabinet.local.conf` with `IMG="/full/path/to/the.img"`. Quote it, because the name
@@ -32,7 +33,73 @@ debugging a game you're porting, see [debugging](debugging.md).
 **Setup is slow**
 : It's much slower on `/mnt/c` or `/mnt/e`. Clone into the Linux home directory.
 
-## Starting a game
+## Cabinet loader
+
+**No sound, also in other Linux apps** (`pactl info` hangs or says `Connection failure: Timeout`)
+: WSLg's sound server has stopped responding. In PowerShell: `wsl --shutdown`, then reopen Ubuntu
+  and start again. The cabinet's settings are not affected.
+
+**No sound from the cabinet only**
+: Check the cabinet's volume (*System → Volume Control*) and the Windows volume. Look for
+  `[ossfake]` lines in the terminal.
+
+**`no cabinet root: run make loader-setup`** / **`no fake I/O board: run make loader`**
+: Run `make loader-setup` (once), then `make loader-run` (which builds the stand-ins).
+
+**`Xvfb did not start` / `Xephyr did not start` / `megaview did not start`**
+: See `build/loader/xvfb.log`, `xephyr.log` or `megaview.log`. A stale display from a killed run
+  can block the number: wait a few seconds and retry, or pick another one with
+  `MEGA_LOADER_DISPLAY=57 make loader-run`. `MEGA_LOADER_VIEW=xephyr make loader-run` skips the
+  scalable window and shows Xephyr's own (fixed size) window.
+
+**`bwrap: setting up uid map: Permission denied`** (or another `bwrap` error about namespaces)
+: The sandbox needs unprivileged user namespaces. WSL normally allows them. On a Linux desktop
+  check `sysctl kernel.unprivileged_userns_clone` (Debian) or
+  `sysctl kernel.apparmor_restrict_unprivileged_userns` (Ubuntu 24.04+), and use the distribution's
+  `bubblewrap` package.
+
+**The window opens but stays black**
+: The cabinet takes about 20 seconds to start. After an unclean stop it first shows *Performing
+  database maintenance*, which can take longer. If it stays black, check the terminal for
+  `[crash]` lines.
+
+**The whole cabinet closes when a game starts or ends**
+: Fixed (the viewer didn't survive the resolution change). Update with `git pull && make loader`.
+
+**F1 / F5–F8 do nothing**
+: The keys are read from the cabinet's window: click into it first. In the attract loop, touch
+  once before F1.
+
+**A game freezes, or loops a sound**
+: Note the game and what you did, and keep `build/loader/var/merit/logging/logs/*.running.log`
+  and the terminal output. Trix used to freeze after the first card (fixed by `soundfix.so`).
+
+**Lots of `[crash]` lines in the terminal**
+: One or two from `credit_card_reader` at shutdown are expected (there is no card reader). A
+  stream of them that never stops was a bug in `crashlog.so`, fixed: update.
+
+**Network shows *No Internet* / MegaNet connection fails**
+: Run the Connection Wizard for **Wired Ethernet** ([operator guide](operator-guide.md#11-network-meganet-and-tournamaxx)).
+  `build/loader/slirp.log` shows the virtual network; `/var/merit/fakeio/net.txt` (in
+  `build/loader/var/merit/fakeio/`) shows the cabinet's view of it 25 s after start.
+
+**TournaMAXX: the Tournament buttons stay greyed out**
+: TournaMAXX needs *Tournament Mode: ON-LINE* (System → Options), free play off, and a
+  successful MegaNet update with tournaments on the server for your machine.
+  `scripts/loader-option.sh TOURNAMAXX_ENABLED` shows the option.
+
+**`key footer failed checksum` in the cabinet's log**
+: The cabinet ran without a key image (`MEGA_LOADER_KEY=none`, or a `/var` from before key
+  images). `scripts/loader-key.sh` makes one; key-gated options then show up in Operator Setup.
+
+**`stop the loader first (it rewrites nvram.dat)`**
+: `loader-option.sh` and `loader-backup.sh --restore` only change settings while the cabinet is
+  stopped. Close its window first.
+
+**Settings look wrong after an experiment**
+: `scripts/loader-backup.sh --list`, then `make loader-restore BACKUP=<file>`. Every start made one.
+
+## Standalone ports: starting a game
 
 **`games/<name>/run: No such file or directory`**
 : The game folder hasn't been extracted yet (normal after a fresh clone). Run `make games` or
@@ -57,7 +124,7 @@ debugging a game you're porting, see [debugging](debugging.md).
   `wsl --update` in PowerShell, then `wsl --shutdown` and reopen. On plain Linux over SSH, use a
   local session or `SDL_VIDEODRIVER=offscreen` for headless tests.
 
-## While playing
+## Standalone ports: while playing
 
 **No sound**
 : Check that you aren't exporting `SDL_AUDIODRIVER=dummy` from an earlier headless test
