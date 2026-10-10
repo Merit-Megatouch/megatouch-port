@@ -22,6 +22,13 @@
 #   KIOSK_FULLSCREEN=1      start fullscreen (0: a normal window; F11 still toggles)
 #   KIOSK_HIDE_CURSOR=1     hide the mouse pointer (0 to show it, e.g. without a touchscreen)
 #   KIOSK_BACKUP=daily      settings snapshots: daily (one a day, 14 kept), auto (every start), none
+#   KIOSK_UPDATE=nightly    look for a new version once a night (off: never); see below
+#   KIOSK_UPDATE_HOUR=4     the hour (0-23) to look
+#
+# Updates: at KIOSK_UPDATE_HOUR, if GitHub has a newer version, the kiosk stops the cabinet,
+# runs scripts/update.sh (settings backup, update, rebuild; it rolls back by itself if the build
+# fails) and starts again on the new version. If the cabinet then fails three times quickly or
+# hangs within its first 10 minutes, the kiosk rolls the update back and that version is skipped.
 # Log: build/loader/kiosk.log (the cabinet's own output goes there too).
 set -uo pipefail
 P=$(cd "$(dirname "$0")/.." && pwd)
@@ -76,7 +83,7 @@ EOF
   *) sed -n 2,11p "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac
 
-if running; then echo "kiosk already running (pid $(cat "$PIDF"))" >&2; exit 1; fi
+if running && [ "$(cat "$PIDF")" != $$ ]; then echo "kiosk already running (pid $(cat "$PIDF"))" >&2; exit 1; fi
 echo $$ > "$PIDF"
 rm -f "$STOP"
 child=
@@ -103,17 +110,38 @@ main_ticks() {
   [ -n "$pid" ] && awk '{print $14 + $15}' "/proc/$pid/task/$pid/stat" 2>/dev/null
 }
 
+UPDATE="${KIOSK_UPDATE:-nightly}"
+UPDATE_HOUR="${KIOSK_UPDATE_HOUR:-4}"
+pending() { grep -q '^PENDING=1$' "$B/update.state" 2>/dev/null; }
+restart_kiosk() { rm -f "$PIDF"; exec "$P/scripts/cabinet.sh"; }   # picks up an updated kiosk script
+
 fast=0
-log "kiosk start ($P)"
+log "kiosk start ($P)$(pending && echo ', checking the last update')"
 while [ ! -f "$STOP" ]; do
   started=$(date +%s)
   : > "$ALIVE"
   setsid ${KIOSK_CMD:-"$P/scripts/loader.sh"} >> "$LOG" 2>&1 < /dev/null &   # KIOSK_CMD: tests only
   child=$!
   log "cabinet started (pgid $child)"
-  hung=0 busy=0 last=""
+  hung=0 busy=0 last="" updating=0
   while kill -0 "$child" 2>/dev/null; do
     sleep 15 & wait $!                       # interruptible: `stop` takes effect at once
+    now=$(date +%s)
+    # an update that has run 10 minutes without trouble is kept
+    if pending && [ $((now - started)) -ge 600 ]; then
+      "$P/scripts/update.sh" --verified >> "$LOG" 2>&1; log "update verified"
+    fi
+    # once a night: a newer version?
+    if [ "$UPDATE" = nightly ] && [ "$((10#$(date +%H)))" -eq "$UPDATE_HOUR" ] \
+       && [ "$(cat "$B/kiosk.update-day" 2>/dev/null)" != "$(date +%F)" ]; then
+      date +%F > "$B/kiosk.update-day"
+      if "$P/scripts/update.sh" --check >> "$LOG" 2>&1; then
+        log "a new version is available: stopping the cabinet to update"
+        updating=1
+        kill -- -"$child" 2>/dev/null
+        break
+      fi
+    fi
     [ "$HANG" -gt 0 ] || continue
     now=$(date +%s)
     age=$(( now - $(stat -c %Y "$ALIVE" 2>/dev/null || echo "$now") ))
@@ -131,10 +159,20 @@ while [ ! -f "$STOP" ]; do
   wait "$child"; rc=$?
   child=
   [ -f "$STOP" ] && break
+  if [ "$updating" = 1 ]; then
+    "$P/scripts/update.sh" >> "$LOG" 2>&1 && log "updated; restarting on the new version" || log "update not applied (see above)"
+    restart_kiosk
+  fi
   if [ "$rc" = 42 ]; then log "quit at the box (Ctrl+Alt+End)"; break; fi
   ran=$(( $(date +%s) - started ))
   [ "$hung" = 1 ] || log "cabinet exited (status $rc after ${ran}s)"
   if [ "$ran" -lt 120 ]; then fast=$((fast + 1)); else fast=0; fi
+  # a fresh update that keeps failing (or hangs) goes back to the previous version
+  if pending && { [ "$fast" -ge 3 ] || [ "$hung" = 1 ]; }; then
+    log "the cabinet keeps failing since the last update: rolling it back"
+    "$P/scripts/update.sh" --rollback >> "$LOG" 2>&1
+    restart_kiosk
+  fi
   pause=5; [ "$fast" -ge 3 ] && pause=60; [ "$fast" -ge 6 ] && pause=300
   [ "$pause" -gt 5 ] && log "failing repeatedly ($fast quick exits): back off ${pause}s"
   for _ in $(seq "$pause"); do [ -f "$STOP" ] && break; sleep 1 & wait $!; done

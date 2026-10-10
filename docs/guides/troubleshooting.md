@@ -116,6 +116,16 @@ for the standalone game ports. For debugging a game you're porting, see [debuggi
   and that the session is a desktop session (GNOME, KDE, Xfce…). For booting without a login
   screen, turn on automatic login.
 
+**`make update` says "local changes to tracked files"**
+: Something in the project's own files was edited. `git status` lists them; `git stash` sets them
+  aside (or `git checkout -- <file>` drops them), then update again.
+
+**An update made things worse**
+: `scripts/update.sh --rollback` (cabinet stopped) returns to the previous version; settings are
+  never changed by updates, and a backup was taken before (`before-update`). Kiosk boxes roll back
+  by themselves when the cabinet keeps failing right after a nightly update; `build/loader/kiosk.log`
+  says so.
+
 **Settings look wrong after an experiment**
 : `scripts/loader-backup.sh --list`, then `make loader-restore BACKUP=<file>`. Every start made one.
 

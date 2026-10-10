@@ -54,7 +54,7 @@ and TournaMAXX, backups and troubleshooting.
 | Operator key + PIN, My Merit player keys | yes |
 | Network, MegaNet updates, TournaMAXX tournaments | yes, with a community MegaNet server |
 | Resizable / fullscreen window | yes |
-| Dedicated touchscreen box: auto-run, fullscreen, restart on crash or hang | yes (kiosk mode) |
+| Dedicated touchscreen box: auto-run, fullscreen, restart on crash or hang, nightly updates with rollback | yes (kiosk mode) |
 | Settings kept between runs, automatic backups | yes |
 | Joystick accessory | yes, on the arrow keys (`MEGAIO_JOYSTICK=1`) |
 | Linked cabinets (MegaLink) | experimental: cabinets on one PC, or on PCs joined over a LAN or the internet, share a network and find each other ([guide](docs/guides/operator-guide.md#17-linked-cabinets-megalink-experimental)) |
@@ -80,7 +80,7 @@ make loader-backup                save a backup of its settings (every start als
 make loader-restore BACKUP=<file> restore one (cabinet stopped)
 make loader-reset                 back to the image's original settings (backed up first)
 scripts/loader-option.sh --list   the cabinet's 120 game options (TournaMAXX, free play, …)
-git pull && make loader-setup     update
+make update                       update (settings backed up; rolls back if the new version fails)
 make kiosk / make kiosk-stop      kiosk mode: fullscreen, restarted on crash or hang
 scripts/cabinet.sh autostart on   start the kiosk at login
 ```

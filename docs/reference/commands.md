@@ -177,6 +177,7 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 
 | Command | What it does |
 | --- | --- |
+| `scripts/update.sh` / `--check` / `--rollback` / `--verified` (`make update`) | Update to the latest version: settings backup, pull, rebuild, automatic rollback if the build fails; check only; go back to the previous version; mark an update as good |
 | `scripts/install.sh [--image P] [--kiosk] [--no-shortcut] [--yes] [--dir D]` | One-command install: packages, clone, image check, setup, shortcut, kiosk autostart |
 | `scripts/cabinet.sh` / `stop` / `status` / `autostart on\|off` | Kiosk mode (`make kiosk` / `make kiosk-stop`): fullscreen, restart on exit, crash or hang, login autostart |
 | `scripts/new-cabinet.sh NAME [--from-image]` | Another cabinet on this PC (`build/loader/cabinets/NAME`) with its own identity and linked games on, for `MEGA_LOADER_NET=lan` |
@@ -232,6 +233,8 @@ Environment variables or lines in `cabinet.local.conf`.
 | `KIOSK_FULLSCREEN` | `1` | `0`: a normal window (F11 still toggles) |
 | `KIOSK_HIDE_CURSOR` | `1` | `0`: show the mouse pointer |
 | `KIOSK_BACKUP` | `daily` | Passed on as `MEGA_LOADER_BACKUP` |
+| `KIOSK_UPDATE` | `nightly` | `off`: never look for updates |
+| `KIOSK_UPDATE_HOUR` | `4` | Hour (0–23) of the nightly look; a new version is installed then and verified over the next 10 minutes (rolled back after 3 quick failures or a hang) |
 
 Keys at the box: **Ctrl+Alt+End** quits and stops the kiosk (megaview exits with status 42); any
 other ending is restarted (5 s; 1 min after 3 quick failures, 5 min after 6). Log:

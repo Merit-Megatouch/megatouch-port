@@ -17,6 +17,7 @@
 #   make loader-reset              put the loader's /var back as it was on the image (backed up first)
 #   make loader-backup / loader-restore BACKUP=<file>   snapshot / restore the loader's settings
 #   make kiosk / kiosk-stop        dedicated box: fullscreen, restarted on crash or hang (scripts/cabinet.sh)
+#   make update                    update to the latest version (settings backed up; rolls back on failure)
 #   make help                      this text
 
 R        := $(abspath .)
@@ -44,7 +45,7 @@ GENDEF_SRC  := $(wildcard src/gendef/*.cpp)
 GENDEF_OBJ  := $(GENDEF_SRC:src/%.cpp=$(OUT)/%.o)
 HEADERS     := $(wildcard src/*/*.h)
 
-.PHONY: loader loader-setup loader-run loader-reset loader-backup loader-restore kiosk kiosk-stop all build setup new run analyze decompile package snapshot games publish stubs docs survey clean help
+.PHONY: loader loader-setup loader-run loader-reset loader-backup loader-restore kiosk kiosk-stop update all build setup new run analyze decompile package snapshot games publish stubs docs survey clean help
 all: build
 
 # Empty stand-ins for the cabinet's other backend libraries: some games list them as
@@ -158,7 +159,7 @@ clean:
 	rm -rf "$(OUT)/loader/bin"
 
 help:
-	@sed -n '3,20p' Makefile | sed 's/^# \{0,1\}//'
+	@sed -n '3,21p' Makefile | sed 's/^# \{0,1\}//'
 
 # ---- The cabinet's own loader, run unmodified in a sandbox (docs/guides/cabinet-loader.md) ----
 LB      := $(OUT)/loader/bin
@@ -173,6 +174,8 @@ loader-setup:
 	scripts/loader-setup.sh
 loader-run: loader
 	scripts/loader.sh
+update:
+	scripts/update.sh
 kiosk: loader
 	scripts/cabinet.sh
 kiosk-stop:

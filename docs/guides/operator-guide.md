@@ -290,12 +290,19 @@ Copy `build/loader/backups/` somewhere safe from time to time; it is not in git.
 
 ## 14. Updating
 
+With the cabinet stopped:
+
 ```bash
 cd ~/megatouch-port
-git pull
-make loader-setup    # only fetches what's new (if anything); your settings are kept
-make loader-run
+make update
 ```
+
+It backs up the cabinet's settings, downloads the new version, rebuilds what changed, and goes
+back to the previous version by itself if the new one doesn't build. `scripts/update.sh --check`
+only says whether there is an update; `scripts/update.sh --rollback` returns to the version
+before the last update (that version is then skipped until a newer one appears). Your settings,
+`cabinet.local.conf` and the cabinet's state are never touched by an update. Kiosk boxes update
+themselves at night ([section 16](#16-dedicated-touchscreen-box-kiosk-mode)).
 
 ## 15. When something goes wrong
 
@@ -333,6 +340,7 @@ What kiosk mode does:
 | **Hang protection** | If the picture hasn't changed for 5 minutes *and* the cabinet's main program is busy all that time (stuck in a loop), it is restarted. A quiet screen waiting for a touch is left alone |
 | **Screen stays on** | Screen blanking and the lock screen are turned off while it runs |
 | **Daily backups** | One settings backup a day (the last 14 kept) instead of one per start, so restarts can't push good backups out |
+| **Nightly updates** | At 4 am, if there is a new version: stop the cabinet, update (settings backed up), start again. If the cabinet then fails three times quickly or hangs within its first 10 minutes, the update is rolled back on its own and that version is skipped |
 
 To boot straight into the cabinet, also turn on **automatic login** for the user: on Ubuntu
 Desktop, *Settings → Users → Automatic Login* (or `autologin-user=` in LightDM's
@@ -345,7 +353,7 @@ the log is `build/loader/kiosk.log`. Turn the autostart off with `scripts/cabine
 
 Settings (in `cabinet.local.conf` or the environment): `KIOSK_HANG_SECS` (300; 0 turns hang
 protection off), `KIOSK_FULLSCREEN` (1), `KIOSK_HIDE_CURSOR` (1; 0 without a touchscreen),
-`KIOSK_BACKUP` (`daily`, `auto` or `none`).
+`KIOSK_BACKUP` (`daily`, `auto` or `none`), `KIOSK_UPDATE` (`nightly` or `off`), `KIOSK_UPDATE_HOUR` (4).
 
 Under WSL the Windows side starts and stops WSL, so use the desktop shortcut there; kiosk mode is
 meant for Linux boxes.
