@@ -220,7 +220,9 @@ The factory loader reads the security key through the I/O board. The fake board 
 `key.bin`, which `scripts/loader-key.sh` writes with everything that loader checks:
 
 - the cabinet code;
-- a price for every game (0 hides a game);
+- a price for every game (0 hides a game). A genuine 2014 key prices about 30 installed games 0,
+  and the factory menu leaves those out; ours offers them, and `scripts/loader-menu.sh` (run at
+  every start) puts them on the menu ([cabinet state → the game menu](../reference/cabinet-state.md#the-game-menu));
 - the factory language set, pricing and Champion Edition values;
 - the game options.
 

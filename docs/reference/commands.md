@@ -36,6 +36,7 @@ the game's DLLName, for example `g_trix`.
 | `make loader-reset [CABINET=force]` | Restore the loader's `/var` from `build/loader/var.orig` (backed up first); with `CABINET=force`, the Force's from `build/force/var.orig` (no backup) | seconds |
 | `make loader-backup` / `make loader-restore BACKUP=<file>` | Snapshot / restore the loader's `/var/merit` (`build/loader/backups`) | seconds |
 | `scripts/loader-option.sh --list` / `NAME 0\|1` | Show / set the loader's game options (loader stopped) | seconds |
+| `scripts/loader-menu.sh --list` / `--missing` / `--fill` / `add GAME CAT` / `remove GAME` | The ION's game menu: show it, licensed games on no page, place them (loader stopped) | seconds |
 | `scripts/loader-key.sh [--show\|--force]` | Make / decode the fake board's security-key image | seconds |
 | `make clean` | Delete `build/` (object files) except `build/loader/` (extracted cabinet, loader settings); the loader's stand-ins are rebuilt by `make loader` | — |
 | `make help` | Command summary | — |
@@ -188,6 +189,7 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 | `scripts/loader.sh shell` / `run <cmd>` | A shell / a command inside the cabinet's userland (joins a running cabinet's display) |
 | `scripts/loader-backup.sh [label]` / `--list` / `--restore FILE` | Snapshot / list / restore `build/loader/var/merit` (`--auto` keeps the newest 20) |
 | `scripts/loader-option.sh --list` / `NAME\|INDEX [0\|1]` | Show or set the 120 NVRAM game options (cabinet stopped) |
+| `scripts/loader-menu.sh --list` / `--missing` / `--fill` / `add GAME CATEGORY` / `remove GAME` | The ION's game menu (NVRAM): every category's games; games the key licenses that are on no page; put them on it (category from a table, else by kind); one game in or out. Cabinet stopped; a backup is taken first. `loader.sh` runs `--fill --auto` before each start ([cabinet state → the game menu](cabinet-state.md#the-game-menu)) |
 | `scripts/loader-identity.sh [--new\|--set SERIAL ID\|--apply]` | This cabinet's serial and MegaNet ID: show, new random ones, set, apply (done at every start) |
 | `scripts/loader.sh run /opt/fakeio/netcfg [meganet-id ID\|server NAME\|megalink-id ID]` | Show or change network settings through the cabinet's own network library (cabinet stopped) |
 | `scripts/loader-key.sh [--force\|--show\|--languages\|--countries]` | Make or decode the security-key image `var/merit/fakeio/key.bin`; list the key's languages and countries. Settings (environment or `cabinet.local.conf`): `KEY_COUNTRY` (name or number), `KEY_LANGUAGES` (names or `all`; default the factory USA-STD nine), `KEY_PLAYER_LANGUAGES`. Remake with `--force` (cabinet stopped); Operator Setup then picks among the offered languages |
@@ -203,6 +205,7 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 | `MEGA_LOADER_CABINET` | `build/loader` | The cabinet's folder (`root`, `home`, `var`, `ion`); `make loader-run CABINET=force` sets it to `build/force`. A Force is recognised by its software; its `/var` defaults to the folder's own |
 | `MEGA_FORCE_VIDEOMODE` | `W` | The Force loader's `--videomode` (`W` window; `F`/`X` full-screen drivers need XF86VidMode, which the nested X server lacks) |
 | `MEGA_KEY_PLATFORM` | set by `loader.sh` | `force`: `loader-key.sh` writes a Force key (cabinet code, block-0 encoding) |
+| `MEGA_LOADER_MENU` | `fill` | `keep`: don't put licensed games that are on no menu page onto the menu at start (ION) |
 | `MEGA_LOADER_VAR` | `build/loader/var` | Directory used as the cabinet's `/var` (a second, throwaway session: a copy of `build/loader/var.orig`, with its own `MEGA_LOADER_DISPLAY`) |
 | `MEGA_LOADER_DISPLAY` | `55` | Nested X display number (Xvfb uses 100 + this) |
 | `MEGA_LOADER_VIEW` | `megaview` | `megaview`: scalable window. `xephyr`: Xephyr's own window, always the cabinet's exact resolution |

@@ -244,8 +244,23 @@ Need different key IDs (for example a second operator key)? See `MEGAIO_OPERATOR
 ## 10. The game menu
 
 The menu shows categories (Puzzles, Cards, Quiz & Word, Strategy, Kids Club, Action, New Games…)
-and each category's games. Many installed games are **not in any category** by default; Trix
-is one.
+and each category's games. A factory-fresh ION 2014 lists 187 games. A real 2014 licence didn't
+offer about 30 more that are installed (the original PixMix and PhotoHunt, Texas Hold'em, the
+mini-golfs, Fast Traxx, the Merit-thons, chain-restaurant and adult variants …), so the factory
+menu leaves them out, and Game Setup can't place most of them. This project's licence offers
+every game, so **each start puts any licensed game that is on no page into a fitting category**,
+once: if you take one off again in Game Setup, it stays off. To see or change this from a
+terminal (cabinet stopped):
+
+```bash
+scripts/loader-menu.sh --list                  # every category and its games
+scripts/loader-menu.sh --missing               # licensed games on no page
+scripts/loader-menu.sh add PIXMIX STRATEGY     # put one in a category
+scripts/loader-menu.sh remove PIXMIX           # take it off every page
+```
+
+`MEGA_LOADER_MENU=keep make loader-run` starts without adding anything. Adult variants go to the
+Erotic category, which shows only when adult games are enabled in Operator Setup.
 
 **Add a game to a category:**
 

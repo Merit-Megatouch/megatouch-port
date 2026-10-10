@@ -30,6 +30,7 @@
 #                        lines are left out of the terminal; the console log has everything)
 #   MEGA_LOADER_BACKUP   auto (default: a snapshot at every start), daily or none
 #   MEGA_LOADER_KEY=none no security-key image (scripts/loader-key.sh makes one when missing)
+#   MEGA_LOADER_MENU=keep don't add licensed games that are on no menu page (scripts/loader-menu.sh)
 #   MEGA_LOADER_NET      slirp (default: own network namespace + virtual eth0), host, or
 #                        lan[:NAME] (a network shared with other cabinets: linked play)
 #   MEGA_LOADER_CABINET  another cabinet's directory (root/, home/, var/, optional ion/), e.g.
@@ -355,6 +356,11 @@ HWXML
     fi
     # the security-key image the fake board serves, made once from this /var's NVRAM
     [ "${MEGA_LOADER_KEY:-make}" = none ] || MEGA_KEY_PLATFORM=$PLATFORM "$P/scripts/loader-key.sh" >/dev/null || true
+    # games the key licenses but no menu page lists (the 2014 factory menu leaves some out): put
+    # them on the menu once; a game the operator takes off again stays off (scripts/loader-menu.sh)
+    if [ "$PLATFORM" = ion ] && [ "${MEGA_LOADER_MENU:-fill}" != keep ] && [ -f "${MEGA_LOADER_VAR:-$B/var}/merit/nvram.dat" ]; then
+      MEGA_LOADER_CABINET="$C" "$P/scripts/loader-menu.sh" --fill --auto || true
+    fi
     CONSOLE=1
     echo "Megatouch cabinet starting (full output: ${CONSOLE_LOG#$P/})"
     if [ "$PLATFORM" = force ]; then

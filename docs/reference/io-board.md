@@ -263,8 +263,16 @@ This cabinet's `/var/merit/.kf` lists two keys over its lifetime, `8c694a0200400
   nibble = continue cost; 0 = the game is not offered** (`KeyManager::DefaultGamePrice`,
   `DefaultGameContinueCost`), `+0x2DD..` 120 game-option bytes, `+0x357`/`+0x359` unit times
   for coinless time play, `+0x3E5` u32 **player-selectable language mask** (genuine
-  `0x0022009F`), `+0x3BF..` a bit field (*not* the game licence; a genuine key has 200
-  of 300 bits set), `+0x3EF` one more flag.
+  `0x0022009F`), `+0x3BF` 38 bytes, **per-game active bits**: `KeyManager::Init`
+  copies them into a 300-entry table that `KeyManager::IsActive(game)` reads, game *N* = bit
+  `0x80 >> N % 8` of byte `N / 8`; when all are clear every game counts as active (a genuine key
+  has 200 of 300 set; an earlier version of this page wrongly said the field isn't a licence),
+  `+0x3EF` one more flag.
+- *Which games a key offers:* a game needs a non-zero price (`+0x1B0 + ID`) and its active
+  bit. A genuine ION 2014 key prices 0 the games the 2014 factory menu leaves out (the original
+  PixMix and PhotoHunt, Texas Hold'em, the mini-golfs, Merit-thons, chain-restaurant and adult
+  variants). Our key image offers every game, so those are licensed but on no menu page until
+  `scripts/loader-menu.sh` places them ([cabinet state → menu](cabinet-state.md#the-game-menu)).
 - *Option bytes* (`ParseOptionData`; `KeyManager::Option(i)`): 0 = locked off, 1 = locked on,
   2 / 3 = the operator's choice, default off / on. `NVRAMMap::IsOptionOn` uses the NVRAM value only
   for 2/3; Operator Setup shows an option only if `IsOptionSelectable` (2 or 3); a settings reset

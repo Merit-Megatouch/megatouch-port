@@ -42,7 +42,7 @@ full decompile of `start`) and from runs. Offsets are in hex; *u32* values are l
 | 0x0C4 | 1 | kept across a reset | `PreserveImportantVars` |
 | 0x0C5 | 9 | anti-theft PIN (text), kept across a reset | `MenuClass::TheftPINClick` |
 | 0x0D0, 0x0D4 | 4 + 4 | kept across a reset | `PreserveImportantVars` |
-| 0x0D8 | 17 × 40 × 4 | **menu layout**: per category (stride 0xA0) 40 slots holding a game ID (u32, 255 = empty) | `Menu_Layout::*`, `MenuLayout` from MegaNet |
+| 0x0D8 | 17 × 40 × 4 | **menu layout**: per category (stride 0xA0) 40 slots holding a game ID (u32, 255 = empty); [the game menu](#the-game-menu) | `Menu_Layout::*`, `MenuLayout` from MegaNet |
 | 0xB78 | ≤ 12 | coinless coin-op (rental/time mode) string, copied when it is reset | `CB_CCOReset` |
 | 0xB84 | 1 | coinless coin-op running | `StartRentalTimer`, `ContinueControl`, `RefreshCredits` |
 | 0xB85 | 1 | read by coin insertion and the price pop-up (meaning not traced) | `InsertCoins`, `PricePopUp` |
@@ -65,6 +65,48 @@ checksum.
 **Resets:** when the key's part number or revision differs from NVRAM, or NVRAM is invalid,
 `InitVars` keeps the preserved fields (0x0C0–0x0D7, option 56), clears the rest (`NVClear`) and
 rebuilds defaults: the menu tables and every option from the key (`value & 1`).
+
+## The game menu
+
+Which games appear on which menu page is the NVRAM table at 0x0D8: 17 categories, 40 slots
+each, a slot holding a game ID (255 = empty). This is what the menu shows, in slot order, ten per
+page (checked 2026-10-11: games written into free slots appeared there; PixMix, PhotoHunt, Puzzle
+Merit-thon and the two Pro-Sports games were started from them and played).
+`config.db`'s `MenuLayout` table has the same shape and is the copy MegaNet sends and receives;
+on this cabinet it differs from NVRAM in two categories, and the menu followed NVRAM.
+
+| Index | Category | | Index | Category |
+| --- | --- | --- | --- | --- |
+| 0 | `CAT_PUZZLES` (Puzzles) | | 9 | `CAT_KIDS` |
+| 1 | `CAT_CARD` (Cards) | | 10 | `CAT_TOURNAMENT` |
+| 2 | `CAT_QUIZ` (Quiz & Word) | | 11 | `CAT_HOTTOPICS` |
+| 3 | `CAT_STRATEGY` (Strategy) | | 12 | `CAT_PREMEROTIC` |
+| 4 | `CAT_H2H` | | 13 | `CAT_PRIZEZONE_REMOVED` |
+| 5 | `CAT_NEW` (New Games) | | 14 | `CAT_CHIPEROTIC` |
+| 6 | `CAT_EROTIC` | | 15 | `CAT_FUNZONE_STANDARD` |
+| 7 | `CAT_ACTION_NEW` (Action) | | 16 | `CAT_FUNZONE_KIDS` |
+| 8 | `CAT_MEGALINK` | | | |
+
+**The factory menu.** A fresh ION 2014 builds its menu from defaults compiled into the loader
+(`Menu_Layout::Menu_InitCatDefaults`, `InsertDefault`): 187 games, Puzzles 38, Cards 35,
+Quiz 25, Strategy 33, New 14, Erotic 23, Action 36, Megalink 36, Kids 30, Hot Topics 2,
+Premium Erotic 1. It leaves out the games a genuine 2014 key prices 0: the original PixMix and
+PhotoHunt, Texas Hold'em, ATW and Space Mini-Golf, Fast Traxx, Strike City, Pack Rabbit, Tuxedo
+Run, Conga Fish, Space Crusader, Hometown Boxxi, the Pro-Sports trivia, Show Tenders College
+Cocktail, the Merit-thons, and the chain-restaurant, Chippendales and Penthouse variants.
+
+**Operator Setup → Games → Game Setup** edits the table per category: the lower half lists the
+games the factory assigned to that category (red = already on the menu); *Enable All Games*,
+*Default Games*, *Clear One*/*Clear All*. A game the factory assigned to no category can't be
+placed there at all.
+
+**Our key image offers every game**, so those games are licensed, switched on and on no page.
+`scripts/loader-menu.sh` lists the menu (`--list`), shows them (`--missing`) and places them
+(`--fill`, `add GAME CATEGORY`, `remove GAME`), editing the table and the checksum with the
+loader stopped. `scripts/loader.sh` runs `--fill --auto` before each ION start: it adds each such
+game once (remembered in `fakeio/menu-filled.txt`), so a game the operator takes off in Game
+Setup stays off; `MEGA_LOADER_MENU=keep` turns it off. Not placed: games without their library
+or graphics (the trackball Basketball, Skee-Ball and Mini-Golf).
 
 ## Databases
 

@@ -60,6 +60,13 @@ for the standalone game ports. For debugging a game you're porting, see [debuggi
   games back in *Games → Game Setup*. For new languages, tick them in Operator Setup's language
   settings: the licence only offers them.
 
+**A game is installed but not on the menu** (e.g. PixMix, the original PhotoHunt, Texas Hold'em)
+: The 2014 factory menu leaves out about 30 games a real 2014 licence didn't offer. Each start
+  adds the licensed ones once (`scripts/loader-menu.sh`). If one is still missing, see
+  `scripts/loader-menu.sh --missing` (cabinet stopped): a game you took off in Game Setup isn't
+  added again; put it back with `scripts/loader-menu.sh add GAME CATEGORY`. Erotic-category games
+  show only when adult games are enabled. `MEGA_LOADER_MENU=keep` turns the automatic adding off.
+
 **No sound, also in other Linux apps** (`pactl info` hangs or says `Connection failure: Timeout`)
 : WSLg's sound server has stopped responding. In PowerShell: `wsl --shutdown`, then reopen Ubuntu
   and start again. The cabinet's settings are not affected.
