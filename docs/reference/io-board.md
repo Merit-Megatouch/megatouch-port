@@ -242,13 +242,20 @@ This cabinet's `/var/merit/.kf` lists two keys over its lifetime, `8c694a0200400
 - Contents used by `KeyManager`: `+0x00` part number (8 chars, must start with `SA3`; this
   cabinet's is `SA362801`, kept in `nvram.dat`), `+0x09` key date (time_t), `+0x0D` revision
   (4), `+0x16` 10-char field, `+0x2A` server URL (200), `+0x35B` web-portal URL (100),
+  `+0xF2` country (`Locale::Countries`: 0 USA, 3 England, 11 Germany …), `+0xF4` lockout value,
   `+0xF5` 8-byte cabinet code: for a DS1995 key `KeyManager::Check` accepts only
   `93e41c6e20911b9b` or `cfb4a9611bb72003` (else result 6/8; the legacy DS1991 path wants
-  `0123456789abcdef` or `…cdff`), `+0x172..0x1AB` floats (coin and price values),
+  `0123456789abcdef` or `…cdff`), `+0xFE` u16 Champion Edition game cost, `+0x100` prize mode,
+  `+0x102` u16 prize-pool rate (×5 %), `+0x104` u64 **language mask** (bit = `Locale::Languages`:
+  0 English, 1 German … 30 Traditional Chinese; a genuine USA-STD key has `0x0062009F`),
+  `+0x10C` default language, `+0x114` four currency names (0x17 bytes each; empty on a genuine key),
+  `+0x170` pricing scheme, `+0x171` default currency, `+0x192` credits per coin value
+  (1, 2, 4, 6, 30), `+0x198` five float coin values ($0.25, 0.50, 0.75, 1, 5),
   **`+0x1B0 + game ID` (300 bytes) per-game price: low nibble = default price in credits, high
   nibble = continue cost; 0 = the game is not offered** (`KeyManager::DefaultGamePrice`,
   `DefaultGameContinueCost`), `+0x2DD..` 120 game-option bytes, `+0x357`/`+0x359` unit times
-  for coinless time play, `+0x3BF..` a bit field (*not* the game licence; a genuine key has 200
+  for coinless time play, `+0x3E5` u32 **player-selectable language mask** (genuine
+  `0x0022009F`), `+0x3BF..` a bit field (*not* the game licence; a genuine key has 200
   of 300 bits set), `+0x3EF` one more flag.
 - *Option bytes* (`ParseOptionData`; `KeyManager::Option(i)`): 0 = locked off, 1 = locked on,
   2 / 3 = the operator's choice, default off / on. `NVRAMMap::IsOptionOn` uses the NVRAM value only
