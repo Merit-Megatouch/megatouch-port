@@ -212,7 +212,11 @@ The factory loader reads the security key through the I/O board. The fake board 
 - the game options.
 
 `KEY_COUNTRY`, `KEY_LANGUAGES` and `KEY_PLAYER_LANGUAGES` change the country and the languages it
-offers (`scripts/loader-key.sh --countries`, `--languages`).
+offers (`scripts/loader-key.sh --countries`, `--languages`). The key only *offers* languages: which ones players can pick
+is the operator's choice in Operator Setup's language screen (stored in
+`settings/never/language.xml`, at most eight). Languages the key stops offering are dropped from
+that list and aren't added back by themselves. Translations exist for all 31: Arabic, for one,
+covers the menus and 109 games.
 
 **First boot of a fresh install:** touchscreen calibration at every resolution, then the
 Connection Wizard. `scripts/loader.sh` writes the `hardware.xml` that the cabinet's hardware
