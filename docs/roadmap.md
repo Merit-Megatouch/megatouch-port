@@ -16,10 +16,10 @@ scalable fullscreen window, the [operator guide](guides/operator-guide.md).
 1. **Try every game** from the menus and fix what misbehaves (as with Super Boxxi and Trix).
 2. **Linked cabinets (MegaLink).** Done: cabinets on one PC share a virtual cabinet network
    (`MEGA_LOADER_NET=lan`, megalan switch with a router) and find each other (UDP broadcasts on
-   port 4700; the MegaLink ID is the last number of the address). Next: play a linked game
-   through; then an uplink so megalan switches on different PCs, over a LAN or the internet,
-   join one network (a hub forwarding frames, each install's router keeping to its own
-   addresses).
+   port 4700; the MegaLink ID is the last number of the address), and switches on different
+   PCs join one network through a hub (`MEGA_LAN_LISTEN` / `MEGA_LAN_CONNECT`, shared
+   password, an address block per PC). Next: play a linked game through, then try a link over
+   the real internet; optionally encrypt the link between PCs.
 3. **A unique identity per install.** Done: serial and MegaNet ID per install
    (`scripts/loader-identity.sh`).
 4. **Easier installs:** a one-command installer and a Windows shortcut.

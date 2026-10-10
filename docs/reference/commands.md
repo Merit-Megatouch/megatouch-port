@@ -199,6 +199,9 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 | `MEGA_LOADER_X` | `xephyr` | `host`: draw on the desktop's X server directly (no resolution changes) |
 | `MEGA_LOADER_NET` | `slirp` | `slirp`: own network namespace with a virtual wired `eth0` (NAT, DHCP 10.0.2.15). `lan[:NAME]`: a cabinet network shared with every cabinet started with the same NAME (megalan switch + router; linked play). `host`: the desktop's network (the cabinet then shows none) |
 | `MEGA_LOADER_BACKUP` | `auto` | Settings snapshot at start: `auto` (every start, newest 20), `daily` (one a day, newest 14), `none` |
+| `MEGA_LAN_LISTEN` | — | With `MEGA_LOADER_NET=lan`: this PC is the hub other PCs join, on `[ADDR:]PORT` (e.g. `4790`). Also read from `cabinet.local.conf` |
+| `MEGA_LAN_CONNECT` | — | With `MEGA_LOADER_NET=lan`: join the hub at `HOST:PORT`. Also read from `cabinet.local.conf` |
+| `MEGA_LAN_PASSWORD` | — | Shared by the hub and all joining PCs (8+ characters). Also read from `cabinet.local.conf` |
 | `MEGA_LOADER_IDENTITY` | on | `off`: don't apply `<var>.identity` (serial for a new board EEPROM, MegaNet ID) at start |
 | `MEGA_LOADER_KEY` | make | `none`: no security-key image is made (key-gated options stay locked off) |
 | `MEGA_LOADER_BIN` | `/usr/local/bin/start` | Program to start inside the sandbox |

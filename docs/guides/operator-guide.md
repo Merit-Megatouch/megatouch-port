@@ -371,9 +371,37 @@ are invited to join. `new-cabinet.sh NAME --from-image` starts from the image's 
 instead, which needs the Connection Wizard (wired) once, like any fresh cabinet. Several separate
 networks: `MEGA_LOADER_NET=lan:NAME`.
 
-Status: the network side works (shared network, addresses, MegaLink finding the other cabinets).
-Playing a linked game through to the end hasn't been tried yet. Linking cabinets on different
-PCs or over the internet is next on the [roadmap](../roadmap.md).
+**Cabinets on different PCs** (a LAN, or the internet). One PC is the *hub*, the others join
+it; all their cabinets end up on one cabinet network. Put the same password on every PC, in
+`cabinet.local.conf`:
+
+```bash
+# on the hub PC
+MEGA_LAN_LISTEN=4790
+MEGA_LAN_PASSWORD="choose-a-long-password"
+
+# on every other PC
+MEGA_LAN_CONNECT=hub-pc-name-or-address:4790
+MEGA_LAN_PASSWORD="choose-a-long-password"
+```
+
+Then start the cabinets with `MEGA_LOADER_NET=lan make loader-run` on each PC (in that order is
+easiest, but a PC that starts first keeps trying to reach the hub). Each PC keeps its own
+internet access; the hub gives each PC its own range of addresses (hub 10.0.2.16–31, the next
+PC .32–47, … up to 14 PCs with up to 16 cabinets each), so every cabinet has a distinct MegaLink
+ID. `build/loader/lan/lan.log` shows who joined.
+
+- The hub must be reachable on its port (4790/TCP): open it in the hub's firewall, and forward it
+  on the router for joining over the internet. Under **WSL**, other PCs can't reach a hub inside
+  WSL by default: turn on WSL's mirrored networking (`networkingMode=mirrored` in `.wslconfig`),
+  or let a Linux PC be the hub; WSL PCs can always join a hub.
+- The password is checked both ways and never sent; the cabinet traffic between PCs is not
+  encrypted. Over the internet, a VPN (Tailscale, ZeroTier, WireGuard) avoids opening a port
+  and encrypts it: use the hub's VPN address in `MEGA_LAN_CONNECT`.
+
+Status: the network side works, on one PC and between joined switches (addresses, the internet,
+MegaLink finding the other cabinets). Playing a linked game through to the end hasn't been
+tried yet; neither has a link over the real internet.
 
 ## 18. Where things are
 

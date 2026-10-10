@@ -146,9 +146,22 @@ if [ "$NET" = lan ]; then
   mkdir -p "$B/lan"
   LANSOCK="$B/lan/$LAN.sock"
   if ! { [ -f "$B/lan/$LAN.pid" ] && kill -0 "$(cat "$B/lan/$LAN.pid")" 2>/dev/null && [ -S "$LANSOCK" ]; }; then
+    # joining other PCs (docs: operator guide, linked cabinets): MEGA_LAN_LISTEN=[ADDR:]PORT makes
+    # this PC the hub, MEGA_LAN_CONNECT=HOST:PORT joins one; MEGA_LAN_PASSWORD is shared by all.
+    # In the environment or cabinet.local.conf.
+    lan_listen="${MEGA_LAN_LISTEN:-}" lan_connect="${MEGA_LAN_CONNECT:-}" lan_pw="${MEGA_LAN_PASSWORD:-}"
+    if [ -f "$P/cabinet.local.conf" ]; then
+      eval "$(grep -E '^MEGA_LAN_(LISTEN|CONNECT|PASSWORD)=' "$P/cabinet.local.conf" | sed 's/^/conf_/')"
+      lan_listen="${lan_listen:-${conf_MEGA_LAN_LISTEN:-}}"
+      lan_connect="${lan_connect:-${conf_MEGA_LAN_CONNECT:-}}"
+      lan_pw="${lan_pw:-${conf_MEGA_LAN_PASSWORD:-}}"
+    fi
+    lan_args=()
+    [ -n "$lan_listen" ] && lan_args=(--listen "$lan_listen")
+    [ -n "$lan_connect" ] && lan_args=(--connect "$lan_connect")
     TDL="$P/toolchain/debug/root/usr/lib/x86_64-linux-gnu"
-    LD_LIBRARY_PATH="$TDL" setsid bash -c '"$0" "$1"; echo "megalan exited ($?)"' "$B/bin/megalan" "$LANSOCK" \
-      >> "$B/lan/$LAN.log" 2>&1 < /dev/null &
+    MEGALAN_PASSWORD="$lan_pw" LD_LIBRARY_PATH="$TDL" setsid bash -c '"$@"; echo "megalan exited ($?)"' \
+      megalan "$B/bin/megalan" "$LANSOCK" "${lan_args[@]}" >> "$B/lan/$LAN.log" 2>&1 < /dev/null &
     echo $! > "$B/lan/$LAN.pid"
     for i in $(seq 50); do [ -S "$LANSOCK" ] && break; sleep 0.1; done
     [ -S "$LANSOCK" ] || { echo "megalan did not start, see $B/lan/$LAN.log" >&2; exit 1; }
