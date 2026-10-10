@@ -4,7 +4,8 @@ Run a **Megatouch ION (2014)** bar-top cabinet on a PC: the cabinet's own factor
 unmodified, from its original installer discs, on Linux or Windows (WSL2). You get the whole
 cabinet: attract loop, game menus, every game, Operator Setup, coins and credits, operator and
 player keys, high scores and books, 31 languages, plus MegaNet and TournaMAXX on community
-servers.
+servers. The **Megatouch Force** (the cabinet before the ION) runs too, from its 2011 installer
+disc ([below](#the-force-2011)).
 
 Nothing is emulated at the CPU level: the cabinet's x86 Linux programs run directly. What the
 project provides is the cabinet around them. The I/O board, touchscreen, security key, sound card,
@@ -17,6 +18,7 @@ the cabinet's Linux and today's.
 | --- | --- |
 | **The ION 2014 installer discs** (two ISOs, `V40_02T130830_1115`), recommended | the factory software and a factory-fresh cabinet |
 | The `Megatouch ION 2014 HDD Keyless` disk image (60 GB) | the same software with a patched loader, and a previous owner's settings and books |
+| Optional: **the Force 2011 installer disc** (one ISO, `V28_40T101109_1217`) | a Force cabinet next to the ION one |
 
 Everything is read from them.
 
@@ -58,6 +60,31 @@ to get the menu. **F1** = Operator Setup, **F5–F8** = coins, **F9** = operator
 installing, the controls, first-time setup, coins and keys, adding games to the menu, MegaNet
 and TournaMAXX, languages and region, backups and troubleshooting.
 
+## The Force (2011)
+
+The Force was the Megatouch before the ION: 640×480 (800×600 for Hi-Res games), no sidebar, its
+own key, touchscreen and network setup. Its 2011 software runs from its installer disc, next to
+the ION cabinet and with its own settings, books and licence:
+
+```bash
+# cabinet.local.conf
+FORCE_DISC1="/mnt/e/Images/Force 2011 Disk 1 of 1 V28_40T101109_1217_1OF2.iso"
+
+make loader-setup                 # also builds build/force (a few minutes)
+make loader-run CABINET=force     # the window is titled "Megatouch Force"
+```
+
+First start: two calibration screens (press *EXIT* on each), then the menu. The controls are the
+ION's. For MegaNet/TournaMAXX: **F1** → *Network* → *LAN* → *Ethernet Setup* → *AUTOMATIC* →
+*Setup*: server `us.oerinet.net`, DNS `1.1.1.1` and `8.8.8.8` (public DNS servers are needed:
+the Force tests its Internet connection through them), then *YES* to the TournaMAXX connection.
+
+Tried so far: from the disc to the menu, Operator Setup, the licence, DHCP and TournaMAXX
+registration with a community server. Not yet: playing through games, coins, operator keys,
+MegaLink. Only the 2011 disc is supported (the 2007.5–2010.5 discs have the same layout but
+weren't tried; 2004–2006.5 use an older one). Details: [operator guide §20](docs/guides/operator-guide.md#20-a-force-cabinet-2011),
+[how it works](docs/guides/cabinet-loader.md#a-force-cabinet), [the Force's software](docs/reference/force.md).
+
 ## What works
 
 | | |
@@ -77,8 +104,8 @@ and TournaMAXX, languages and region, backups and troubleshooting.
 | Light-show kit, books printer | yes: the cabinet's light sequences and printouts, passed on to real lights and files |
 | Real hardware and services | coin acceptors, buttons, GPIO, a real iButton reader, relays for meters and lockout, MQTT / Home Assistant, webhooks, WLED lights ([connectors](docs/guides/connectors.md)) |
 | Linked cabinets (MegaLink) | yes on one PC (a full linked game played); PCs joined over a LAN or the internet share a network and find each other (experimental) ([guide](docs/guides/operator-guide.md#17-linked-cabinets-megalink-experimental)) |
-| Force 2011 (the cabinet before the ION), from its installer disc | yes: menus, Operator Setup, network and MegaNet/TournaMAXX registration with a community server (`FORCE_DISC1`, `make loader-run CABINET=force`; [guide](docs/guides/cabinet-loader.md#a-force-cabinet)) |
-| Other years' installer discs (ION 2008.5–2013, Force 2004–2010.5, Maxx) | same disc format, not tried yet |
+| Force 2011 (the cabinet before the ION), from its installer disc | yes: menus, Operator Setup, licence, network and MegaNet/TournaMAXX registration with a community server; games not yet played through ([above](#the-force-2011)) |
+| Other years' installer discs (ION 2008.5–2013, Force 2004–2010.5, Maxx) | same disc format, not tried yet ([every disc](docs/reference/cabinet.md#every-installer-disc-as-seen-2026-10-11)) |
 | Credit card reader, TouchTunes / Rowe jukebox links, dial-up modem | no (the services behind them are gone) |
 
 ## Documentation
@@ -92,7 +119,8 @@ and TournaMAXX, languages and region, backups and troubleshooting.
 | [Connectors](docs/guides/connectors.md) | Real lights, coin acceptors, buttons, iButton reader, meters, MQTT, webhooks |
 | [I/O board](docs/reference/io-board.md) | The USB I/O board, the security key (its full layout) and operator keys |
 | [Cabinet software](docs/reference/cabinet-software.md) | How the cabinet's software works inside: games, hardware, light show, printer, NVRAM, MegaNet, MegaLink, debug flags |
-| [Cabinet state](docs/reference/cabinet-state.md), [MegaNet](docs/reference/meganet.md), [MegaLink](docs/reference/megalink.md) | Where the cabinet keeps its state; the server exchange; the link protocol |
+| [Cabinet state](docs/reference/cabinet-state.md), [MegaNet](docs/reference/meganet.md), [MegaLink](docs/reference/megalink.md) | Where the cabinet keeps its state (and the game menu); the server exchange; the link protocol |
+| [Force](docs/reference/force.md) | The Force's software: system, files, touchscreen protocol, network, what breaks on today's systems |
 | [Commands](docs/reference/commands.md) | Every command, script and setting |
 | [All docs](docs/README.md) | Index, including reference and history |
 
@@ -104,6 +132,8 @@ make loader-run CABINET=force     start the Force cabinet (FORCE_DISC1 in cabine
 make loader-backup                save a backup of its settings (every start also saves one)
 make loader-restore BACKUP=<file> restore one (cabinet stopped)
 make loader-reset                 back to the original settings: factory (discs) or the image's (backed up first)
+make loader-reset CABINET=force   the Force back to factory settings
+scripts/loader-menu.sh --missing  licensed games on no menu page (each start adds them; --list shows the menu)
 scripts/loader-option.sh --list   the cabinet's 120 game options (TournaMAXX, free play, …)
 scripts/loader-key.sh --show      the licence: country, languages, options
 make update                       update (settings backed up; rolls back if the new version fails)
@@ -129,6 +159,9 @@ sandbox (bubblewrap) on a modern 32-bit runtime, with stand-ins for the hardware
 | Ethernet port | a private virtual network with internet access, or a shared one for linked cabinets |
 | Monitor (changing resolutions) | a nested X server, shown scaled in a normal window |
 
+A Force needs a few more (its own I/O board access, a MicroTouch controller, old network and
+clock code); they are picked automatically.
+
 Details, and the compatibility fixes: [docs/guides/cabinet-loader.md](docs/guides/cabinet-loader.md).
 
 ## Repository layout
@@ -136,10 +169,11 @@ Details, and the compatibility fixes: [docs/guides/cabinet-loader.md](docs/guide
 | Path | In git | What |
 | --- | --- | --- |
 | `Makefile`, `cabinet.conf` | yes | Commands; where the cabinet's software comes from (your disc or image paths go in `cabinet.local.conf`, not in git) |
-| `scripts/` | yes | `install.sh`, `cabinet.sh` (kiosk), `loader*.sh` (run, setup, backup, options, key, identity), `partimage.py` (installer discs), `hwbridge.py` (connectors), helpers |
+| `scripts/` | yes | `install.sh`, `cabinet.sh` (kiosk), `loader*.sh` (run, setup, backup, options, key, identity, menu), `partimage.py` (installer discs), `hwbridge.py` (connectors), helpers |
 | `src/fakeio/` | yes | The cabinet's simulated hardware and compatibility fixes |
 | `docs/` | yes | `guides/`, `reference/`, `history/`, `roadmap.md` |
 | `build/loader/` | no | The cabinet's software from your discs or image, its settings (`var/`) and backups |
+| `build/force/` | no | The Force cabinet from its disc, and its settings (`var/`) |
 | `shared/`, `toolchain/` | no | Generated by `make setup` / `make loader-setup` |
 | `src/backend`, `src/host`, `src/legacy`, `src/unity`, `src/gendef`, `games/`, `tools/` | yes | Standalone game ports (below) |
 
