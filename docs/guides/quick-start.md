@@ -5,6 +5,15 @@ About 20 minutes on a fresh machine, most of it downloads. You need the cabinet 
 
 Once it runs, the [Operator guide](operator-guide.md) explains everything else.
 
+**Shortcut:** after step 1, this one command does steps 2 to 5 (it asks for the image path and
+checks it) and offers a desktop shortcut:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Merit-Megatouch/megatouch-port/main/scripts/install.sh)
+```
+
+The steps below are what it does, for doing it by hand or understanding a problem.
+
 ## 1. A Linux shell
 
 **Windows 10/11:** install WSL2 with Ubuntu. Open PowerShell **as administrator**:

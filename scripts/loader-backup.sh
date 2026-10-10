@@ -4,6 +4,8 @@
 #
 #   scripts/loader-backup.sh [label]          snapshot → build/loader/backups/<date>-<label>.tar.gz
 #   scripts/loader-backup.sh --auto           same, labelled "auto", keeping the newest $KEEP autos
+#   scripts/loader-backup.sh --daily          one "daily" snapshot per day at most, keeping the newest
+#                                             $KEEP_DAILY (kiosk mode: restarts don't rotate them out)
 #   scripts/loader-backup.sh --list           list snapshots
 #   scripts/loader-backup.sh --restore FILE   restore one; the current state is first moved
 #                                             aside to build/loader/var/merit.before-restore-<date>
@@ -13,6 +15,7 @@ B="$P/build/loader"
 VAR="${MEGA_LOADER_VAR:-$B/var}"
 D="$B/backups"
 KEEP=${KEEP:-20}
+KEEP_DAILY=${KEEP_DAILY:-14}
 mkdir -p "$D"
 now=$(date +%Y%m%d-%H%M%S)
 
@@ -29,6 +32,9 @@ case "${1:-}" in
   --auto)
     snapshot auto >/dev/null
     ls -1t "$D"/*-auto.tar.gz 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do rm -f -- "$old"; done ;;
+  --daily)
+    ls "$D"/"$(date +%Y%m%d)"-*-daily.tar.gz >/dev/null 2>&1 || snapshot daily >/dev/null
+    ls -1t "$D"/*-daily.tar.gz 2>/dev/null | tail -n +$((KEEP_DAILY + 1)) | while read -r old; do rm -f -- "$old"; done ;;
   --restore)
     f="${2:?usage: loader-backup.sh --restore FILE}"
     [ -f "$f" ] || f="$D/$f"

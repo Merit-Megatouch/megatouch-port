@@ -177,6 +177,8 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 
 | Command | What it does |
 | --- | --- |
+| `scripts/install.sh [--image P] [--kiosk] [--no-shortcut] [--yes] [--dir D]` | One-command install: packages, clone, image check, setup, shortcut, kiosk autostart |
+| `scripts/cabinet.sh` / `stop` / `status` / `autostart on\|off` | Kiosk mode (`make kiosk` / `make kiosk-stop`): fullscreen, restart on exit, crash or hang, login autostart |
 | `scripts/loader.sh` | What `make loader-run` runs: start the cabinet |
 | `scripts/loader.sh shell` / `run <cmd>` | A shell / a command inside the cabinet's userland (joins a running cabinet's display) |
 | `scripts/loader-backup.sh [label]` / `--list` / `--restore FILE` | Snapshot / list / restore `build/loader/var/merit` (`--auto` keeps the newest 20) |
@@ -193,6 +195,7 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 | `MEGA_LOADER_VIEW` | `megaview` | `megaview`: scalable window. `xephyr`: Xephyr's own window, always the cabinet's exact resolution |
 | `MEGA_LOADER_X` | `xephyr` | `host`: draw on the desktop's X server directly (no resolution changes) |
 | `MEGA_LOADER_NET` | `slirp` | `slirp`: own network namespace with a virtual wired `eth0` (NAT, DHCP 10.0.2.15). `host`: the desktop's network (the cabinet then shows none) |
+| `MEGA_LOADER_BACKUP` | `auto` | Settings snapshot at start: `auto` (every start, newest 20), `daily` (one a day, newest 14), `none` |
 | `MEGA_LOADER_KEY` | make | `none`: no security-key image is made (key-gated options stay locked off) |
 | `MEGA_LOADER_BIN` | `/usr/local/bin/start` | Program to start inside the sandbox |
 | `MEGA_EXTRA_ENV` | — | `"A=1 B=2"`: extra variables passed into the sandbox (debugging) |
@@ -204,10 +207,27 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 | `MEGAVIEW_FULLSCREEN=1` | Start fullscreen (F11 / Alt+Enter toggle it anyway) |
 | `MEGAVIEW_STRETCH=1` | Stretch instead of keeping the cabinet's shape (Ctrl+Alt+S toggles) |
 | `MEGAVIEW_SCALE=<n>` | Initial window size: n × the cabinet's resolution (default 2 for 640×480) |
+| `MEGAVIEW_HIDE_CURSOR=1` | Hide the mouse pointer (touchscreens) |
+| `MEGAVIEW_ALIVE=<file>` | Touch this file every few seconds while the picture changes (kiosk hang detection) |
 | `MEGAVIEW_STATS=1` | Per-frame grab / upload / draw times in `build/loader/megaview.log` |
 | `MEGAVIEW_DEBUG=1` | Log mouse buttons as sent to the cabinet |
 | `MEGAVIEW_NOSHM=1` | Grab with `XGetImage` instead of MIT-SHM |
 | `MEGAVIEW_XTST=<path>` | libXtst to use (set by the launcher for the 32-bit fallback build) |
+
+### Kiosk mode (scripts/cabinet.sh)
+
+Environment variables or lines in `cabinet.local.conf`.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `KIOSK_HANG_SECS` | `300` | Frozen picture for this long while the main program is busy → restart (`0`: off) |
+| `KIOSK_FULLSCREEN` | `1` | `0`: a normal window (F11 still toggles) |
+| `KIOSK_HIDE_CURSOR` | `1` | `0`: show the mouse pointer |
+| `KIOSK_BACKUP` | `daily` | Passed on as `MEGA_LOADER_BACKUP` |
+
+Keys at the box: **Ctrl+Alt+End** quits and stops the kiosk (megaview exits with status 42); any
+other ending is restarted (5 s; 1 min after 3 quick failures, 5 min after 6). Log:
+`build/loader/kiosk.log`.
 
 ### The fake I/O board and other stand-ins
 

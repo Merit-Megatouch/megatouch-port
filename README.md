@@ -16,7 +16,15 @@ read from it.
 ## Quick start
 
 On Windows, install Ubuntu under WSL2 first (`wsl --install -d Ubuntu` in an administrator
-PowerShell, then reboot). Then, in Ubuntu:
+PowerShell, then reboot). Then, in Ubuntu (or on any Ubuntu box), one command installs
+everything and asks for the image:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Merit-Megatouch/megatouch-port/main/scripts/install.sh)
+```
+
+Add `--kiosk` for a dedicated touchscreen box: it then boots into the cabinet, fullscreen, and
+restarts it if it crashes or hangs. Or by hand:
 
 ```bash
 sudo apt install git gcc g++ make python3 python3-venv curl e2fsprogs binutils bubblewrap
@@ -46,6 +54,7 @@ and TournaMAXX, backups and troubleshooting.
 | Operator key + PIN, My Merit player keys | yes |
 | Network, MegaNet updates, TournaMAXX tournaments | yes, with a community MegaNet server |
 | Resizable / fullscreen window | yes |
+| Dedicated touchscreen box: auto-run, fullscreen, restart on crash or hang | yes (kiosk mode) |
 | Settings kept between runs, automatic backups | yes |
 | Joystick accessory | yes, on the arrow keys (`MEGAIO_JOYSTICK=1`) |
 | Linked play between cabinets (MegaLink) | not yet ([roadmap](docs/roadmap.md)) |
@@ -72,6 +81,8 @@ make loader-restore BACKUP=<file> restore one (cabinet stopped)
 make loader-reset                 back to the image's original settings (backed up first)
 scripts/loader-option.sh --list   the cabinet's 120 game options (TournaMAXX, free play, …)
 git pull && make loader-setup     update
+make kiosk / make kiosk-stop      kiosk mode: fullscreen, restarted on crash or hang
+scripts/cabinet.sh autostart on   start the kiosk at login
 ```
 
 Everything else: [docs/reference/commands.md](docs/reference/commands.md).
@@ -98,7 +109,7 @@ Details, and the compatibility fixes: [docs/guides/cabinet-loader.md](docs/guide
 | Path | In git | What |
 | --- | --- | --- |
 | `Makefile`, `cabinet.conf` | yes | Commands; image partition offsets (your image path goes in `cabinet.local.conf`, not in git) |
-| `scripts/` | yes | `loader*.sh` (run, setup, backup, options, key), `setup.sh`, helpers |
+| `scripts/` | yes | `install.sh`, `cabinet.sh` (kiosk), `loader*.sh` (run, setup, backup, options, key), `setup.sh`, helpers |
 | `src/fakeio/` | yes | The cabinet's simulated hardware and compatibility fixes |
 | `docs/` | yes | `guides/`, `reference/`, `history/`, `roadmap.md` |
 | `build/loader/` | no | The cabinet's software from your image, its settings (`var/`) and backups |

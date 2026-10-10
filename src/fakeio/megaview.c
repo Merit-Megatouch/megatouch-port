@@ -10,10 +10,13 @@
  *
  *   megaview DISPLAY [TITLE]      DISPLAY = the nested server (e.g. :55)
  *
- * Keys: F11 or Alt+Enter fullscreen, Ctrl+Alt+S toggle aspect (keep / stretch). Everything else
- * goes to the cabinet. Closing the window ends the loader (scripts/loader.sh).
+ * Keys: F11 or Alt+Enter fullscreen, Ctrl+Alt+S toggle aspect (keep / stretch), Ctrl+Alt+End
+ * quit (exit status 42: kiosk mode stops instead of restarting). Everything else goes to the
+ * cabinet. Closing the window ends the loader (scripts/loader.sh).
  * Settings: MEGAVIEW_XTST (path of a libXtst.so.6), MEGAVIEW_STRETCH=1, MEGAVIEW_SCALE (initial
- * window scale, default 2 for 640x480), MEGAVIEW_FULLSCREEN=1.
+ * window scale, default 2 for 640x480), MEGAVIEW_FULLSCREEN=1, MEGAVIEW_HIDE_CURSOR=1 (touchscreens),
+ * MEGAVIEW_ALIVE=<file> (touched every few seconds while the picture changes: scripts/cabinet.sh
+ * uses it to spot a frozen cabinet).
  *
  * Built 64-bit against toolchain/debug's SDL2 when present (GPU scaling through WSLg's d3d12
  * Mesa), else i386 against the runtime's SDL2; libX11/libXext/libXtst are loaded with dlopen.
@@ -26,6 +29,7 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <unistd.h>
+#include <utime.h>
 
 /* ---- the few Xlib types and calls used (no headers) ---- */
 typedef unsigned long XID;
@@ -181,7 +185,9 @@ int main(int argc, char **argv) {
     SDL_RendererInfo ri;
     SDL_GetRendererInfo(ren, &ri);
     fprintf(stderr, "[megaview] %s -> window (%s renderer, %s)\n", ndisp, ri.name, use_shm ? "MIT-SHM" : "XGetImage");
-    SDL_ShowCursor(SDL_ENABLE);
+    SDL_ShowCursor(getenv("MEGAVIEW_HIDE_CURSOR") && *getenv("MEGAVIEW_HIDE_CURSOR") == '1' ? SDL_DISABLE : SDL_ENABLE);
+    const char *alive = getenv("MEGAVIEW_ALIVE");
+    Uint32 alive_at = 0;
     int stretch = getenv("MEGAVIEW_STRETCH") && *getenv("MEGAVIEW_STRETCH") == '1';
     int fullscreen = getenv("MEGAVIEW_FULLSCREEN") && *getenv("MEGAVIEW_FULLSCREEN") == '1';
     if (fullscreen) SDL_SetWindowFullscreen(win, SDL_WINDOW_FULLSCREEN_DESKTOP);
@@ -243,6 +249,8 @@ int main(int argc, char **argv) {
                     break;
                 }
                 if (k == SDLK_F11) break;
+                if (ev.type == SDL_KEYDOWN && k == SDLK_END && (m & KMOD_CTRL) && (m & KMOD_ALT))
+                    return 42;                             /* deliberate quit (kiosk: don't restart) */
                 if (ev.type == SDL_KEYDOWN && k == SDLK_s && (m & KMOD_CTRL) && (m & KMOD_ALT)) {
                     stretch = !stretch;
                     redraw = 1;
@@ -281,6 +289,10 @@ int main(int argc, char **argv) {
             if (tex) SDL_RenderCopy(ren, tex, NULL, NULL);
             SDL_RenderPresent(ren);
             redraw = 0;
+            if (alive && *alive && SDL_GetTicks() - alive_at > 5000) {   /* the picture is moving */
+                alive_at = SDL_GetTicks();
+                if (utime(alive, NULL) != 0) { FILE *af = fopen(alive, "w"); if (af) fclose(af); }
+            }
         }
         if (stats) {
             Uint64 t3 = SDL_GetPerformanceCounter(), hz = SDL_GetPerformanceFrequency() / 1000;

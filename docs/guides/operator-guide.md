@@ -25,7 +25,8 @@ security key, sound card, network port, monitor) is simulated. For how that work
 - [13. Settings, backups and resets](#13-settings-backups-and-resets)
 - [14. Updating](#14-updating)
 - [15. When something goes wrong](#15-when-something-goes-wrong)
-- [16. Where things are](#16-where-things-are)
+- [16. Dedicated touchscreen box (kiosk mode)](#16-dedicated-touchscreen-box-kiosk-mode)
+- [17. Where things are](#17-where-things-are)
 
 ## 1. What you need
 
@@ -50,43 +51,39 @@ Reboot, open **Ubuntu** from the Start menu and choose a user name and password.
 and sound on the Windows desktop come from WSLg, which is part of current WSL: `wsl --version`
 should list a WSLg version (if not, run `wsl --update`).
 
-All commands below are typed in the Ubuntu window.
+All commands below are typed in the Ubuntu window (or a terminal on a Linux box).
 
-### 2.2 Packages (the only step that needs your password)
+### 2.2 The installer
 
 ```bash
-sudo apt update
-sudo apt install git gcc g++ make python3 python3-venv curl e2fsprogs binutils bubblewrap
+bash <(curl -fsSL https://raw.githubusercontent.com/Merit-Megatouch/megatouch-port/main/scripts/install.sh)
 ```
 
-### 2.3 Get the project
+It installs the Ubuntu packages it needs (asks for your password), downloads the project to
+`~/megatouch-port`, asks where the disk image is and checks it, sets everything up (10–20
+minutes the first time, mostly downloads), and offers a shortcut: on the Windows desktop under
+WSL, in the applications menu on Linux. On a dedicated touchscreen box, add `--kiosk`
+([section 16](#16-dedicated-touchscreen-box-kiosk-mode)).
+
+Windows drives appear under `/mnt/`: `E:\Images\x.img` is `/mnt/e/Images/x.img`.
+
+Already have the project? `scripts/install.sh` from inside it does the same. Running it again is
+safe: whatever is already done is skipped, and the cabinet's settings are never overwritten.
+
+### 2.3 By hand (what the installer does)
 
 ```bash
+sudo apt install git gcc g++ make python3 python3-venv curl e2fsprogs binutils bubblewrap
 git clone https://github.com/Merit-Megatouch/megatouch-port ~/megatouch-port
 cd ~/megatouch-port
-```
-
-Keep it in your Linux home folder (`~`), not under `/mnt/c` or `/mnt/e`: those are much slower.
-
-### 2.4 Tell it where the image is
-
-```bash
 echo 'IMG="/mnt/e/path/to/Megatouch ION 2014 HDD Keyless.img"' > cabinet.local.conf
-```
-
-Windows drives appear under `/mnt/` (`E:\Images\x.img` is `/mnt/e/Images/x.img`). Keep the
-quotes: the file name has spaces.
-
-### 2.5 Build and extract (once, 10–20 minutes, mostly downloads)
-
-```bash
 make setup           # 32-bit runtime and compiler support
 make loader-setup    # copies the cabinet's software out of the image, downloads the display
                      # and network helpers
 ```
 
-Both are safe to run again; finished steps are skipped. `make loader-setup` never overwrites
-your cabinet's settings once they exist.
+Keep the project in your Linux home folder (`~`), not under `/mnt/c` or `/mnt/e`: those are much
+slower. Keep the quotes around the image path: the file name has spaces.
 
 ## 3. Starting and stopping
 
@@ -104,7 +101,7 @@ loop. **Touch the screen** (click) to get the menu.
   finishes on its own.
 - Every start saves a backup of the cabinet's settings first ([section 13](#13-settings-backups-and-resets)).
 
-**Windows shortcut** (optional): a desktop shortcut with this target starts it with one click
+**Windows shortcut**: the installer offers one. By hand, a desktop shortcut with this target
 (a console window opens alongside; closing the cabinet window closes it):
 
 ```
@@ -303,9 +300,49 @@ make loader-run
 | "Performing database maintenance" at boot | Normal after an unclean stop; wait |
 | Network says *No Internet* | Run the Connection Wizard for **Wired Ethernet** ([section 11](#11-network-meganet-and-tournamaxx)) |
 | Settings got messed up | Restore a backup ([section 13](#13-settings-backups-and-resets)) |
+| Kiosk keeps restarting | `scripts/cabinet.sh status` and `build/loader/kiosk.log` show why; `make kiosk-stop`, then `make loader-run` to watch it in a window |
 | Something else | [Troubleshooting](troubleshooting.md#cabinet-loader) |
 
-## 16. Where things are
+## 16. Dedicated touchscreen box (kiosk mode)
+
+For a box that should be nothing but the cabinet, typically a small PC with a touchscreen
+running Ubuntu Desktop:
+
+```bash
+make kiosk                          # run it now, kiosk-style
+scripts/cabinet.sh autostart on     # and from now on at every login
+```
+
+(`scripts/install.sh --kiosk` does the autostart part during installation.)
+
+What kiosk mode does:
+
+| | |
+| --- | --- |
+| **Fullscreen**, pointer hidden | The touchscreen acts as the cabinet's touchscreen (touches arrive as clicks) |
+| **Auto-run** | Starts when the user's desktop session starts (XDG autostart) |
+| **Crash protection** | If the cabinet exits or crashes, it is started again after 5 seconds. If it keeps failing within two minutes of starting, the pause grows to 1 minute, then 5, so a broken setup doesn't spin |
+| **Hang protection** | If the picture hasn't changed for 5 minutes *and* the cabinet's main program is busy all that time (stuck in a loop), it is restarted. A quiet screen waiting for a touch is left alone |
+| **Screen stays on** | Screen blanking and the lock screen are turned off while it runs |
+| **Daily backups** | One settings backup a day (the last 14 kept) instead of one per start, so restarts can't push good backups out |
+
+To boot straight into the cabinet, also turn on **automatic login** for the user: on Ubuntu
+Desktop, *Settings → Users → Automatic Login* (or `autologin-user=` in LightDM's
+configuration on lighter desktops). Then power on → desktop → cabinet, no keyboard needed.
+
+**Getting out** at the box: **Ctrl+Alt+End** quits and stops the kiosk (closing the window any
+other way counts as a crash and it comes back). From another terminal or over SSH:
+`make kiosk-stop`. `scripts/cabinet.sh status` shows whether it runs and the latest restarts;
+the log is `build/loader/kiosk.log`. Turn the autostart off with `scripts/cabinet.sh autostart off`.
+
+Settings (in `cabinet.local.conf` or the environment): `KIOSK_HANG_SECS` (300; 0 turns hang
+protection off), `KIOSK_FULLSCREEN` (1), `KIOSK_HIDE_CURSOR` (1; 0 without a touchscreen),
+`KIOSK_BACKUP` (`daily`, `auto` or `none`).
+
+Under WSL the Windows side starts and stops WSL, so use the desktop shortcut there; kiosk mode is
+meant for Linux boxes.
+
+## 17. Where things are
 
 | Path | What |
 | --- | --- |
@@ -314,7 +351,7 @@ make loader-run
 | `build/loader/backups/` | Backups of that state |
 | `build/loader/var/merit/logging/logs/` | The cabinet's own logs (`*.running.log` is the current run) |
 | `build/loader/root`, `ion`, `home` | The cabinet's software, copied from the image (read-only use) |
-| `build/loader/*.log` | Logs of the display and network helpers |
+| `build/loader/*.log` | Logs of the display and network helpers; `kiosk.log` in kiosk mode |
 
 Technical details (how the simulation works, every setting, environment variables):
 [cabinet-loader](cabinet-loader.md) and the [commands reference](../reference/commands.md#cabinet-loader).

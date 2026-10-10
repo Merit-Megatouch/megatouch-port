@@ -96,6 +96,21 @@ for the standalone game ports. For debugging a game you're porting, see [debuggi
 : `loader-option.sh` and `loader-backup.sh --restore` only change settings while the cabinet is
   stopped. Close its window first.
 
+**Kiosk: the cabinet keeps coming back after closing it**
+: That's kiosk mode: anything but **Ctrl+Alt+End** counts as a crash. Or run `make kiosk-stop`
+  from a terminal or over SSH.
+
+**Kiosk: restarts over and over**
+: `scripts/cabinet.sh status` and `build/loader/kiosk.log` show each exit and its status. Stop
+  it (`make kiosk-stop`) and run `make loader-run` in a terminal to see the error. A hang
+  restart says `cabinet hung: picture frozen …`; raise `KIOSK_HANG_SECS` if a game legitimately
+  sits on a still picture with a busy CPU.
+
+**Kiosk doesn't start at login**
+: Check `~/.config/autostart/megatouch-cabinet.desktop` exists (`scripts/cabinet.sh autostart on`)
+  and that the session is a desktop session (GNOME, KDE, Xfce…). For booting without a login
+  screen, turn on automatic login.
+
 **Settings look wrong after an experiment**
 : `scripts/loader-backup.sh --list`, then `make loader-restore BACKUP=<file>`. Every start made one.
 

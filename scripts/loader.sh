@@ -25,6 +25,7 @@
 #   MEGA_LOADER_DISPLAY  nested display number (default 55)
 #   MEGA_LOADER_VIEW     megaview (default: scalable window, F11 fullscreen) or xephyr (Xephyr's
 #                        own window, always the cabinet's exact resolution)
+#   MEGA_LOADER_BACKUP   auto (default: a snapshot at every start), daily or none
 #   MEGA_LOADER_KEY=none no security-key image (scripts/loader-key.sh makes one when missing)
 #   MEGA_LOADER_NET      slirp (default: own network namespace + virtual eth0) or host
 #   MEGA_LOADER_VAR      directory used as /var (default build/loader/var); a second session
@@ -199,8 +200,14 @@ case "${1:-}" in
   run) shift; run "$@" ;;
   *)
     env+=(--setenv MEGA_LOADER_BIN "${MEGA_LOADER_BIN:-/usr/local/bin/start}")
-    # every start keeps a snapshot of the loader's state (build/loader/backups, newest 20)
-    [ -z "${MEGA_LOADER_VAR:-}" ] && "$P/scripts/loader-backup.sh" --auto || true
+    # every start keeps a snapshot of the loader's state (build/loader/backups, newest 20);
+    # MEGA_LOADER_BACKUP=daily keeps one a day instead (kiosk mode), none skips it
+    if [ -z "${MEGA_LOADER_VAR:-}" ]; then
+      case "${MEGA_LOADER_BACKUP:-auto}" in
+        auto) "$P/scripts/loader-backup.sh" --auto || true ;;
+        daily) "$P/scripts/loader-backup.sh" --daily || true ;;
+      esac
+    fi
     # the security-key image the fake board serves, made once from this /var's NVRAM
     [ "${MEGA_LOADER_KEY:-make}" = none ] || "$P/scripts/loader-key.sh" >/dev/null || true
     run /opt/fakeio/xinit.sh "$@" ;;
