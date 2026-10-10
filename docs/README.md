@@ -14,7 +14,7 @@ for development.
 | Fix something that doesn't work | [Troubleshooting](guides/troubleshooting.md) |
 | Know how the cabinet is simulated | [Cabinet loader](guides/cabinet-loader.md), [I/O board](reference/io-board.md) |
 | Connect real lights, coin acceptors, buttons, keys, home automation | [Connectors](guides/connectors.md) |
-| Understand or reimplement the cabinet's software | [Cabinet software](reference/cabinet-software.md), [events](reference/events.md), [options](reference/options.md) |
+| Understand or reimplement the cabinet's software | [Cabinet software](reference/cabinet-software.md), [cabinet state](reference/cabinet-state.md), [MegaNet](reference/meganet.md), [MegaLink](reference/megalink.md), [events](reference/events.md), [options](reference/options.md) |
 | Look up a command or setting | [Commands](reference/commands.md) |
 | Know what's next for the project | [Roadmap](roadmap.md) |
 | Port a single game (developers) | [Porting a game](guides/porting-a-game.md) |
@@ -52,6 +52,9 @@ for development.
 | [cabinet-software](reference/cabinet-software.md) | The loader's internals: start-up and processes, how games run, game and screen IDs, hardware from the loader's side, light show, books printer, NVRAM, identity, MegaNet, MegaLink, debug flags, logging, open questions |
 | [events](reference/events.md) | The event log (`events.jsonl`): every event type and field |
 | [options](reference/options.md) | The 120 game options: index, name, the image's value, our key's licence |
+| [cabinet-state](reference/cabinet-state.md) | Where the cabinet keeps its state: the NVRAM map, the encrypted databases (schemas, `dbdump`), the settings files |
+| [meganet](reference/meganet.md) | The MegaNet exchange: hosts, registration check, the POST session, every table, error codes; enough to write a server |
+| [megalink](reference/megalink.md) | The MegaLink wire protocol: discovery, challenges, the TCP game link, packet formats, a linked game step by step |
 | [glossary](reference/glossary.md) | Terms used throughout |
 
 ## History

@@ -190,6 +190,7 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 | `scripts/loader-key.sh [--force\|--show]` | Make or decode the security-key image `var/merit/fakeio/key.bin` |
 | `build/loader/bin/megaio …` | Drive the fake I/O board from a terminal: `coin`, `setup`, `calibrate`, `dip`, `fob`, `print` (plug in the books printer until it has printed), `printer on\|off`, `byte`, `status` |
 | `scripts/hwbridge.py --watch` / `--check` / `--send TYPE k=v…` / `--input-names` | The hardware bridge ([connectors](../guides/connectors.md)): show events live, show the `HW_` settings, push a test event to the outputs, list input key names. `scripts/loader.sh` runs it while the cabinet runs when any `HW_` setting is made |
+| `scripts/loader.sh run /opt/fakeio/dbdump [--schema] FILE.db…` | Print the cabinet's encrypted databases as SQL (schema, or schema and rows), read-only, using the keys in the cabinet's own libraries ([cabinet state](cabinet-state.md#databases)). Cabinet stopped, or use copies |
 | `scripts/examples/*.sh` | Starting points for `HW_ON_*` commands: a relay-driven coin meter, coin lockout, a play log |
 
 ### The sandbox, display and network
@@ -204,6 +205,7 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 | `MEGA_LOADER_BACKUP` | `auto` | Settings snapshot at start: `auto` (every start, newest 20), `daily` (one a day, newest 14), `none` |
 | `MEGA_LAN_LISTEN` | — | With `MEGA_LOADER_NET=lan`: this PC is the hub other PCs join, on `[ADDR:]PORT` (e.g. `4790`). Also read from `cabinet.local.conf` |
 | `MEGA_LAN_CONNECT` | — | With `MEGA_LOADER_NET=lan`: join the hub at `HOST:PORT`. Also read from `cabinet.local.conf` |
+| `MEGALAN_PCAP` | — | With `MEGA_LOADER_NET=lan`: the cabinet network's switch appends every frame to this pcap file (Wireshark, `tcpdump -r`); set it for the first cabinet on the network ([megalink](megalink.md#how-this-was-captured)) |
 | `MEGA_LAN_PASSWORD` | — | Shared by the hub and all joining PCs (8+ characters). Also read from `cabinet.local.conf` |
 | `MEGA_LOADER_IDENTITY` | on | `off`: don't apply `<var>.identity` (serial for a new board EEPROM, MegaNet ID) at start |
 | `MEGA_LOADER_KEY` | make | `none`: no security-key image is made (key-gated options stay locked off) |

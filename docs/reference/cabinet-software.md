@@ -20,6 +20,8 @@ Anything marked *inferred* comes from code reading and wasn't confirmed by a run
 | [io-board](io-board.md) | the USB I/O board, security key and key readers |
 | [events](events.md) | the event log our stand-ins write |
 | [options](options.md) | the 120 game options |
+| [cabinet state](cabinet-state.md) | NVRAM map, databases and settings files |
+| [meganet](meganet.md), [megalink](megalink.md) | the MegaNet server exchange, the MegaLink wire protocol |
 | [games](games.md) | every game's ID and library |
 
 - [Start-up and processes](#start-up-and-processes)
@@ -27,7 +29,7 @@ Anything marked *inferred* comes from code reading and wasn't confirmed by a run
 - [Hardware, from the loader's side](#hardware-from-the-loaders-side)
 - [Light show](#light-show)
 - [Books printer](#books-printer)
-- [NVRAM and game options](#nvram-and-game-options)
+- [NVRAM and game options](#nvram-and-game-options) (details: [cabinet state](cabinet-state.md))
 - [Identity: serial number and MegaNet ID](#identity-serial-number-and-meganet-id)
 - [Network, MegaNet and MegaLink](#network-meganet-and-megalink)
 - [Debug flags and logging](#debug-flags-and-logging)
@@ -241,17 +243,16 @@ The operator game number and location number are settings (`minidrucker::SetOper
 
 ## NVRAM and game options
 
-`/var/merit/nvram.dat`, 6276 bytes (0x1884):
-
-| Offset | Content |
-| --- | --- |
-| 0x40 + *i* | game option *i* (0–119), one byte, 0 or 1 ([options](options.md)) |
-| 0x1882 | 16-bit little-endian sum of bytes 1 … 0x1881 (`NVWrite`) |
+`/var/merit/nvram.dat`, 6276 bytes (0x1884), is the loader's `NVRAMData` written out whole. It
+holds the key's part number and revision, the 120 game options at `0x40 + index`, the menu
+layout, the coinless/rental-mode state and a few flags, with a 16-bit checksum of bytes 1–0x1881
+at 0x1882. The full map is in [cabinet state](cabinet-state.md#nvram-nvramdat). Most other state
+(books, credits, high scores, tournaments, players) is in encrypted SQLite databases, also
+described there.
 
 The running loader keeps NVRAM in memory and rewrites the whole file, so edits only stick while it
-is stopped. The rest holds credits, books, prices, the key's part number and revision (the key
-must match, or the loader wipes NVRAM at boot), and other settings. Those offsets aren't mapped
-yet.
+is stopped. If the key's part number or revision doesn't match NVRAM, the loader clears NVRAM at
+boot (keeping a few preserved fields).
 
 The security key decides per option what Operator Setup may change:
 
@@ -290,40 +291,30 @@ ABI (`-D_GLIBCXX_USE_CXX11_ABI=0`); `src/fakeio/netcfg.cpp` is a working example
 - **Status:** *Network Summary* shows the method, MegaNet ID, connection status ("OK – PINGED
   MEGANET SERVER") and last connection time.
 
-**MegaNet**, as seen against a community server (2026-10):
-
-- **Transport:** HTTPS, through the loader's libcurl with OpenSSL 0.9.8.
-- **Registration check:** the server name `us.oerinet.net` led to
-  `GET https://tngus.oerinet.net/check_registration?meganetid=<MegaNet ID>`, so the check host
-  is `tng` + the server name.
-- **Session:** *Connect to MegaNet/Update from Server* runs four steps, each reported as
-  Success or an error, and ends with `RESULT: NO ERROR` in the log. The session is a series of
-  `POST /go` exchanges.
-- **Uploads:** the machine sends its books, its logs and its crash dumps
-  (`/var/merit/logging/crashes`).
-- **Tables:** the server answers with tables, each starting `## LINE_HEADER|<Table>|…` followed
-  by `|`-separated lines. Seen: `Tournaments`, `MenuLayout` (`CAT_TOURNAMENT|0|G_FOURPLAY`),
-  `GameEnableOverride` and `GameTimeEnable`. Unknown table names are skipped and logged.
-- **Downloads:** the server can ask for a file to be fetched to a path (seen: an update
-  `.tgz` into `/var/merit/tournamaxx/updates/`). This build skipped the requests it didn't
-  know.
-- **Settings:** the server can change settings, such as the operator website text.
+**MegaNet:** HTTPS (libcurl, OpenSSL 0.9.8) to `https://tng<server>/go`, after a registration check
+at `https://tng<server>/check_registration?meganetid=<id>`. Each step of the session is one
+multipart POST: the cabinet sends `## <Table> field|…` records (first `Login`), and the server
+answers with `## LINE_HEADER|<Table>|…` tables, including `Request*` tables for what it wants
+next, until `Logout`. The tables carry books, logs, crash dumps, settings, menu layout, game
+options, tournaments, players, file downloads and the clock. The full exchange, every table and
+the error codes are in [meganet](meganet.md).
 
 **TournaMAXX:** the *Competition!* button appears with *Tournament Mode: ON-LINE*
 (`TOURNAMAXX_ENABLED`), a MegaNet connection, and free play off (or `TMAXX_OK_IN_FREEPLAY`). It
 lists the tournaments the server sent and greys out when there are none.
 
-**MegaLink (linked games, "Wired Game-to-Game"):**
+**MegaLink (linked games, "Wired Game-to-Game"):** option `LINKED_GAMES_ENABLED` (and not
+rental mode). Three layers:
 
-- **Option:** `LINKED_GAMES_ENABLED`.
-- **Discovery:** UDP broadcasts on port 4700 (and 4703), sent to the subnet's broadcast address
-  (`MegaLinkPoll`), so linked cabinets must share one Ethernet segment.
-- **Play:** TCP between the two cabinets.
-- **ID:** a cabinet's MegaLink ID is the last octet of its IP address, so each cabinet needs
-  its own address.
-- **Invitations:** `MegaLinkPoll::RequestLink(game, …)` / `CheckForChallenge` invite and accept;
-  linkable games show the other cabinets.
-- **Logging:** the flag `logging/megalink`.
+- **Discovery:** UDP broadcasts on port 4700 (ID request/response every 10 s).
+- **Challenges:** UDP broadcasts on 4703 (game ID, language, session ID that also seeds the
+  shared random deal).
+- **The game:** TCP on 4704, one connection per direction, with heartbeats, NetSprite lobby
+  objects and the game's own packets.
+
+A cabinet's ID is the last octet of its IP address, and linked cabinets must share one /24 and
+the same major software version (40 here). A complete linked game (11 Up) was played between two
+cabinets and captured; every packet format is in [megalink](megalink.md).
 
 ## Debug flags and logging
 
@@ -362,10 +353,12 @@ the current game ID (`Logger::SetGameID`).
 
 ## Open questions
 
-- **NVRAM map:** where the credits, books and prices are in NVRAM, beyond the options.
+- **NVRAM:** the purpose of a few fields (0x0BC, 0x0C0–0x0D7, 0xB85;
+  [cabinet state](cabinet-state.md#nvram-nvramdat)).
 - **Light show:** profile names, the brightness range, and what sequence 1 is for.
 - **Printer:** the country 0x0B printout layout (`NewSendAllData`) in detail.
-- **MegaNet:** the full `POST /go` request and response format. It was captured once; a
-  write-up would let someone reimplement a server.
+- **MegaNet:** a plaintext capture of a full session, to confirm field spellings and table order
+  ([meganet](meganet.md#7-open-questions)).
+- **MegaLink:** each game's own packet types, and links of more than two cabinets
+  ([megalink](megalink.md#open-questions)).
 - **Lockout:** which lockout flag is coins and which is bills, confirmed on hardware.
-- **MegaLink:** the message format on ports 4700/4703 and the TCP game protocol.

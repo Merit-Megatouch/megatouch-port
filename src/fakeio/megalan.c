@@ -26,6 +26,9 @@
  * matters. Members reconnect when the link drops.
  *
  * megalan exits 60 s after the last cabinet (and, for a hub, the last joined PC) has gone.
+ *
+ * MEGALAN_PCAP=<file>: also write every frame the switch handles (cabinets, router, other PCs)
+ * to <file> in pcap format, for Wireshark or tcpdump -r (appends when the file exists).
  */
 #define _GNU_SOURCE
 #include <arpa/inet.h>
@@ -206,10 +209,33 @@ static void port_send(int p, const unsigned char *frame, size_t len) {
     if (sendmsg(ports[p].fd, &m, MSG_NOSIGNAL | MSG_DONTWAIT) < 0 && errno != EAGAIN) port_close(p, "gone");
 }
 
+/* ---- optional capture (MEGALAN_PCAP) ---- */
+static FILE *pcap;
+static void pcap_open(const char *path) {
+    pcap = fopen(path, "ab");
+    if (!pcap) { logm("capture: %s: %s", path, strerror(errno)); return; }
+    if (ftell(pcap) == 0) {
+        struct { uint32_t magic; uint16_t major, minor; int32_t zone; uint32_t sigfigs, snaplen, link; }
+            h = { 0xa1b2c3d4, 2, 4, 0, 0, MAXFRAME, 1 };              /* LINKTYPE_ETHERNET */
+        fwrite(&h, sizeof h, 1, pcap);
+    }
+    logm("capture: writing frames to %s", path);
+}
+static void pcap_frame(const unsigned char *f, size_t len) {
+    if (!pcap) return;
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    uint32_t rec[4] = { (uint32_t)ts.tv_sec, (uint32_t)(ts.tv_nsec / 1000), (uint32_t)len, (uint32_t)len };
+    fwrite(rec, sizeof rec, 1, pcap);
+    fwrite(f, 1, len, pcap);
+    fflush(pcap);
+}
+
 /* forward a frame that came in on `from` (a port or ROUTER). Router traffic stays on this PC:
  * frames from the router never go to other PCs, frames from other PCs never reach the router. */
 static void switch_frame(int from, const unsigned char *f, size_t len) {
     if (len < 14) return;
+    pcap_frame(f, len);
     int from_uplink = from >= 0 && ports[from].kind == UPLINK;
     learn(f + 6, from);
     int to = lookup(f);
@@ -424,6 +450,7 @@ int main(int argc, char **argv) {
     }
     is_hub = listen_on != NULL;
     if (is_hub && is_member) { fprintf(stderr, "megalan: --listen or --connect, not both\n"); return 2; }
+    if (getenv("MEGALAN_PCAP") && *getenv("MEGALAN_PCAP")) pcap_open(getenv("MEGALAN_PCAP"));
     password = getenv("MEGALAN_PASSWORD");
     if ((is_hub || is_member) && (!password || strlen(password) < 8)) {
         fprintf(stderr, "megalan: set MEGALAN_PASSWORD (at least 8 characters) to join PCs\n"); return 2;

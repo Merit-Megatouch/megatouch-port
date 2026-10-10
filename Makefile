@@ -164,7 +164,7 @@ help:
 # ---- The cabinet's own loader, run unmodified in a sandbox (docs/guides/cabinet-loader.md) ----
 LB      := $(OUT)/loader/bin
 LOADER  := $(LB)/libusb-1.0.so.0 $(LB)/libTwDrvFifo.so $(LB)/startfix.so $(LB)/crashlog.so \
-           $(LB)/ossfake.so $(LB)/xshot $(LB)/xtouch $(LB)/enumtag $(LB)/netcfg $(LB)/megaview $(LB)/megalan $(LB)/lantap $(LB)/megaio $(LB)/xinit.sh $(LB)/shots.sh \
+           $(LB)/ossfake.so $(LB)/xshot $(LB)/xtouch $(LB)/enumtag $(LB)/dbdump $(LB)/netcfg $(LB)/megaview $(LB)/megalan $(LB)/lantap $(LB)/megaio $(LB)/xinit.sh $(LB)/shots.sh \
            $(LB)/pci-devices.ion945gc $(LB)/bin/ossmix $(LB)/bin/savemixer $(LB)/nolog.so $(LB)/layout-quiet \
            $(LB)/zlibcompat.so $(LB)/libz-cabinet.so $(LB)/empty $(LB)/soundfix.so $(LB)/gameevents.so
 I386EXE := -Wl,--dynamic-linker=/lib/ld-linux.so.2
@@ -252,6 +252,9 @@ $(LB)/lantap: src/fakeio/lantap.c
 $(LB)/enumtag: src/fakeio/enumtag.c
 	@mkdir -p $(LB)
 	$(CC) -O2 -o $@ $< -ldl $(I386EXE)
+$(LB)/dbdump: src/fakeio/dbdump.c
+	@mkdir -p $(LB)
+	$(CC) -O2 -Wall -o $@ $< -ldl $(I386EXE)
 $(LB)/megaio: src/fakeio/megaio.c src/fakeio/megaio.h
 	@mkdir -p $(LB)
 	gcc -O2 -Wall -o $@ $<

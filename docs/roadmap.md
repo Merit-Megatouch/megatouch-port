@@ -22,16 +22,18 @@ ports** of single games, came first and is kept for development (below).
 **Next:**
 
 1. **Try every game** from the menus and fix what misbehaves (as with Super Boxxi and Trix).
-2. **Linked cabinets (MegaLink).** Play a linked game through, then try a link over the real
-   internet. Cabinets on one PC already share a network (`MEGA_LOADER_NET=lan`) and find each
-   other (UDP broadcasts on port 4700; MegaLink ID = last number of the address); PCs join
-   through a hub (`MEGA_LAN_LISTEN` / `MEGA_LAN_CONNECT`).
+2. **Linked cabinets (MegaLink).** Try a linked game between two PCs, then over the real
+   internet. Done: a full linked game on one PC (2026-10-10), and the wire protocol
+   ([megalink](reference/megalink.md)); PCs join through a hub (`MEGA_LAN_LISTEN` /
+   `MEGA_LAN_CONNECT`).
 3. **A real cabinet's hardware:**
    - try the connectors with real devices (iButton reader, coin mech on GPIO, WLED);
    - later, the cabinet's own USB I/O board through real libusb instead of the fake board.
-4. **Preservation:** fill the open questions in
-   [cabinet software](reference/cabinet-software.md#open-questions): the NVRAM map, the MegaNet
-   `POST /go` format (enough to write a server) and the MegaLink messages.
+4. **Preservation:** done (2026-10-10): the NVRAM map and the encrypted databases
+   ([cabinet state](reference/cabinet-state.md)), the MegaNet exchange ([meganet](reference/meganet.md))
+   and the MegaLink protocol ([megalink](reference/megalink.md)). Left: a plaintext MegaNet capture
+   to confirm the details, each game's own link packets, and the remaining
+   [open questions](reference/cabinet-software.md#open-questions).
 
 ## Standalone ports: where things stand
 

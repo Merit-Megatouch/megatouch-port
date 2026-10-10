@@ -409,9 +409,10 @@ ID. `build/loader/lan/lan.log` shows who joined.
   encrypted. Over the internet, a VPN (Tailscale, ZeroTier, WireGuard) avoids opening a port
   and encrypts it: use the hub's VPN address in `MEGA_LAN_CONNECT`.
 
-Status: the network side works, on one PC and between joined switches (addresses, the internet,
-MegaLink finding the other cabinets). Playing a linked game through to the end hasn't been
-tried yet; neither has a link over the real internet.
+Status: a complete linked game (11 Up) has been played between two cabinets on one PC: the
+challenge, accepting it, the same deal on both, three rounds, and back to the menu with credits
+charged on each. Joined switches between PCs work on the network side; a game over the real
+internet hasn't been tried yet. How MegaLink works on the wire: [megalink](../reference/megalink.md).
 
 ## 18. Real hardware, lights and home automation
 

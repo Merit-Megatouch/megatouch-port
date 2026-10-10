@@ -247,7 +247,7 @@ scalable window following resolution changes, with touches mapped at any size.
   options are locked off. `scripts/loader-key.sh` makes one.
 - The shell helpers (`scripts/loader.sh run …`) join display `:55` only while a loader runs;
   otherwise they use the desktop's display.
-- Not every game has been tried. Linked play (MegaLink) works on the network side
+- Not every game has been tried. Linked play (MegaLink) works between cabinets on one PC
   (`MEGA_LOADER_NET=lan`, [operator guide §17](operator-guide.md#17-linked-cabinets-megalink-experimental));
-  a linked game hasn't been played through yet.
+  between PCs it works on the network side but no game has been played that way yet.
 - WSLg's sound server can hang (no sound in any Linux app); `wsl --shutdown` fixes it.

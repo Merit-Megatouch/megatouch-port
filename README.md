@@ -59,7 +59,7 @@ and TournaMAXX, backups and troubleshooting.
 | Joystick accessory | yes, on the arrow keys (`MEGAIO_JOYSTICK=1`) |
 | Light-show kit, books printer | yes: the cabinet's light sequences and printouts, passed on to real lights and files |
 | Real hardware and services | coin acceptors, buttons, GPIO, a real iButton reader, relays for meters and lockout, MQTT / Home Assistant, webhooks, WLED lights ([connectors](docs/guides/connectors.md)) |
-| Linked cabinets (MegaLink) | experimental: cabinets on one PC, or on PCs joined over a LAN or the internet, share a network and find each other ([guide](docs/guides/operator-guide.md#17-linked-cabinets-megalink-experimental)) |
+| Linked cabinets (MegaLink) | yes on one PC (a full linked game played); PCs joined over a LAN or the internet share a network and find each other (experimental) ([guide](docs/guides/operator-guide.md#17-linked-cabinets-megalink-experimental)) |
 | Credit card reader, TouchTunes / Rowe jukebox links, dial-up modem | no (the services behind them are gone) |
 
 ## Documentation
