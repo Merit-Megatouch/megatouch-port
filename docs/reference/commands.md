@@ -188,7 +188,9 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 | `scripts/loader-identity.sh [--new\|--set SERIAL ID\|--apply]` | This cabinet's serial and MegaNet ID: show, new random ones, set, apply (done at every start) |
 | `scripts/loader.sh run /opt/fakeio/netcfg [meganet-id ID\|server NAME\|megalink-id ID]` | Show or change network settings through the cabinet's own network library (cabinet stopped) |
 | `scripts/loader-key.sh [--force\|--show]` | Make or decode the security-key image `var/merit/fakeio/key.bin` |
-| `build/loader/bin/megaio …` | Drive the fake I/O board from a terminal: `coin`, `setup`, `calibrate`, `dip`, `fob`, `status` |
+| `build/loader/bin/megaio …` | Drive the fake I/O board from a terminal: `coin`, `setup`, `calibrate`, `dip`, `fob`, `print` (plug in the books printer until it has printed), `printer on\|off`, `byte`, `status` |
+| `scripts/hwbridge.py --watch` / `--check` / `--send TYPE k=v…` / `--input-names` | The hardware bridge ([connectors](../guides/connectors.md)): show events live, show the `HW_` settings, push a test event to the outputs, list input key names. `scripts/loader.sh` runs it while the cabinet runs when any `HW_` setting is made |
+| `scripts/examples/*.sh` | Starting points for `HW_ON_*` commands: a relay-driven coin meter, coin lockout, a play log |
 
 ### The sandbox, display and network
 
@@ -245,6 +247,7 @@ other ending is restarted (5 s; 1 min after 3 quick failures, 5 min after 6). Lo
 | Variable | Effect |
 | --- | --- |
 | `MEGAIO_JOYSTICK=1` | Joystick accessory present: arrow keys, Space / Enter |
+| `MEGAIO_LIGHTSHOW=1` | Light-show kit present: the board reports PSoC version 2 and the kit, and logs the cabinet's light commands as `lights` events |
 | `MEGAIO_OPERATOR_KEY` / `MEGAIO_PLAYER_KEY` | ROM IDs (16 hex digits, family `02`, valid CRC) for F9 / F10. Defaults `024d454741100130` / `02504c4159455205` |
 | `MEGAIO_SERIAL` | Cabinet serial number written into a **new** board EEPROM (default `043010MRE60023`) |
 | `MEGAIO_KEY_ID` | Security-key ROM ID used by `loader-key.sh` / `loader-option.sh` to encode / decode `key.bin` (default `8c14fc020040000e`) |
@@ -254,6 +257,36 @@ other ending is restarted (5 s; 1 min after 3 quick failures, 5 min after 6). Lo
 | `OSSFAKE_TRACE=1` | Log every sound ioctl |
 | `OSSFAKE_FMOD_OUTPUT=<n>` | FMOD output for Unity games (default PulseAudio) |
 | `MEGA_ZLIB=modern` | Don't route the cabinet's `gz*` calls to its own zlib 1.2.3 |
+
+`MEGAIO_JOYSTICK`, `MEGAIO_LIGHTSHOW`, `MEGAIO_OPERATOR_KEY`, `MEGAIO_PLAYER_KEY` and
+`MEGAIO_NO_KEYS` can also be lines in `cabinet.local.conf`; the environment wins.
+
+Hotkeys read by the board from the cabinet's display: F1 SETUP, F2 CALIBRATE, F4 books printer,
+F5–F8 coins 1–4, F9 operator key, F10 player key.
+
+### Connectors (the hardware bridge)
+
+Environment variables or lines in `cabinet.local.conf`. Any of them starts `scripts/hwbridge.py`
+with the cabinet (log: `<var>/merit/fakeio/hwbridge.log`). Details and examples:
+[connectors](../guides/connectors.md); event format: [events](events.md).
+
+| Variable | Meaning |
+| --- | --- |
+| `HW_ON_EVENT` | Command run for every event (JSON on stdin; `MEGA_EVENT`, `MEGA_EVENT_<FIELD>`, `MEGA_EVENT_PATH`) |
+| `HW_ON_<TYPE>` | Command for one event type: `HW_ON_COIN`, `HW_ON_METER`, `HW_ON_LOCKOUT`, `HW_ON_GAME`, `HW_ON_SCREEN`, `HW_ON_LIGHTS`, `HW_ON_PRINT`, `HW_ON_KEY`, `HW_ON_BUTTON`, `HW_ON_PRINTER`, `HW_ON_OUTPUTS`, `HW_ON_BOARD` |
+| `HW_WEBHOOK` / `HW_WEBHOOK_TYPES` | POST each event as JSON to this URL / only these types (space-separated) |
+| `HW_MQTT` | MQTT broker `host[:port]`: publishes `<topic>/event/<type>`, retained `<topic>/state` and `<topic>/status` |
+| `HW_MQTT_TOPIC` / `HW_MQTT_USER` / `HW_MQTT_PASSWORD` | Topic prefix (default `megatouch/<host name>`), login |
+| `HW_WLED` | WLED controllers (space-separated addresses) driven by the light show |
+| `HW_WLED_PRESETS` / `HW_WLED_IDLE` | `seq:preset …` map; preset when the show stops (default off) |
+| `HW_INPUT` | Linux input devices (`/dev/input/by-id/…`, globs) read as cabinet inputs |
+| `HW_INPUT_MAP` | `KEY_NAME=action …` (default: F1 setup, F2 calibrate, F4 print, F5–F8 coin1–4, F9 operator-key, F10 player-key) |
+| `HW_INPUT_GRAB=1` | Grab those devices so their keys don't reach the desktop |
+| `HW_GPIO` / `HW_GPIO_ACTIVE` | `chip:line=action …` via `gpiomon`; `low` (default, pull-up) or `high` |
+| `HW_IBUTTON` / `HW_OPERATOR_KEYS` | `on` (or a directory): a 1-Wire iButton reader as the front key reader; ROM IDs that are operator keys |
+| `HW_BRIDGE=off` | Don't start the bridge although `HW_` settings exist |
+
+Actions: `coin1`…`coin8`, `setup`, `calibrate`, `print`, `operator-key`, `player-key`.
 
 ## Environment variables
 

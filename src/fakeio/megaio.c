@@ -5,6 +5,9 @@
  *   megaio [-d dir] dip <switch 1-8> on|off  DIP bank DS1 (byte 8, active low, switch N = bit 8-N)
  *   megaio [-d dir] fob <16 hex digits> [operator]|off   touch / remove a key on the front reader
  *                   (a player key, or with "operator" an operator key; IDs need family 02)
+ *   megaio [-d dir] print                    plug in the books printer until the cabinet has printed
+ *                   (it prints on the attract screen; the file lands in <dir>/printouts)
+ *   megaio [-d dir] printer on|off           plug the books printer in / out by hand
  *   megaio [-d dir] byte N VALUE             set raw status byte N (8-23)
  *   megaio [-d dir] status                   show counters, outputs and poll count
  * dir defaults to $MEGAIO_DIR, else ../var/merit/fakeio next to this binary (build/loader/bin).
@@ -19,7 +22,7 @@
 #include "megaio.h"
 
 static int usage(void) {
-    fprintf(stderr, "usage: megaio [-d dir] coin [ch] [n] | setup | calibrate | dip N on|off | byte N V | fob <hexid> [operator]|off | status\n");
+    fprintf(stderr, "usage: megaio [-d dir] coin [ch] [n] | setup | calibrate | dip N on|off | byte N V | fob <hexid> [operator]|off | print | printer on|off | status\n");
     return 2;
 }
 
@@ -71,6 +74,23 @@ int main(int argc, char **argv) {
             c->fob_present = 1;
             printf("%s key %s touching\n", c->fob_kind ? "operator" : "player", argv[2]);
         }
+    } else if (!strcmp(cmd, "print")) {
+        uint32_t jobs = c->print_jobs;
+        c->printer_auto = 1;
+        c->st[9] |= 4;
+        printf("printer plugged in; waiting for the attract screen to print the books...\n");
+        fflush(stdout);
+        for (int i = 0; i < 300 && c->print_jobs == jobs; i++) usleep(500000);
+        if (c->print_jobs == jobs) {
+            c->st[9] &= ~4; c->printer_auto = 0;
+            printf("nothing printed in 150 s (is the cabinet on its attract screen?); printer unplugged\n");
+            return 1;
+        }
+        printf("printed: see %s/printouts\n", dir);
+    } else if (!strcmp(cmd, "printer") && argc > 2) {
+        c->printer_auto = 0;
+        if (!strcmp(argv[2], "on")) c->st[9] |= 4; else c->st[9] &= ~4;
+        printf("printer %s\n", c->st[9] & 4 ? "plugged in" : "unplugged");
     } else if (!strcmp(cmd, "byte") && argc > 3) {
         int n = atoi(argv[2]);
         if (n < 8 || n > 23) return usage();
@@ -79,7 +99,8 @@ int main(int argc, char **argv) {
     } else if (!strcmp(cmd, "status")) {
         printf("polls %u  heartbeat %#x  lockout flags %#x  outputs", c->polls, c->heartbeat, c->outputs_flags);
         for (int i = 0; i < 6; i++) printf(" %02x", c->outputs[i]);
-        printf("\nmeters: coin %u, TournaMAXX %u", c->meters[0], c->meters[1]);
+        printf("\nmeters: coin %u, TournaMAXX %u  print jobs %u%s", c->meters[0], c->meters[1], c->print_jobs,
+               c->st[9] & 4 ? " (printer plugged in)" : "");
         printf("\nstatus bytes 8-15:");
         for (int i = 8; i < 16; i++) printf(" %02x", c->st[i]);
         printf("  fob %s\n", c->fob_present ? "present" : "none");

@@ -7,22 +7,31 @@ ports** of single games, came first and is kept for development (below).
 
 ## The cabinet
 
-**Done:** boot, menus, every stand-in (I/O board, touchscreen, sound, security key, network,
-display), Operator Setup, coins and keys, MegaNet and TournaMAXX, settings and backups, a
-scalable fullscreen window, the [operator guide](guides/operator-guide.md).
+**Done:**
+
+- **Running:** boot, menus, every stand-in (I/O board, touchscreen, sound, security key,
+  network, display), Operator Setup, coins and keys, MegaNet and TournaMAXX.
+- **Operating:** settings and backups, a scalable fullscreen window, the
+  [operator guide](guides/operator-guide.md), the one-command installer, kiosk mode with nightly
+  updates and rollback.
+- **Identity and linking:** a unique identity per install (`scripts/loader-identity.sh`), and
+  linked cabinets on one PC or across PCs (network side).
+- **Real hardware (2026-10-10):** the light-show kit and books printer, the event feed, and the
+  hardware bridge ([connectors](guides/connectors.md)).
 
 **Next:**
 
 1. **Try every game** from the menus and fix what misbehaves (as with Super Boxxi and Trix).
-2. **Linked cabinets (MegaLink).** Done: cabinets on one PC share a virtual cabinet network
-   (`MEGA_LOADER_NET=lan`, megalan switch with a router) and find each other (UDP broadcasts on
-   port 4700; the MegaLink ID is the last number of the address), and switches on different
-   PCs join one network through a hub (`MEGA_LAN_LISTEN` / `MEGA_LAN_CONNECT`, shared
-   password, an address block per PC). Next: play a linked game through, then try a link over
-   the real internet; optionally encrypt the link between PCs.
-3. **A unique identity per install.** Done: serial and MegaNet ID per install
-   (`scripts/loader-identity.sh`).
-4. **Easier installs:** a one-command installer and a Windows shortcut.
+2. **Linked cabinets (MegaLink).** Play a linked game through, then try a link over the real
+   internet. Cabinets on one PC already share a network (`MEGA_LOADER_NET=lan`) and find each
+   other (UDP broadcasts on port 4700; MegaLink ID = last number of the address); PCs join
+   through a hub (`MEGA_LAN_LISTEN` / `MEGA_LAN_CONNECT`).
+3. **A real cabinet's hardware:**
+   - try the connectors with real devices (iButton reader, coin mech on GPIO, WLED);
+   - later, the cabinet's own USB I/O board through real libusb instead of the fake board.
+4. **Preservation:** fill the open questions in
+   [cabinet software](reference/cabinet-software.md#open-questions): the NVRAM map, the MegaNet
+   `POST /go` format (enough to write a server) and the MegaLink messages.
 
 ## Standalone ports: where things stand
 

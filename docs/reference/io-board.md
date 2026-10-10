@@ -98,7 +98,7 @@ addresses, send a command, read the results back.
 | 0x02 | — | `USBReadKeyData` | Read the 3 DS1991 secure subkeys; passwords in at `1D53` (24 B); status `1D35`; data out at `1C39` (`0xEC` B); key present `2786` |
 | 0x03 | len / addr | `ReadUSBMemory` | XDATA → mailbox |
 | 0x04 | — | `GetDecryptVal` | Firmware makes a 4-byte session value from timer 1 → `1D25`, done flag `1D29` |
-| 0x05 | len | `SendMDLine` | Send a line (64 B at `1D6B`) to the MiniDrucker ticket printer; status `1D36`, `1E6C`, `1D75`, `1D7A` |
+| 0x05 | len | `SendMDLine` | Send a line (up to 64 B at `1D6B`) to the books printer ("MiniDrucker"); status `1D36`, `1E6C`, `1D75`, `1D7A` ([Books printer](#books-printer-command-0x05)) |
 | 0x06 | flags / heartbeat | `USBDoIO` | **The I/O poll** (see below) |
 | 0x07 | 0x101 | `ReadPlayerOrRechargeKey` | Read 240 B from the login key → `1C31`; status `1D35` |
 | 0x08 | 0x101 | `WritePlayerOrRechargeKey` | Write 240 B from `1C31` to the login key |
@@ -135,16 +135,72 @@ by a login-key probe (`RT_LoginKeyDetected`) while player keys are enabled.
 |---|---|
 | 0–7 | Coin counters for 8 coin/bill channels: low 7 bits = pulses since last poll (host credits them and clears them) |
 | 8 | DIP switch bank DS1, active low, bit-reversed: bit 7 = switch 1 … bit 0 = switch 8 (host stores `~byte` as `IOBB[8]`) |
-| 9 | bit 0 = **SETUP** button (opens Operator Setup), bit 1 = **CALIBRATE** button (→ `IOBB[2]` bits 0–1); bit 3 → `USBIO+0x39C`; bits 4 and 7 are latched events cleared by the reader |
+| 9 | bit 0 = **SETUP** button (opens Operator Setup), bit 1 = **CALIBRATE** button (→ `IOBB[2]` bits 0–1); bit 2 = books printer connected (`USBIO+0x121 & 4`, read by `ProcessMiniDruker`); bit 3 → `USBIO+0x39C`; bits 4 and 7 are latched events cleared by the reader (the joystick's left/right buttons) |
 | 11 | bits 4–5 → `IOBB[1]`, bits 0–5 → `IOBB[2]` |
 | 12–15 | Joystick X/Y (signed 16-bit) |
-| 17 | Read by the joystick code |
+| 17 | PSoC version (`USBIO+0x129`, `USBIO::GetPSOCVersion`, cached at first use): ≥ 2 allows the light show, ≥ 10 means the improved amplifier, ≠ 0 lets the menu drop joystick-only games when no joystick is found; also read by the joystick code |
+| 18 | Light-show status (`USBIO+0x12A`): bit 6 = command taken, bit 5 = done |
+| 19 | Light-show answer (`USBIO+0x12B`) to the active/profile/brightness queries |
 
 Confirmed by running the loader with the fake board (`docs/guides/cabinet-loader.md`) and
 watching its own *Diagnostics → I/O Test* screen: coin bytes 0–7 count up channels 1–8, byte 9
 lights SETUP/CALIBRATE, byte 8 flips DS1. No status byte drives the screen's second DIP bank
 (DS2) on this board. Of the outputs, *Coin Lockout* sets both poll flags (`0x3`) and *Coin
 Meter* pulses output byte 1.
+
+### Light show
+
+The ION light-show kit is LED lighting run by the board's PSoC. The loader reads `27A0` once at
+start-up (`USBIO::Init` → `USBIO+0x928`); `0x80` means a kit was detected
+(`USBIO::LightshowWasDetected`). `LightShowManager::IsSupported` also needs PSoC version ≥ 2
+(status byte 17), the ION platform, and the loader not having given up on the kit
+(`m_LSIsTalking`).
+
+`LightShowManager::SendPacket(packet[32], len)`, len 1–32:
+
+1. **Clear:** write `FF` to `272D`, then poll until status byte 18 bit 5 is clear.
+2. **Send:** write the packet (32 bytes) to `272D` and its length (1 byte) to `274D`. Writing the
+   length is the signal.
+3. **Confirm:** poll until status byte 18 bit 6 is set (command taken), then until bit 5 is set
+   (done). A query's answer is then in status byte 19.
+
+The loop polls every 10 ms and gives up after 5 s. After 6 failures in a row the loader stops
+using the kit until it restarts. `272D` is the same area `FireSolenoid` (0x23) reports in: the
+light show and the solenoid outputs share the board's PSoC mailbox.
+
+| Packet | Meaning |
+| --- | --- |
+| `01 00` | stop |
+| `01 01 seq` / `01 02 seq` | play sequence `seq` (0–5) once / repeating |
+| `01 0B r g b x` | set the lights to a colour (`SetLights`) |
+| `01 0F on` | on/off (`SetActive`) |
+| `01 10` | is it on? → status byte 19 |
+| `01 11 p` | set profile (`SetProfile`) |
+| `01 12` | which profile? → status byte 19 |
+| `01 15 v` | set brightness (`SetBrightness`) |
+| `01 16` | which brightness? → status byte 19 |
+
+The fake board (`MEGAIO_LIGHTSHOW=1`) answers each packet at once (status byte 18 = `0x60`) and
+logs it as a `lights` event ([events](events.md#lights)).
+
+### Books printer (command 0x05)
+
+`USBIO::SendMDLine(data, len)`:
+
+1. Write `00` to `1D36`.
+2. Write the line (64 bytes) to `1D6B`.
+3. Command `0x05` with `wIndex = len`.
+4. Read the status from `1D36`. If it reads `02`, the host writes `01` to `1D38`.
+5. Read the printer's answer from `1E6C`. If it is `0x13` (the printer identifying itself),
+   read `1D75` ('L' = printer type 1, otherwise type 2) and `1D7A` ('C' = the printer wants a
+   checksum line).
+6. When the line was the end marker `0x16`, an answer other than `01` resets the printer type.
+
+A printout starts with an empty line (`WaitForEnq`: length 0) and ends with a line that is just
+`0x16`. Lines are plain ASCII with `\n`. Status byte 9 bit 2 says a printer is connected; the
+attract loop prints once per connection ([cabinet software → Books printer](cabinet-software.md#books-printer)).
+The fake board saves each printout as `printouts/books-YYYYMMDD-HHMMSS.txt`, and `megaio print`
+or **F4** plugs the printer in until a printout is done.
 
 ### Board EEPROM map (via commands 0x09/0x0A)
 

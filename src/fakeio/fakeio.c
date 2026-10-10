@@ -14,12 +14,26 @@
  *
  * Cabinet hardware on the keyboard (read with XQueryKeymap at every I/O poll, so it works
  * whichever window has focus on the loader's display):
- *   F1 SETUP button   F2 CALIBRATE button   F5-F8 coin into channel 1-4
+ *   F1 SETUP button   F2 CALIBRATE button   F4 plug in the books printer   F5-F8 coin into channel 1-4
  *   F9 hold the operator key on the reader  F10 hold a player key on the reader
  * Key ROM IDs: MEGAIO_OPERATOR_KEY / MEGAIO_PLAYER_KEY (16 hex digits, family 02); defaults below.
  * MEGAIO_JOYSTICK=1 adds the joystick accessory (USBIO::JoystickFound, games such as Luxor or
  * Lookout): arrow keys move it, Space is the left button and Enter the right one. Off by default, because a
  * present joystick changes attract-mode and game behaviour.
+ *
+ * MEGAIO_LIGHTSHOW=1 adds the ION light-show kit (LED lighting on the board's PSoC): the board
+ * reports PSoC version 2 (status byte 17) and the kit at 0x27A0, and answers the loader's light
+ * packets (LightShowManager::SendPacket, io-board.md "Light show"). Side effect, as on a real
+ * cabinet with that PSoC: the menu switches joystick-only games off when no joystick is present.
+ *
+ * Books printer: status byte 9 bit 2 means a printer is plugged in; the attract screen then
+ * prints the books through board command 5 (USBIO::SendMDLine) and offers to clear them. F4 (or
+ * `megaio print`) plugs one in until the job ends; each job is saved as
+ * MEGAIO_DIR/printouts/books-YYYYMMDD-HHMMSS.txt.
+ *
+ * Events: everything the cabinet does with its hardware is appended to MEGAIO_DIR/events.jsonl,
+ * one JSON object per line (coins, meter pulses, coin lockout, outputs, SETUP/CALIBRATE, keys on
+ * the reader, light-show commands); scripts/events.py forwards them (MQTT, webhook, WLED, ...).
  */
 #define _GNU_SOURCE
 #include <dlfcn.h>
@@ -32,6 +46,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
 #include "megaio.h"
@@ -58,6 +73,44 @@ static int trace;
 static struct megaio_ctl *ctl;
 static uint8_t login_rec[240];
 static uint8_t last_coin_seq[8];
+
+static void path(char *out, size_t n, const char *name);
+
+/* ---- light-show kit ---- */
+enum { X_LS_PACKET = 0x272D, X_LS_LENGTH = 0x274D, X_LS_PRESENT = 0x27A0, PSOC_VERSION = 2 };
+static int lightshow;
+static uint8_t ls_status;          /* status byte 18: 0x40 command taken, 0x20 done */
+static uint8_t ls_reply;           /* status byte 19: answer to a query */
+static uint8_t ls_active = 1, ls_profile, ls_brightness = 100, ls_rgbx[4];
+
+/* ---- books printer ---- */
+static FILE *prf;
+static char prf_name[64];
+
+/* ---- events (events.jsonl) ---- */
+static FILE *evf;
+static void event(const char *fmt, ...) {
+    if (!evf) return;
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    va_list ap;
+    va_start(ap, fmt);
+    fprintf(evf, "{\"t\":%lld.%03d,", (long long)tv.tv_sec, (int)(tv.tv_usec / 1000));
+    vfprintf(evf, fmt, ap);
+    fputs("}\n", evf);
+    fflush(evf);
+    va_end(ap);
+}
+static void open_events(void) {
+    char p[600], old[620];
+    path(p, sizeof p, "events.jsonl");
+    struct stat st;
+    if (stat(p, &st) == 0 && st.st_size > 5 * 1024 * 1024) {      /* keep it bounded */
+        snprintf(old, sizeof old, "%s.1", p);
+        rename(p, old);
+    }
+    evf = fopen(p, "a");
+}
 
 static void logf_(const char *fmt, ...) {
     va_list ap;
@@ -131,7 +184,10 @@ static void init_state(void) {
         save("eeprom.bin", eeprom, sizeof eeprom);
     }
     have_key = load("key.bin", keyimg, sizeof keyimg);
+    lightshow = getenv("MEGAIO_LIGHTSHOW") && *getenv("MEGAIO_LIGHTSHOW") == '1';
     open_ctl();
+    open_events();
+    event("\"type\":\"board\",\"state\":\"ready\",\"lightshow\":%s", lightshow ? "true" : "false");
     logf_("board %04x:%04x ready (state in %s, security key image: %s)", VID, PID, dir,
           have_key ? "yes" : "none");
 }
@@ -143,6 +199,79 @@ static void board_reset(void) {
     memset(xd + X_ESKEY_DATA, 0x00, 8);
     xd[X_STATUS + 8] = 0xFF;
     xd[X_JOYSTICK] = getenv("MEGAIO_JOYSTICK") && *getenv("MEGAIO_JOYSTICK") == '1';
+    if (lightshow) xd[X_LS_PRESENT] = 0x80;           /* USBIO::LightshowWasDetected */
+}
+
+/* One light-show packet (LightShowManager): byte 0 = 1, byte 1 = command, then arguments.
+ * 0x00 stop, 0x01 play sequence [2] once, 0x02 play it repeatedly; 0x0B set lights [2..5];
+ * 0x0F set active [2]; 0x10 is it active?; 0x11 set profile [2]; 0x12 which profile?;
+ * 0x15 set brightness [2]; 0x16 which brightness? Answers go in status byte 19. */
+static void lightshow_packet(const uint8_t *p, unsigned len) {
+    uint8_t c = len > 1 ? p[1] : 0xFF;
+    switch (c) {
+    case 0x00: event("\"type\":\"lights\",\"cmd\":\"stop\""); break;
+    case 0x01: case 0x02:
+        event("\"type\":\"lights\",\"cmd\":\"play\",\"sequence\":%u,\"repeat\":%s", p[2], c == 2 ? "true" : "false");
+        break;
+    case 0x0B:
+        memcpy(ls_rgbx, p + 2, 4);
+        event("\"type\":\"lights\",\"cmd\":\"set\",\"values\":[%u,%u,%u,%u]", p[2], p[3], p[4], p[5]);
+        break;
+    case 0x0F: ls_active = p[2] != 0; event("\"type\":\"lights\",\"cmd\":\"active\",\"on\":%s", ls_active ? "true" : "false"); break;
+    case 0x10: ls_reply = ls_active; break;
+    case 0x11: ls_profile = p[2]; event("\"type\":\"lights\",\"cmd\":\"profile\",\"profile\":%u", ls_profile); break;
+    case 0x12: ls_reply = ls_profile; break;
+    case 0x15: ls_brightness = p[2]; event("\"type\":\"lights\",\"cmd\":\"brightness\",\"value\":%u", ls_brightness); break;
+    case 0x16: ls_reply = ls_brightness; break;
+    default: logf_("light show: unknown packet %02x %02x (%u bytes)", p[0], c, len);
+    }
+    TRACE("light show packet %02x %02x %02x %02x len %u", p[0], c, len > 2 ? p[2] : 0, len > 3 ? p[3] : 0, len);
+    ls_status = 0x60;                                   /* taken, done */
+}
+
+/* One line for the books printer (command 5): the data is at X_EEBUF, the length in the index.
+ * A job starts with an empty line (the loader's "are you there?") and ends with 0x16. */
+static void print_line(unsigned len) {
+    const uint8_t *d = xd + X_EEBUF;
+    if (len > 64) len = 64;
+    xd[X_MDSTAT] = 1;                                   /* line taken */
+    if (!prf) {
+        char p[600];
+        path(p, sizeof p, "printouts");
+        mkdir(p, 0777);
+        time_t now = time(NULL);
+        strftime(prf_name, sizeof prf_name, "books-%Y%m%d-%H%M%S.txt", localtime(&now));
+        char f[700];
+        snprintf(f, sizeof f, "%s/%s", p, prf_name);
+        prf = fopen(f, "w");
+        if (!prf) { logf_("cannot write %s: %s", f, strerror(errno)); return; }
+        logf_("printer: printing to printouts/%s", prf_name);
+    }
+    int end = 0;
+    for (unsigned i = 0; i < len; i++) {
+        if (d[i] == 0x16) { end = 1; break; }
+        if (d[i] == 0x1B && i + 1 < len && d[i + 1] == 'C') break;   /* ESC C nnnn: checksum line */
+        if (d[i] == '\n' || d[i] == '\t' || (d[i] >= 0x20 && d[i] < 0x7F)) fputc(d[i], prf);
+    }
+    fflush(prf);
+    if (!end) return;
+    fclose(prf);
+    prf = NULL;
+    logf_("printer: job done");
+    event("\"type\":\"print\",\"file\":\"printouts/%s\"", prf_name);
+    if (ctl) {
+        ctl->print_jobs++;
+        if (ctl->printer_auto) { ctl->st[9] &= ~4; ctl->printer_auto = 0; }   /* unplug */
+    }
+}
+
+/* the loader wrote board RAM [addr, addr+len) */
+static void ram_written(unsigned addr, unsigned len) {
+    if (!lightshow) return;
+    if (addr <= X_LS_LENGTH && X_LS_LENGTH < addr + len && xd[X_LS_LENGTH] && xd[X_LS_LENGTH] <= 32)
+        lightshow_packet(xd + X_LS_PACKET, xd[X_LS_LENGTH]);
+    else if (addr == X_LS_PACKET && len == 1 && xd[X_LS_PACKET] == 0xFF)
+        ls_status = 0;                                  /* clear: ready for the next packet */
 }
 
 static void key_rom_id(uint8_t id[8]) {
@@ -190,8 +319,8 @@ static void provision_login_record(uint8_t *r, const uint8_t id[8], int operator
 static void *kb_dpy;
 static int (*pXQueryKeymap)(void *, char[32]);
 static unsigned char (*pXKeysymToKeycode)(void *, unsigned long);
-static unsigned char kb_code[14];      /* F1 F2 F5 F6 F7 F8 F9 F10, Left Up Right Down Space Return */
-static int kb_prev[14], kb_tried;
+static unsigned char kb_code[15];      /* F1 F2 F5 F6 F7 F8 F9 F10, Left Up Right Down Space Return, F4 */
+static int kb_prev[15], kb_tried;
 /* joystick: raw values matching the loader's default calibration (USBIO::Init) */
 enum { JX_MIN = -1757, JX_MID = 314, JX_MAX = 1891, JY_MIN = -1732, JY_MID = 446, JY_MAX = 2039 };
 static uint8_t kb_fob_id[2][8];
@@ -214,12 +343,12 @@ static void kb_init(void) {
     if (!open_display || !pXQueryKeymap || !pXKeysymToKeycode) return;
     kb_dpy = open_display(NULL);
     if (!kb_dpy) return;
-    static const unsigned long sym[14] = {0xffbe, 0xffbf, 0xffc2, 0xffc3, 0xffc4, 0xffc5, 0xffc6, 0xffc7,
-                                          0xff51, 0xff52, 0xff53, 0xff54, 0x20, 0xff0d};
-    for (int i = 0; i < 14; i++) kb_code[i] = pXKeysymToKeycode(kb_dpy, sym[i]);
+    static const unsigned long sym[15] = {0xffbe, 0xffbf, 0xffc2, 0xffc3, 0xffc4, 0xffc5, 0xffc6, 0xffc7,
+                                          0xff51, 0xff52, 0xff53, 0xff54, 0x20, 0xff0d, 0xffc1};
+    for (int i = 0; i < 15; i++) kb_code[i] = pXKeysymToKeycode(kb_dpy, sym[i]);
     parse_id("MEGAIO_OPERATOR_KEY", "024d454741100130", kb_fob_id[0]);
     parse_id("MEGAIO_PLAYER_KEY", "02504c4159455205", kb_fob_id[1]);
-    logf_("hotkeys: F1 setup, F2 calibrate, F5-F8 coins 1-4, F9 operator key, F10 player key%s",
+    logf_("hotkeys: F1 setup, F2 calibrate, F4 books printer, F5-F8 coins 1-4, F9 operator key, F10 player key%s",
           getenv("MEGAIO_JOYSTICK") && *getenv("MEGAIO_JOYSTICK") == '1' ? ", joystick on arrows/Space/Enter" : "");
 }
 
@@ -228,8 +357,8 @@ static void kb_poll(void) {
     if (!kb_dpy || !ctl) return;
     char map[32];
     pXQueryKeymap(kb_dpy, map);
-    int down[14];
-    for (int i = 0; i < 14; i++) down[i] = kb_code[i] && (map[kb_code[i] >> 3] >> (kb_code[i] & 7) & 1);
+    int down[15];
+    for (int i = 0; i < 15; i++) down[i] = kb_code[i] && (map[kb_code[i] >> 3] >> (kb_code[i] & 7) & 1);
     if (xd[X_JOYSTICK]) {
         int16_t x = down[8] ? JX_MAX : down[10] ? JX_MIN : JX_MID;    /* the stick's X runs right-to-left */
         int16_t y = down[9] ? JY_MIN : down[11] ? JY_MAX : JY_MID;
@@ -238,9 +367,16 @@ static void kb_poll(void) {
         /* bit 4 = left button, bit 7 = right button (Calibrate Joystick screen) */
         ctl->st[9] = (uint8_t)((ctl->st[9] & ~0x90) | (down[12] ? 0x10 : 0) | (down[13] ? 0x80 : 0));
     }
-    /* buttons follow the key; coins count presses */
-    ctl->st[9] = (uint8_t)((ctl->st[9] & ~3) | (down[0] ? 1 : 0) | (down[1] ? 2 : 0));
+    /* buttons follow the key (changed only when a key goes down or up, so megaio and the hardware
+     * bridge can press them too); coins count presses */
+    for (int b = 0; b < 2; b++)
+        if (down[b] != kb_prev[b]) ctl->st[9] = (uint8_t)(down[b] ? ctl->st[9] | 1u << b : ctl->st[9] & ~(1u << b));
     for (int i = 0; i < 4; i++) if (down[2 + i] && !kb_prev[2 + i]) ctl->coins[i]++;
+    if (down[14] && !kb_prev[14] && !(ctl->st[9] & 4)) {
+        ctl->printer_auto = 1;
+        ctl->st[9] |= 4;
+        logf_("books printer plugged in (prints on the attract screen)");
+    }
     for (int k = 0; k < 2; k++) {
         if (down[6 + k] && !kb_prev[6 + k]) {
             memcpy(ctl->fob_id, kb_fob_id[k], 8);
@@ -257,16 +393,22 @@ static void kb_poll(void) {
 }
 
 static void do_poll(uint8_t flags, uint16_t heartbeat) {
+    static int first = 1;
+    static uint8_t prev_flags, prev_buttons, prev_fob, prev_out[6];
     uint8_t *st = xd + X_STATUS;
     kb_poll();
     for (int i = 0; i < 8; i++) {
         uint8_t n = 0;
         if (ctl) { n = (uint8_t)(ctl->coins[i] - last_coin_seq[i]); last_coin_seq[i] = ctl->coins[i]; }
         st[i] = n & 0x7F;
-        if (n) logf_("coin channel %d: %u pulse(s)", i, n);
+        if (n) {
+            logf_("coin channel %d: %u pulse(s)", i, n);
+            event("\"type\":\"coin\",\"channel\":%d,\"pulses\":%u", i + 1, n);
+        }
     }
     if (ctl) memcpy(st + 8, ctl->st + 8, 16);
     else st[8] = 0xFF;
+    if (lightshow) { st[17] = PSOC_VERSION; st[18] = ls_status; st[19] = ls_reply; }
     if (ctl) {
         ctl->outputs_flags = flags;
         ctl->heartbeat = heartbeat;
@@ -274,15 +416,39 @@ static void do_poll(uint8_t flags, uint16_t heartbeat) {
         for (int m = 0; m < 2; m++) if (xd[X_OUTPUTS + 1 + m]) {
             ctl->meters[m] += xd[X_OUTPUTS + 1 + m];
             logf_("%s meter +%u", m ? "TournaMAXX" : "coin", xd[X_OUTPUTS + 1 + m]);
+            event("\"type\":\"meter\",\"meter\":\"%s\",\"pulses\":%u,\"total\":%u",
+                  m ? "tournamaxx" : "coin", xd[X_OUTPUTS + 1 + m], ctl->meters[m]);
         }
         ctl->polls++;
+        /* changes worth an event */
+        uint8_t buttons = ctl->st[9] & 7, fob = ctl->fob_present;
+        if (!first && flags != prev_flags)
+            event("\"type\":\"lockout\",\"flags\":%u,\"coins_locked\":%s,\"bills_locked\":%s", flags,
+                  flags & 1 ? "true" : "false", flags & 2 ? "true" : "false");
+        if (!first && memcmp(prev_out, ctl->outputs, 6) && (ctl->outputs[0] != prev_out[0] || memcmp(prev_out + 3, ctl->outputs + 3, 3)))
+            event("\"type\":\"outputs\",\"bytes\":[%u,%u,%u,%u,%u,%u]", ctl->outputs[0], ctl->outputs[1],
+                  ctl->outputs[2], ctl->outputs[3], ctl->outputs[4], ctl->outputs[5]);
+        if (!first && buttons != prev_buttons) {
+            if ((buttons ^ prev_buttons) & 1) event("\"type\":\"button\",\"button\":\"setup\",\"pressed\":%s", buttons & 1 ? "true" : "false");
+            if ((buttons ^ prev_buttons) & 2) event("\"type\":\"button\",\"button\":\"calibrate\",\"pressed\":%s", buttons & 2 ? "true" : "false");
+            if ((buttons ^ prev_buttons) & 4) event("\"type\":\"printer\",\"plugged\":%s", buttons & 4 ? "true" : "false");
+        }
+        if (!first && fob != prev_fob) {
+            if (fob)
+                event("\"type\":\"key\",\"state\":\"on\",\"kind\":\"%s\",\"id\":\"%02x%02x%02x%02x%02x%02x%02x%02x\"",
+                      ctl->fob_kind ? "operator" : "player", ctl->fob_id[0], ctl->fob_id[1], ctl->fob_id[2],
+                      ctl->fob_id[3], ctl->fob_id[4], ctl->fob_id[5], ctl->fob_id[6], ctl->fob_id[7]);
+            else event("\"type\":\"key\",\"state\":\"off\"");
+        }
+        prev_flags = flags; prev_buttons = buttons; prev_fob = fob; memcpy(prev_out, ctl->outputs, 6);
+        first = 0;
     }
 }
 
 static void command(uint8_t cmd, uint8_t arg, uint16_t idx) {
     switch (cmd) {
     case 0x03: memcpy(xd + MBOX, xd + idx, arg); return;              /* RAM → mailbox */
-    case 0x0E: memcpy(xd + idx, xd + MBOX, arg); return;              /* mailbox → RAM */
+    case 0x0E: memcpy(xd + idx, xd + MBOX, arg); ram_written(idx, arg); return;   /* mailbox → RAM */
     case 0x06: do_poll(arg, idx); return;
     case 0x13: TRACE("init %#x", idx); return;
     case 0x14: logf_("prepare for reload"); return;
@@ -347,7 +513,7 @@ static void command(uint8_t cmd, uint8_t arg, uint16_t idx) {
         logf_("login key record written");
         return;
     }
-    case 0x05: xd[X_MDSTAT] = 1; return;                                /* ticket printer line */
+    case 0x05: print_line(idx); return;                                 /* books printer line */
     case 0x20: return;                                                  /* dock serial: in RAM */
     case 0x21: return;
     case 0x23: memset(xd + X_SOLENOID, 0, 3); return;
@@ -418,6 +584,7 @@ int libusb_control_transfer(libusb_device_handle *h, uint8_t type, uint8_t req, 
         if (type & 0x80) memcpy(data, xd + value, len);
         else {
             memcpy(xd + value, data, len);
+            if (value < MBOX) ram_written(value, len);
             if (value == 0xE600 && len == 1 && data[0] == 0) {
                 logf_("firmware started");
                 board_reset();

@@ -57,8 +57,10 @@ and TournaMAXX, backups and troubleshooting.
 | Dedicated touchscreen box: auto-run, fullscreen, restart on crash or hang, nightly updates with rollback | yes (kiosk mode) |
 | Settings kept between runs, automatic backups | yes |
 | Joystick accessory | yes, on the arrow keys (`MEGAIO_JOYSTICK=1`) |
+| Light-show kit, books printer | yes: the cabinet's light sequences and printouts, passed on to real lights and files |
+| Real hardware and services | coin acceptors, buttons, GPIO, a real iButton reader, relays for meters and lockout, MQTT / Home Assistant, webhooks, WLED lights ([connectors](docs/guides/connectors.md)) |
 | Linked cabinets (MegaLink) | experimental: cabinets on one PC, or on PCs joined over a LAN or the internet, share a network and find each other ([guide](docs/guides/operator-guide.md#17-linked-cabinets-megalink-experimental)) |
-| Credit card reader, TouchTunes jukebox | no |
+| Credit card reader, TouchTunes / Rowe jukebox links, dial-up modem | no (the services behind them are gone) |
 
 ## Documentation
 
@@ -68,7 +70,9 @@ and TournaMAXX, backups and troubleshooting.
 | [Quick start](docs/guides/quick-start.md) | The install steps in detail, from a bare Windows machine |
 | [Troubleshooting](docs/guides/troubleshooting.md) | Problems and fixes |
 | [Cabinet loader](docs/guides/cabinet-loader.md) | How the simulation works: every stand-in, network, licence key, settings |
+| [Connectors](docs/guides/connectors.md) | Real lights, coin acceptors, buttons, iButton reader, meters, MQTT, webhooks |
 | [I/O board](docs/reference/io-board.md) | The USB I/O board, security key and operator key, as read from the image |
+| [Cabinet software](docs/reference/cabinet-software.md) | How the cabinet's software works inside: games, hardware, light show, printer, NVRAM, MegaNet, MegaLink, debug flags |
 | [Commands](docs/reference/commands.md) | Every command, script and setting |
 | [All docs](docs/README.md) | Index, including reference and history |
 

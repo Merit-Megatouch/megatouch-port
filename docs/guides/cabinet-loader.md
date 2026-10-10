@@ -28,6 +28,7 @@ orange one is the one that does something).
 | Touchscreen | Mouse (left button) in the window |
 | SETUP button inside the cabinet (Operator Setup) | **F1** |
 | CALIBRATE button | **F2** |
+| Plug in the books printer (prints on the attract screen) | **F4** |
 | Coin into channel 1 / 2 / 3 / 4 | **F5 / F6 / F7 / F8** |
 | Operator key on the reader (held while the key is down) | **F9** |
 | Player key on the reader | **F10** |
@@ -47,8 +48,13 @@ build/loader/bin/megaio setup                  # press SETUP
 build/loader/bin/megaio dip 3 on               # DIP switch 3 of bank DS1
 build/loader/bin/megaio fob 024d454741100130 operator   # touch a key (family 02 ROM ID) …
 build/loader/bin/megaio fob off                         # … and take it away
+build/loader/bin/megaio print                  # plug in the books printer, wait for the printout
 build/loader/bin/megaio status                 # polls, lockout flags, meters, status bytes
 ```
+
+Real devices and services (coin acceptors, buttons, a real iButton reader, relays for meters,
+MQTT, webhooks, WLED lights) connect through the hardware bridge: see
+[connectors](connectors.md).
 
 ### Setting up the operator key
 
@@ -93,7 +99,9 @@ security-key image, `MEGA_LOADER_VAR=<dir>` uses another directory as `/var` (a 
 throwaway session: copy `build/loader/var.orig`, pick another `MEGA_LOADER_DISPLAY`), `MEGA_LOADER_X=host` draws on the desktop's X server instead of
 Xephyr (no resolution changes), `MEGA_LOADER_DISPLAY` (default 55), `MEGAIO_TRACE=1` logs every
 board command, `OSSFAKE_TRACE=1` every sound ioctl, `MEGA_EXTRA_ENV="A=1 B=2"` passes variables
-in, `MEGAIO_SERIAL` sets the cabinet serial number of a new board EEPROM.
+in, `MEGAIO_SERIAL` sets the cabinet serial number of a new board EEPROM, `MEGAIO_LIGHTSHOW=1`
+fits the light-show kit, `HW_*` settings switch on the hardware bridge ([connectors](connectors.md)).
+`MEGAIO_*` and `HW_*` settings can also go in `cabinet.local.conf`; the environment wins.
 
 Console: the terminal shows the cabinet's output minus lines known to be harmless (hardware
 probes, the language table, the stand-ins' start-up messages, the card reader's expected crash
@@ -210,6 +218,9 @@ the I/O board, not the security key. Everything below is ours; no cabinet file i
 | A cabinet's own serial number and MegaNet ID | a per-install identity (`build/loader/var.identity`): the serial goes into the fake board's EEPROM, the MegaNet ID into the cabinet's encrypted network settings through its own network library (`netcfg`) | `scripts/loader-identity.sh`, `src/fakeio/netcfg.cpp` |
 | Security key (licence iButton) | a key image of this cabinet's own key, made from NVRAM; served block by block by the fake board | `scripts/loader-key.sh`, `src/fakeio/fakeio.c` |
 | The 2008 allocator, which left freed memory intact (the sound manager's `StopSound` erases a map entry and keeps walking from it; on the modern runtime Trix froze after the first card, its last sound repeating) | `soundfix.so`: every sound backend's `ImplementationStopSound` still stops the voice but reports "not stopped", so the entry is not erased mid-walk (known bug 15, as in the SDL2 backend) | `src/fakeio/soundfix.c` |
+| ION light-show kit (LED lighting on the board's PSoC) | optional (`MEGAIO_LIGHTSHOW=1`): the fake board reports PSoC version 2 and a detected kit, answers the loader's light packets and logs them as events | `src/fakeio/fakeio.c` |
+| Books printer ("Minidrucker", read through the board) | **F4** / `megaio print` plugs one in; the attract loop prints the books through board command 5, saved as `fakeio/printouts/books-*.txt` | `src/fakeio/fakeio.c`, `megaio.c` |
+| Meters, lockout, coins, buttons, keys, lights as signals for other equipment | every hardware event goes to `fakeio/events.jsonl`; `gameevents.so` adds games starting and ending (it wraps `Logger::SetGameID`, which `ExecuteGameID` calls before and after every game); `scripts/hwbridge.py` passes events on (commands, MQTT, webhook, WLED) and feeds real inputs (input devices, GPIO, 1-Wire iButton reader) into the board | `src/fakeio/gameevents.c`, `scripts/hwbridge.py` |
 | `layout` logging (crashes in the cabinet's `liblogging` on the modern runtime; the cabinet's own log shows the same bad data, which used not to crash) | `layout` runs with `Logger::Log` turned into a no-op | `src/fakeio/nolog.c`, `layout-quiet` |
 
 What was verified (2026-10-07): volume from Volume Control reaching PulseAudio; CALIBRATE and
@@ -236,6 +247,7 @@ scalable window following resolution changes, with touches mapped at any size.
   options are locked off. `scripts/loader-key.sh` makes one.
 - The shell helpers (`scripts/loader.sh run …`) join display `:55` only while a loader runs;
   otherwise they use the desktop's display.
-- Not every game has been tried. Linked play between cabinets (MegaLink) needs cabinets on one
-  network and is not set up yet ([roadmap](../roadmap.md)).
+- Not every game has been tried. Linked play (MegaLink) works on the network side
+  (`MEGA_LOADER_NET=lan`, [operator guide §17](operator-guide.md#17-linked-cabinets-megalink-experimental));
+  a linked game hasn't been played through yet.
 - WSLg's sound server can hang (no sound in any Linux app); `wsl --shutdown` fixes it.

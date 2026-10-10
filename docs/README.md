@@ -13,6 +13,8 @@ for development.
 | Install from scratch, step by step | [Quick start](guides/quick-start.md) |
 | Fix something that doesn't work | [Troubleshooting](guides/troubleshooting.md) |
 | Know how the cabinet is simulated | [Cabinet loader](guides/cabinet-loader.md), [I/O board](reference/io-board.md) |
+| Connect real lights, coin acceptors, buttons, keys, home automation | [Connectors](guides/connectors.md) |
+| Understand or reimplement the cabinet's software | [Cabinet software](reference/cabinet-software.md), [events](reference/events.md), [options](reference/options.md) |
 | Look up a command or setting | [Commands](reference/commands.md) |
 | Know what's next for the project | [Roadmap](roadmap.md) |
 | Port a single game (developers) | [Porting a game](guides/porting-a-game.md) |
@@ -26,6 +28,7 @@ for development.
 | [quick-start](guides/quick-start.md) | WSL, packages, clone, image path, `make setup`, `make loader-setup`, first run |
 | [troubleshooting](guides/troubleshooting.md) | Setup and cabinet problems with fixes; then the standalone ports |
 | [cabinet-loader](guides/cabinet-loader.md) | How the cabinet runs: every stand-in and compatibility fix, network, licence key and options, backups, settings |
+| [connectors](guides/connectors.md) | The hardware bridge: event feed, commands, MQTT, webhooks, WLED, input devices, GPIO, iButton reader, light show, books printer |
 | [porting-a-game](guides/porting-a-game.md) | Standalone ports: scaffold → stand-ins → first run → play-through → commit, worked through on Word Dojo 2 |
 | [debugging](guides/debugging.md) | Standalone ports: symptom → tool table; crash traces, screenshots, sound, profiler |
 | [contributing](guides/contributing.md) | Main repo vs game repos, everyday git, publishing, what to update, testing |
@@ -45,7 +48,10 @@ for development.
 | [known-bugs](reference/known-bugs.md) | Open issues; every bug fixed so far by category; diagnosing a new crash |
 | [games](reference/games.md) | All 194 cabinet games: GameId, library, family, resolution, port status *(generated: `make docs`)* |
 | [gamedevice-survey](reference/gamedevice-survey.md) | Each GameDevice game's missing loader symbols, easiest first *(generated: `make survey`)* |
-| [io-board](reference/io-board.md) | USB I/O board protocol, encrypted loader, security key (licence, option values, the key image) and operator fob (iButton) formats |
+| [io-board](reference/io-board.md) | USB I/O board protocol (including the light show and books printer), encrypted loader, security key (licence, option values, the key image) and operator fob (iButton) formats |
+| [cabinet-software](reference/cabinet-software.md) | The loader's internals: start-up and processes, how games run, game and screen IDs, hardware from the loader's side, light show, books printer, NVRAM, identity, MegaNet, MegaLink, debug flags, logging, open questions |
+| [events](reference/events.md) | The event log (`events.jsonl`): every event type and field |
+| [options](reference/options.md) | The 120 game options: index, name, the image's value, our key's licence |
 | [glossary](reference/glossary.md) | Terms used throughout |
 
 ## History

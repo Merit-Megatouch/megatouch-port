@@ -129,6 +129,21 @@ for the standalone game ports. For debugging a game you're porting, see [debuggi
 **Settings look wrong after an experiment**
 : `scripts/loader-backup.sh --list`, then `make loader-restore BACKUP=<file>`. Every start made one.
 
+**Real hardware, lights or MQTT don't react**
+: Start with `scripts/hwbridge.py --check` (are the `HW_` settings seen?) and
+  `scripts/hwbridge.py --watch` (does the cabinet produce the events?), then
+  `build/loader/var/merit/fakeio/hwbridge.log`. The [connectors guide](connectors.md#checking-and-troubleshooting)
+  has a table of causes.
+
+**F4 does nothing / no printout**
+: The cabinet only prints on its attract screen. Leave menus and Operator Setup, wait for the attract
+  loop, then press F4. `megaio print` says when nothing printed within 150 s.
+
+**Joystick games disappeared from the menu after turning on the light show**
+: Expected: a board with the light-show PSoC makes the menu drop joystick-only games when no joystick
+  is fitted (as on a real cabinet). Add `MEGAIO_JOYSTICK=1`, or turn `MEGAIO_LIGHTSHOW` off; then
+  put the games back in *Games → Game Setup*.
+
 ## Standalone ports: starting a game
 
 **`games/<name>/run: No such file or directory`**

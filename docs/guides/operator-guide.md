@@ -27,7 +27,8 @@ security key, sound card, network port, monitor) is simulated. For how that work
 - [15. When something goes wrong](#15-when-something-goes-wrong)
 - [16. Dedicated touchscreen box (kiosk mode)](#16-dedicated-touchscreen-box-kiosk-mode)
 - [17. Linked cabinets (MegaLink, experimental)](#17-linked-cabinets-megalink-experimental)
-- [18. Where things are](#18-where-things-are)
+- [18. Real hardware, lights and home automation](#18-real-hardware-lights-and-home-automation)
+- [19. Where things are](#19-where-things-are)
 
 ## 1. What you need
 
@@ -131,6 +132,7 @@ under it move it to the left or right.
 | Touchscreen | Mouse, left button, in the window |
 | **SETUP** button (inside the cabinet) | **F1**: opens Operator Setup |
 | **CALIBRATE** button | **F2**: touchscreen calibration (finishes by itself here) |
+| Books printer plugged in | **F4**: on the attract screen the cabinet prints its books (saved as a text file, see §18) |
 | Coin into channel 1 / 2 / 3 / 4 | **F5 / F6 / F7 / F8** |
 | Operator key on the key reader (held while the key is down) | **F9** |
 | Player key (My Merit) on the key reader | **F10** |
@@ -411,17 +413,43 @@ Status: the network side works, on one PC and between joined switches (addresses
 MegaLink finding the other cabinets). Playing a linked game through to the end hasn't been
 tried yet; neither has a link over the real internet.
 
-## 18. Where things are
+## 18. Real hardware, lights and home automation
+
+The simulated hardware can be connected to real things. Everything is a setting in
+`cabinet.local.conf`, and the cabinet starts a small helper, the hardware bridge, when one is
+made. The full guide, with wiring and examples, is [connectors](connectors.md).
+
+- **Lights:** `MEGAIO_LIGHTSHOW=1` fits the ION light-show kit. The cabinet then sends its own
+  light sequences (attract loop, coins in, high scores), and `HW_WLED=<address>` plays them on
+  WLED LED strips.
+- **Coin acceptors and buttons:** USB devices that type keys, keyboard encoders, gamepads
+  (`HW_INPUT=…`), or GPIO pins on a Raspberry Pi (`HW_GPIO=…`). They work without the window
+  having focus.
+- **Real Merit keys:** a USB iButton reader (`HW_IBUTTON=on`).
+- **Coin meters and coin lockout:** run a command per event, for example to click a relay
+  (`HW_ON_METER=…`, `HW_ON_LOCKOUT=…`).
+- **Home automation:** `HW_MQTT=<broker>` (Home Assistant, Node-RED) or `HW_WEBHOOK=<url>`:
+  coins, games started and ended, lights, meters and more.
+- **Books printer:** **F4** on the attract screen, or `build/loader/bin/megaio print`. The
+  printout is saved in `build/loader/var/merit/fakeio/printouts/`.
+
+Everything the cabinet does is logged in `build/loader/var/merit/fakeio/events.jsonl`.
+`scripts/hwbridge.py --watch` shows it live.
+
+## 19. Where things are
 
 | Path | What |
 | --- | --- |
-| `cabinet.local.conf` | Your image path |
+| `cabinet.local.conf` | Your image path, and your connector settings (§18) |
 | `build/loader/var.identity` | This cabinet's serial number and MegaNet ID |
 | `build/loader/cabinets/` | Extra cabinets (`scripts/new-cabinet.sh`), each with its own `.identity` |
 | `build/loader/lan/` | Cabinet networks: their switches' sockets and logs |
 | `build/loader/var/merit/` | The cabinet's state (settings, books, high scores, keys) |
 | `build/loader/backups/` | Backups of that state |
 | `build/loader/var/merit/logging/logs/` | The cabinet's own logs (`*.running.log` is the current run) |
+| `build/loader/var/merit/fakeio/events.jsonl` | What the cabinet did: coins, meters, games, lights … (§18) |
+| `build/loader/var/merit/fakeio/printouts/` | Books printouts (F4) |
+| `build/loader/var/merit/fakeio/hwbridge.log` | The hardware bridge's log (§18) |
 | `build/loader/root`, `ion`, `home` | The cabinet's software, copied from the image (read-only use) |
 | `build/loader/*.log` | Logs of the display and network helpers; `kiosk.log` in kiosk mode |
 

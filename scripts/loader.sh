@@ -34,10 +34,20 @@
 #                        lan[:NAME] (a network shared with other cabinets: linked play)
 #   MEGA_LOADER_VAR      directory used as /var (default build/loader/var); a second session
 #                        needs its own (e.g. a copy of build/loader/var.orig) and display
+#   MEGAIO_LIGHTSHOW=1   the ION light-show kit is fitted; MEGAIO_JOYSTICK=1 the joystick
+#   HW_*                 connectors to real devices and services: the hardware bridge
+#                        (scripts/hwbridge.py, docs/guides/connectors.md) runs while the cabinet does
+# Hardware settings (MEGAIO_*, HW_*) can also be put in cabinet.local.conf; the environment wins.
 set -euo pipefail
 P=$(cd "$(dirname "$0")/.." && pwd)
 B="$P/build/loader"
 [ -d "$B/root/usr/local/bin" ] || { echo "no cabinet root: run make loader-setup" >&2; exit 1; }
+if [ -f "$P/cabinet.local.conf" ]; then
+  while IFS= read -r line; do
+    k=${line%%=*}
+    [ -n "${!k+x}" ] || eval "export $line"
+  done < <(grep -E '^(MEGAIO_(JOYSTICK|LIGHTSHOW|OPERATOR_KEY|PLAYER_KEY|NO_KEYS)|HW_[A-Z0-9_]+)=' "$P/cabinet.local.conf")
+fi
 [ -f "$B/bin/libusb-1.0.so.0" ] || { echo "no fake I/O board: run make loader" >&2; exit 1; }
 
 ION="$B/ion"                                   # the full ion_only partition (make loader-setup)
@@ -189,11 +199,11 @@ env=(
   --setenv MEGAIO_TRACE "${MEGAIO_TRACE:-0}"
   --setenv MEGAIO_JOYSTICK "${MEGAIO_JOYSTICK:-0}"
   --setenv TERM "${TERM:-xterm}"
-  --setenv LD_PRELOAD "/opt/fakeio/startfix.so /opt/fakeio/crashlog.so /opt/fakeio/ossfake.so /opt/fakeio/zlibcompat.so /opt/fakeio/soundfix.so"
+  --setenv LD_PRELOAD "/opt/fakeio/startfix.so /opt/fakeio/crashlog.so /opt/fakeio/ossfake.so /opt/fakeio/zlibcompat.so /opt/fakeio/soundfix.so /opt/fakeio/gameevents.so"
 )
 # the stand-ins' optional settings, passed in when set (docs/reference/commands.md#cabinet-loader)
-for v in MEGAIO_SERIAL MEGAIO_OPERATOR_KEY MEGAIO_PLAYER_KEY MEGAIO_NO_KEYS OSSFAKE_TRACE \
-         OSSFAKE_FMOD_OUTPUT MEGA_ZLIB; do
+for v in MEGAIO_SERIAL MEGAIO_OPERATOR_KEY MEGAIO_PLAYER_KEY MEGAIO_NO_KEYS MEGAIO_LIGHTSHOW \
+         OSSFAKE_TRACE OSSFAKE_FMOD_OUTPUT MEGA_ZLIB; do
   [ -n "${!v:-}" ] && env+=(--setenv "$v" "${!v}")
 done
 # MEGA_EXTRA_ENV="A=1 B=2": extra variables for debugging
@@ -277,6 +287,17 @@ case "${1:-}" in
       idf="${MEGA_LOADER_VAR:-$B/var}.identity"
       h=$( { cat "$idf" 2>/dev/null || echo "${MEGA_LOADER_VAR:-$B/var}"; } | md5sum)
       env+=(--setenv MEGA_LAN "$LAN" --setenv MEGA_LAN_MAC "52:54:00:${h:0:2}:${h:2:2}:${h:4:2}")
+    fi
+    # the hardware bridge (connectors to real devices and services) when any HW_ setting is made;
+    # it follows the board's event log and stops when this script ends
+    if [ -n "$(compgen -v HW_ || true)" ] && [ "${HW_BRIDGE:-on}" != off ]; then
+      if command -v python3 >/dev/null; then
+        setsid python3 "$P/scripts/hwbridge.py" --parent $$ --dir "${MEGA_LOADER_VAR:-$B/var}/merit/fakeio" \
+          >> "${MEGA_LOADER_VAR:-$B/var}/merit/fakeio/hwbridge.log" 2>&1 < /dev/null &
+        echo "hardware bridge on (log: ${MEGA_LOADER_VAR:-$B/var}/merit/fakeio/hwbridge.log)"
+      else
+        echo "HW_ settings made but python3 is missing: the hardware bridge can't run" >&2
+      fi
     fi
     # the security-key image the fake board serves, made once from this /var's NVRAM
     [ "${MEGA_LOADER_KEY:-make}" = none ] || "$P/scripts/loader-key.sh" >/dev/null || true

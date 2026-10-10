@@ -22,5 +22,9 @@ struct megaio_ctl {
     uint16_t heartbeat;
     uint32_t polls;
     uint32_t meters[2];     /* pulses seen on output byte 1 (coin meter) and 2 (TournaMAXX meter) */
+    /* books printer (status byte 9 bit 2 = printer plugged in) */
+    uint8_t printer_auto;   /* set with the plug-in bit: the board unplugs it when the job ends */
+    uint8_t pad2[3];
+    uint32_t print_jobs;    /* finished print jobs (written by the board) */
 };
 #endif
