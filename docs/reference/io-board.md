@@ -242,9 +242,14 @@ This cabinet's `/var/merit/.kf` lists two keys over its lifetime, `8c694a0200400
 - Contents used by `KeyManager`: `+0x00` part number (8 chars, must start with `SA3`; this
   cabinet's is `SA362801`, kept in `nvram.dat`), `+0x09` key date (time_t), `+0x0D` revision
   (4), `+0x16` 10-char field, `+0x2A` server URL (200), `+0x35B` web-portal URL (100),
-  `+0xF5` 8-byte cabinet/laser code compared by `KeyManager::Check`, `+0x2DD..` 120 game-option
-  bytes (which games and features are licensed), `+0x3BF..` 300 language/feature bits,
-  `+0x3EF` one more flag.
+  `+0xF5` 8-byte cabinet code: for a DS1995 key `KeyManager::Check` accepts only
+  `93e41c6e20911b9b` or `cfb4a9611bb72003` (else result 6/8; the legacy DS1991 path wants
+  `0123456789abcdef` or `…cdff`), `+0x172..0x1AB` floats (coin and price values),
+  **`+0x1B0 + game ID` (300 bytes) per-game price: low nibble = default price in credits, high
+  nibble = continue cost; 0 = the game is not offered** (`KeyManager::DefaultGamePrice`,
+  `DefaultGameContinueCost`), `+0x2DD..` 120 game-option bytes, `+0x357`/`+0x359` unit times
+  for coinless time play, `+0x3BF..` a bit field (*not* the game licence; a genuine key has 200
+  of 300 bits set), `+0x3EF` one more flag.
 - *Option bytes* (`ParseOptionData`; `KeyManager::Option(i)`): 0 = locked off, 1 = locked on,
   2 / 3 = the operator's choice, default off / on. `NVRAMMap::IsOptionOn` uses the NVRAM value only
   for 2/3; Operator Setup shows an option only if `IsOptionSelectable` (2 or 3); a settings reset
@@ -252,9 +257,16 @@ This cabinet's `/var/merit/.kf` lists two keys over its lifetime, `8c694a0200400
   buttons for Hi-Res-only games are skipped when 0), 0x43 MindSpark and 0x72 download selector
   (platform/hardware checks: 0x72 licensed without the matching amplifier/board stops the loader
   with "invalid key with the current hardware configuration"), 0x16/0x51 languages, 0x5C coin
-  table editing. If the 300 per-game bits at `+0x3BF` are all 0, every game counts as licensed.
+  table editing. With the per-game price table all 0, the unpatched loader deactivates every game (and saves
+that in `settings.xml`); the keyless build doesn't read it.
 - At boot the key's part number and revision are compared with the ones stored in NVRAM
   (`nvram.dat` +0x01, +0x38); a different key resets NVRAM.
+- **The keyless build:** it replaces five key functions (`KeyManager::Check`,
+  `USBIO::USBReadKeyID`, `ReadDS1995KeyData`, `USBReadKeyData`, `USBConfirmKeyID`). It returns a
+  fixed ROM ID (`8c14fc020040000e`), and its key block is a genuine one embedded at file offset
+  `0x1AE408`. The factory loader from the installer discs is identical apart from those
+  1,114 bytes, and runs on the fake board with a key image that has a valid cabinet code and
+  per-game prices.
 - `scripts/loader-key.sh` writes such an image for the fake board (`key.bin`: data in block 5,
   footer in block 7) from the cabinet's own NVRAM; see `docs/guides/cabinet-loader.md`.
 - `read_header` also tries a 22-byte header XORed with one of six ROM-ID-derived masks and

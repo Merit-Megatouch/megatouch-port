@@ -79,6 +79,8 @@ struct.pack_into('<I', d, 9, 1377820800)        # 2013-08-30, this build's date
 d[0xD:0x11] = rev
 d[0x16:0x18] = b'US'
 d[0x2A:0x2A + 18] = b'us.accessmerit.com'
+d[0xF5:0xFD] = bytes.fromhex('93e41c6e20911b9b')    # cabinet code: one of the two KeyManager::Check accepts for a DS1995 key (the unpatched loader checks it)
+d[0x1B0:0x1B0 + 300] = b'\x22' * 300                  # per game: default price 2 credits (low nibble), continue 2 (high); 0 = game not offered (KeyManager::DefaultGamePrice)
 for i in range(120):
     d[OPT + i] = 0 if i in locked_off else 1 if i in locked_on else 2 | (1 if nv[0x40 + i] else 0)
 struct.pack_into('<H', d, CSUM, checksum(d))
