@@ -163,7 +163,7 @@ help:
 # ---- The cabinet's own loader, run unmodified in a sandbox (docs/guides/cabinet-loader.md) ----
 LB      := $(OUT)/loader/bin
 LOADER  := $(LB)/libusb-1.0.so.0 $(LB)/libTwDrvFifo.so $(LB)/startfix.so $(LB)/crashlog.so \
-           $(LB)/ossfake.so $(LB)/xshot $(LB)/xtouch $(LB)/enumtag $(LB)/netcfg $(LB)/megaview $(LB)/megaio $(LB)/xinit.sh $(LB)/shots.sh \
+           $(LB)/ossfake.so $(LB)/xshot $(LB)/xtouch $(LB)/enumtag $(LB)/netcfg $(LB)/megaview $(LB)/megalan $(LB)/lantap $(LB)/megaio $(LB)/xinit.sh $(LB)/shots.sh \
            $(LB)/pci-devices.ion945gc $(LB)/bin/ossmix $(LB)/bin/savemixer $(LB)/nolog.so $(LB)/layout-quiet \
            $(LB)/zlibcompat.so $(LB)/libz-cabinet.so $(LB)/empty $(LB)/soundfix.so
 I386EXE := -Wl,--dynamic-linker=/lib/ld-linux.so.2
@@ -236,6 +236,13 @@ $(LB)/netcfg: src/fakeio/netcfg.cpp $(OUT)/loader/root/usr/local/lib/libnetwork.
 	@mkdir -p $(LB)
 	$(T)/g++32 -O1 -D_GLIBCXX_USE_CXX11_ABI=0 -o $@ $< -L$(OUT)/loader/root/usr/local/lib -lnetwork \
 	    -Wl,--allow-shlib-undefined $(I386EXE)
+# megalan runs on the PC (64-bit, libslirp from loader-setup); lantap inside the sandbox
+$(LB)/megalan: src/fakeio/megalan.c
+	@mkdir -p $(LB)
+	gcc -O2 -g -rdynamic -Wall -isystem $(TD)/usr/include -o $@ $< -L$(TD)/usr/lib/x86_64-linux-gnu -l:libslirp.so.0
+$(LB)/lantap: src/fakeio/lantap.c
+	@mkdir -p $(LB)
+	$(CC) -O2 -Wall -o $@ $< $(I386EXE)
 $(LB)/enumtag: src/fakeio/enumtag.c
 	@mkdir -p $(LB)
 	$(CC) -O2 -o $@ $< -ldl $(I386EXE)

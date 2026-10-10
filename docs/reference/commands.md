@@ -179,6 +179,7 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 | --- | --- |
 | `scripts/install.sh [--image P] [--kiosk] [--no-shortcut] [--yes] [--dir D]` | One-command install: packages, clone, image check, setup, shortcut, kiosk autostart |
 | `scripts/cabinet.sh` / `stop` / `status` / `autostart on\|off` | Kiosk mode (`make kiosk` / `make kiosk-stop`): fullscreen, restart on exit, crash or hang, login autostart |
+| `scripts/new-cabinet.sh NAME [--from-image]` | Another cabinet on this PC (`build/loader/cabinets/NAME`) with its own identity and linked games on, for `MEGA_LOADER_NET=lan` |
 | `scripts/loader.sh` | What `make loader-run` runs: start the cabinet |
 | `scripts/loader.sh shell` / `run <cmd>` | A shell / a command inside the cabinet's userland (joins a running cabinet's display) |
 | `scripts/loader-backup.sh [label]` / `--list` / `--restore FILE` | Snapshot / list / restore `build/loader/var/merit` (`--auto` keeps the newest 20) |
@@ -196,7 +197,7 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 | `MEGA_LOADER_DISPLAY` | `55` | Nested X display number (Xvfb uses 100 + this) |
 | `MEGA_LOADER_VIEW` | `megaview` | `megaview`: scalable window. `xephyr`: Xephyr's own window, always the cabinet's exact resolution |
 | `MEGA_LOADER_X` | `xephyr` | `host`: draw on the desktop's X server directly (no resolution changes) |
-| `MEGA_LOADER_NET` | `slirp` | `slirp`: own network namespace with a virtual wired `eth0` (NAT, DHCP 10.0.2.15). `host`: the desktop's network (the cabinet then shows none) |
+| `MEGA_LOADER_NET` | `slirp` | `slirp`: own network namespace with a virtual wired `eth0` (NAT, DHCP 10.0.2.15). `lan[:NAME]`: a cabinet network shared with every cabinet started with the same NAME (megalan switch + router; linked play). `host`: the desktop's network (the cabinet then shows none) |
 | `MEGA_LOADER_BACKUP` | `auto` | Settings snapshot at start: `auto` (every start, newest 20), `daily` (one a day, newest 14), `none` |
 | `MEGA_LOADER_IDENTITY` | on | `off`: don't apply `<var>.identity` (serial for a new board EEPROM, MegaNet ID) at start |
 | `MEGA_LOADER_KEY` | make | `none`: no security-key image is made (key-gated options stay locked off) |

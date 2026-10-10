@@ -28,7 +28,8 @@
 #   MEGA_LOADER_IDENTITY=off  don't apply this cabinet's identity (scripts/loader-identity.sh)
 #   MEGA_LOADER_BACKUP   auto (default: a snapshot at every start), daily or none
 #   MEGA_LOADER_KEY=none no security-key image (scripts/loader-key.sh makes one when missing)
-#   MEGA_LOADER_NET      slirp (default: own network namespace + virtual eth0) or host
+#   MEGA_LOADER_NET      slirp (default: own network namespace + virtual eth0), host, or
+#                        lan[:NAME] (a network shared with other cabinets: linked play)
 #   MEGA_LOADER_VAR      directory used as /var (default build/loader/var); a second session
 #                        needs its own (e.g. a copy of build/loader/var.orig) and display
 set -euo pipefail
@@ -120,10 +121,14 @@ args=(
 # slirp4netns (user-mode networking: NAT to the host, DHCP 10.0.2.15, DNS 10.0.2.3), so the
 # cabinet's network_manager and DHCP client configure it as on the real machine.
 # MEGA_LOADER_NET=host shares the host's network instead (the cabinet then reports it as down);
-# helpers (run/shell) always share the host's network.
+# MEGA_LOADER_NET=lan[:NAME] puts the cabinet on a virtual cabinet network shared with every
+# other cabinet started with the same NAME (megalan: a switch with a router to the internet),
+# for linked play; helpers (run/shell) always share the host's network.
 NET="${MEGA_LOADER_NET:-slirp}"
 SLIRP="$P/toolchain/debug/root/usr/bin/slirp4netns"
 case "${1:-}" in run|shell) NET=host ;; esac
+LAN=""
+case "$NET" in lan|lan:*) LAN="${NET#lan}"; LAN="${LAN#:}"; LAN="${LAN:-lan}"; NET=lan ;; esac
 [ "$NET" = slirp ] && [ ! -x "$SLIRP" ] && { echo "no slirp4netns (make loader-setup); network shared with the host" >&2; NET=host; }
 if [ "$NET" = host ]; then
   # the cabinet's /etc/resolv.conf links to /var/merit/etc/resolv.conf: give it the host's resolver
@@ -133,6 +138,22 @@ if [ "$NET" = host ]; then
 else
   # network admin rights apply only inside the sandbox's own network namespace
   args+=(--unshare-net --cap-add CAP_NET_ADMIN --cap-add CAP_NET_RAW --cap-add CAP_NET_BIND_SERVICE)
+fi
+if [ "$NET" = lan ]; then
+  # this LAN's switch (one megalan per name, shared by every cabinet on it; it exits on its own
+  # a minute after the last cabinet leaves)
+  [[ "$LAN" =~ ^[A-Za-z0-9_.-]+$ ]] || { echo "bad LAN name: $LAN" >&2; exit 1; }
+  mkdir -p "$B/lan"
+  LANSOCK="$B/lan/$LAN.sock"
+  if ! { [ -f "$B/lan/$LAN.pid" ] && kill -0 "$(cat "$B/lan/$LAN.pid")" 2>/dev/null && [ -S "$LANSOCK" ]; }; then
+    TDL="$P/toolchain/debug/root/usr/lib/x86_64-linux-gnu"
+    LD_LIBRARY_PATH="$TDL" setsid bash -c '"$0" "$1"; echo "megalan exited ($?)"' "$B/bin/megalan" "$LANSOCK" \
+      >> "$B/lan/$LAN.log" 2>&1 < /dev/null &
+    echo $! > "$B/lan/$LAN.pid"
+    for i in $(seq 50); do [ -S "$LANSOCK" ] && break; sleep 0.1; done
+    [ -S "$LANSOCK" ] || { echo "megalan did not start, see $B/lan/$LAN.log" >&2; exit 1; }
+  fi
+  args+=(--bind "$LANSOCK" /tmp/megalan.sock --dev-bind /dev/net/tun /dev/net/tun)
 fi
 for d in /dev/dri /dev/dxg /usr/lib/wsl /mnt/wslg; do [ -e "$d" ] && args+=(--dev-bind "$d" "$d"); done
 [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -S "$XDG_RUNTIME_DIR/pulse/native" ] && \
@@ -219,6 +240,12 @@ case "${1:-}" in
       "$P/scripts/loader-identity.sh" --apply || true
       ser=$(sed -n 's/^SERIAL=//p' "${MEGA_LOADER_VAR:-$B/var}.identity" 2>/dev/null)
       [ -n "$ser" ] && [ -z "${MEGAIO_SERIAL:-}" ] && env+=(--setenv MEGAIO_SERIAL "$ser")
+    fi
+    # on a LAN: the cabinet's port, with a MAC address of its own that stays the same
+    if [ "$NET" = lan ]; then
+      idf="${MEGA_LOADER_VAR:-$B/var}.identity"
+      h=$( { cat "$idf" 2>/dev/null || echo "${MEGA_LOADER_VAR:-$B/var}"; } | md5sum)
+      env+=(--setenv MEGA_LAN "$LAN" --setenv MEGA_LAN_MAC "52:54:00:${h:0:2}:${h:2:2}:${h:4:2}")
     fi
     # the security-key image the fake board serves, made once from this /var's NVRAM
     [ "${MEGA_LOADER_KEY:-make}" = none ] || "$P/scripts/loader-key.sh" >/dev/null || true

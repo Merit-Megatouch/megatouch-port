@@ -8,7 +8,11 @@ rm -f /var/config/commandline
 start_bin=${MEGA_LOADER_BIN:-/usr/local/bin/start}
 
 # network daemon (normally /etc/init.d/merit-networkmanager, started by .xinitrc); with the
-# default slirp network, wait for the virtual eth0 first
+# default slirp network, wait for the virtual eth0 first. On a cabinet LAN (MEGA_LAN), eth0 is
+# our port on the megalan switch.
+if [ -n "${MEGA_LAN:-}" ] && [ -S /tmp/megalan.sock ]; then
+  /opt/fakeio/lantap /tmp/megalan.sock eth0 ${MEGA_LAN_MAC:-} 2> /var/merit/fakeio/lantap.log &
+fi
 for i in $(seq 40); do grep -q "eth0:" /proc/net/dev && break; sleep 0.1; done
 nice -n 19 /usr/local/bin/network_manager >/dev/null 2>&1 &
 # what the cabinet's network looks like once configured (troubleshooting: /var/merit/fakeio/net.txt)

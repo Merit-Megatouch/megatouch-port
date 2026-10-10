@@ -57,7 +57,7 @@ and TournaMAXX, backups and troubleshooting.
 | Dedicated touchscreen box: auto-run, fullscreen, restart on crash or hang | yes (kiosk mode) |
 | Settings kept between runs, automatic backups | yes |
 | Joystick accessory | yes, on the arrow keys (`MEGAIO_JOYSTICK=1`) |
-| Linked play between cabinets (MegaLink) | not yet ([roadmap](docs/roadmap.md)) |
+| Linked cabinets (MegaLink) | experimental: cabinets on one PC share a network and find each other ([guide](docs/guides/operator-guide.md#17-linked-cabinets-megalink-experimental)); across PCs next |
 | Credit card reader, TouchTunes jukebox | no |
 
 ## Documentation

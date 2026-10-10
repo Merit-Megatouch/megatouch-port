@@ -26,7 +26,8 @@ security key, sound card, network port, monitor) is simulated. For how that work
 - [14. Updating](#14-updating)
 - [15. When something goes wrong](#15-when-something-goes-wrong)
 - [16. Dedicated touchscreen box (kiosk mode)](#16-dedicated-touchscreen-box-kiosk-mode)
-- [17. Where things are](#17-where-things-are)
+- [17. Linked cabinets (MegaLink, experimental)](#17-linked-cabinets-megalink-experimental)
+- [18. Where things are](#18-where-things-are)
 
 ## 1. What you need
 
@@ -349,12 +350,39 @@ protection off), `KIOSK_FULLSCREEN` (1), `KIOSK_HIDE_CURSOR` (1; 0 without a tou
 Under WSL the Windows side starts and stops WSL, so use the desktop shortcut there; kiosk mode is
 meant for Linux boxes.
 
-## 17. Where things are
+## 17. Linked cabinets (MegaLink, experimental)
+
+Real cabinets in one venue could link: players on different machines play linkable games
+against each other (MegaLink). Here, cabinets started on the same **cabinet network** see each
+other as if plugged into one switch, with internet access through it as usual.
+
+Two cabinets on one PC:
+
+```bash
+scripts/new-cabinet.sh second                    # a copy of your cabinet, with its own identity
+scripts/loader-option.sh LINKED_GAMES_ENABLED 1  # linked games on in the main cabinet too
+MEGA_LOADER_NET=lan make loader-run              # the main cabinet, on the cabinet network
+MEGA_LOADER_NET=lan MEGA_LOADER_VAR=$PWD/build/loader/cabinets/second MEGA_LOADER_DISPLAY=56 make loader-run
+```
+
+Each cabinet gets its own address on the network (10.0.2.15, .16, …); the last number is its
+MegaLink ID. Cabinets find each other on their own. Then start a linkable game on one; the others
+are invited to join. `new-cabinet.sh NAME --from-image` starts from the image's original state
+instead, which needs the Connection Wizard (wired) once, like any fresh cabinet. Several separate
+networks: `MEGA_LOADER_NET=lan:NAME`.
+
+Status: the network side works (shared network, addresses, MegaLink finding the other cabinets).
+Playing a linked game through to the end hasn't been tried yet. Linking cabinets on different
+PCs or over the internet is next on the [roadmap](../roadmap.md).
+
+## 18. Where things are
 
 | Path | What |
 | --- | --- |
 | `cabinet.local.conf` | Your image path |
 | `build/loader/var.identity` | This cabinet's serial number and MegaNet ID |
+| `build/loader/cabinets/` | Extra cabinets (`scripts/new-cabinet.sh`), each with its own `.identity` |
+| `build/loader/lan/` | Cabinet networks: their switches' sockets and logs |
 | `build/loader/var/merit/` | The cabinet's state (settings, books, high scores, keys) |
 | `build/loader/backups/` | Backups of that state |
 | `build/loader/var/merit/logging/logs/` | The cabinet's own logs (`*.running.log` is the current run) |
