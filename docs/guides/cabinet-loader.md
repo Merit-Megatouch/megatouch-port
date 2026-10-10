@@ -292,9 +292,20 @@ with its registration details, tournaments and catalog.
 Five failed key reads in a row make the Force stop for good at its tamper screen; the count is
 `read_attempts` in `var/config/settings/never/key_settings.xml`.
 
+`make loader-backup` covers `build/loader` only; copy `build/force/var` to keep the Force's
+state. Internals (files, obfuscated strings, platform detection, the touchscreen protocol, the
+network and its Internet test): [force](../reference/force.md).
+
+Verified (2026-10-11): Force 2011 from its disc to the menu through `make`; first-boot
+calibration; Operator Setup; the security key; DHCP with a default route; TournaMAXX
+registration with `us.oerinet.net` (tournaments and catalog received); still running after the
+clock sync and the messenger's connection attempt. Not yet tried: games, coins and credits,
+operator keys, MegaLink, sound in a game.
+
 ## How it works
 
-`make loader-setup` (`scripts/loader-setup.sh`) unpacks the cabinet's partitions with `debugfs`:
+`make loader-setup` (`scripts/loader-setup.sh`) unpacks the cabinet's partitions with `debugfs`
+(a Force's into `build/force`, the same way, without `ion`):
 root → `build/loader/root`, /home → `home`, ion_only → `ion` (including the `content/` packs
 some games need), /var → `var` (plus `var.orig` for resets).
 

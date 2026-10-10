@@ -169,6 +169,46 @@ for the standalone game ports. For debugging a game you're porting, see [debuggi
   is fitted (as on a real cabinet). Add `MEGAIO_JOYSTICK=1`, or turn `MEGAIO_LIGHTSHOW` off; then
   put the games back in *Games → Game Setup*.
 
+### Force cabinet
+
+**`these discs hold ion software, not force`** (or the reverse) during `make loader-setup`
+: An ION disc is set as `FORCE_DISC1`, or a Force disc as `DISC1`. Fix `cabinet.local.conf`, delete
+  the `root` folder it extracted (`build/force/root` or `build/loader/root`), and run setup again.
+
+**`no root partition image (part5)`**
+: An older Force disc (2004–2006.5): setup can't read those yet. Force 2007.5–2011 discs work.
+
+**"Touch Screen Controller Error"** / **the screen is cut off at 800×600**
+: The Force stand-ins aren't loaded: start the Force with `make loader-run CABINET=force` (or
+  `MEGA_LOADER_CABINET=build/force`), not as the ION cabinet, and run `make loader` after updating.
+
+**"INVALID KEY FOR VERSION V2011.40" / "Machine will reboot. Attempt n out of 5"**
+: The key image isn't a Force key (made before Force support, or for ION). With the cabinet
+  stopped: `MEGA_LOADER_VAR=build/force/var MEGA_KEY_PLATFORM=force scripts/loader-key.sh --force`,
+  and set `read_attempts` back to 0 in `build/force/var/config/settings/never/key_settings.xml`.
+  After five failures the Force stops at "All attempts to verify the Security key…" for good;
+  the same two steps bring it back.
+
+**Calibration screen at every start**
+: The Force calibrates while it has no NVRAM (first boot) or when
+  `/var/config/forcecalibrate` exists. Press EXIT at each *MOVE CURSOR* screen; after a normal
+  shutdown the NVRAM exists and it stops.
+
+**"NO BROADBAND CONNECTION (51)" / "INITIAL CONNECTION SETUP FAILED"**
+: The Force's Internet test is a TCP connection to its DNS servers on port 53. Set them to public
+  servers (*Network → Ethernet Setup → Setup*: 1.1.1.1 and 8.8.8.8); the sandbox's 10.0.2.3 can't
+  be used for this under WSL. Check `build/force/var/merit/fakeio/net.txt`: it should show a
+  default route (`00000000` with gateway `0202000A`). Without one, the Force stand-ins are old:
+  run `make loader`.
+
+**The Force crashes about a minute after connecting** (`RTC set failed`, `Assert Called [__fd != -1]`,
+or `lm-connection.c … should not be reached`)
+: Old stand-ins without the clock and Loudmouth fixes: `make loader`, then start again.
+
+**Backups:** `make loader-backup` covers the ION cabinet (`build/loader`) only. For the Force,
+copy `build/force/var` yourself while it is stopped; `make loader-reset CABINET=force` restores
+the factory state.
+
 ## Standalone ports: starting a game
 
 **`games/<name>/run: No such file or directory`**

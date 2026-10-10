@@ -11,6 +11,10 @@ tournaments, network settings. It is split over four kinds of storage, from olde
 | [Settings files](#settings-files) | `settings.xml`, `settings/<level>/*.xml`, `db_state.xml` | XML; two files encrypted | any text editor (cabinet stopped) |
 | Board EEPROM, keys | `fakeio/eeprom.bin`, `fakeio/key.bin`, `fakeio/login/` | the I/O board's EEPROM and iButtons | [io-board](io-board.md), `scripts/loader-key.sh` |
 
+**On a Force** (2004–2011 software) the NVRAM is `/var/config/nvram.dat` (5,792 bytes in Force
+2011, so its map differs from the one below), settings files are under `/var/config/settings/`
+and TournaMAXX's databases under `/var/merit/tournamaxx/database/` ([force → files](force.md#files)).
+
 Back up all of it with `make loader-backup` (logs left out). The loader rewrites most of these
 files while it runs: change them only while it is stopped, and take a backup first.
 

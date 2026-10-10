@@ -43,19 +43,20 @@ development.
 | [architecture](reference/architecture.md) | Components, startup sequence, frame loop, file, image and sound data flow, repo layout |
 | [engine-abi](reference/engine-abi.md) | Classes, sizes, field offsets, vtable slots; which slots our backend fills; adding a class |
 | [loader-services](reference/loader-services.md) | Every loader stand-in with behaviour and the game that needed it; what unported games still need |
-| [cabinet](reference/cabinet.md) | The installer discs (layout, partimage images, first boot) and the disk image (partitions, keyless patch), directory map, hardware.xml, gamedata.xml, settings.xml, GameIds, engine libraries |
+| [cabinet](reference/cabinet.md) | The installer discs (layout, partimage images, first boot; every disc of the collection with its real build) and the disk image (partitions, keyless patch), directory map, hardware.xml, gamedata.xml, settings.xml, GameIds, engine libraries |
 | [legacy](reference/legacy.md) | The legacy route: reconstructed loader API, `.dlt` delta animations, touch zones, next games |
 | [unity](reference/unity.md) | The Unity route: shared player, game folder layout, launcher.xml keys, sound shim, cabinet .NET code |
 | [file-formats](reference/file-formats.md) | `.spr` (fully decoded), images, sound, layouts, fonts, translations |
 | [known-bugs](reference/known-bugs.md) | Open issues; every bug fixed so far by category; diagnosing a new crash |
 | [games](reference/games.md) | All 194 cabinet games: GameId, library, family, resolution, port status *(generated: `make docs`)* |
 | [gamedevice-survey](reference/gamedevice-survey.md) | Each GameDevice game's missing loader symbols, easiest first *(generated: `make survey`)* |
-| [io-board](reference/io-board.md) | USB I/O board protocol (including the light show and books printer), encrypted loader, the keyless patch, security key (full layout: options, game prices, languages, country, pricing; the key image) and operator fob (iButton) formats |
+| [io-board](reference/io-board.md) | USB I/O board protocol (including the light show and books printer), encrypted loader, the keyless patch, security key (full layout: options, game prices, languages, country, pricing; the key image; the Force 2011 key and cabinet codes) and operator fob (iButton) formats |
 | [cabinet-software](reference/cabinet-software.md) | The loader's internals: start-up and processes, how games run, game and screen IDs, hardware from the loader's side, light show, books printer, NVRAM, identity, MegaNet, MegaLink, debug flags, logging, open questions |
 | [events](reference/events.md) | The event log (`events.jsonl`): every event type and field |
 | [options](reference/options.md) | The 120 game options: index, name, the disk image's value, our key's licence |
 | [cabinet-state](reference/cabinet-state.md) | Where the cabinet keeps its state: the NVRAM map, the encrypted databases (schemas, `dbdump`), the settings files |
-| [meganet](reference/meganet.md) | The MegaNet exchange: hosts, registration check, the POST session, every table, error codes; enough to write a server |
+| [meganet](reference/meganet.md) | The MegaNet exchange: hosts, registration check, the POST session, every table, error codes; enough to write a server; what a Force 2011 session showed |
+| [force](reference/force.md) | The Force platform (2004–2011 software): system, files, obfuscated strings, platform detection, usbfs board access, video modes, MicroTouch protocol, network and Internet test, what breaks today |
 | [megalink](reference/megalink.md) | The MegaLink wire protocol: discovery, challenges, the TCP game link, packet formats, a linked game step by step |
 | [glossary](reference/glossary.md) | Terms used throughout |
 

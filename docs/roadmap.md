@@ -27,7 +27,10 @@ ports** of single games, came first and is kept for development (below).
    ([megalink](reference/megalink.md)); PCs join through a hub (`MEGA_LAN_LISTEN` /
    `MEGA_LAN_CONNECT`).
 3. **Installer discs (2026-10-10):** the ION 2014 discs build a factory-fresh cabinet with the
-   unmodified factory loader. Next: the other years' discs (ION 2008.5–2013, Force, Maxx).
+   unmodified factory loader. **Force 2011 (2026-10-11):** from its disc to the menu, network
+   and TournaMAXX registration with a community server ([force](reference/force.md)). Next:
+   Maxx, then the other years' discs (ION 2008.5–2013, Force 2004–2010.5; inventory in
+   [cabinet](reference/cabinet.md#every-installer-disc-as-seen-2026-10-11)).
 4. **A real cabinet's hardware:**
    - try the connectors with real devices (iButton reader, coin mech on GPIO, WLED);
    - later, the cabinet's own USB I/O board through real libusb instead of the fake board.

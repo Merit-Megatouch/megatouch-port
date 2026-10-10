@@ -1,7 +1,8 @@
 # The cabinet: discs, image, partitions, files
 
 Everything known about the ION 2014 software's two forms, the original installer discs and the
-`Megatouch ION 2014 HDD Keyless` disk image, and where things live in them. Software version
+`Megatouch ION 2014 HDD Keyless` disk image, and where things live in them. The Force (2004–2011
+software) is in [force](force.md); every disc of the collection is listed below. Software version
 **PG3002-01 V40.02** (build `V40_02T130830_1115`, 2013-08-30).
 
 ## The installer discs
@@ -27,7 +28,39 @@ also creates `/var/merit/games/upgrade`, which runs `upgrade_manager` on the nex
 `scripts/partimage.py` reads the discs without booting them (format in the script);
 `make loader-setup` uses it when `DISC1`/`DISC2` are set
 ([cabinet-loader → From the installer discs](../guides/cabinet-loader.md#from-the-installer-discs)).
-Other releases (ION 2008.5–2013, Force 2004–2011, Maxx) ship the same way.
+Other releases ship the same way (inventory below); the Force's system is described in
+[force](force.md).
+
+### Every installer disc (as seen 2026-10-11)
+
+What `scripts/partimage.py info` reports for each disc of the collection: the volume label (the
+build: `V<version>T<yymmdd>_<hhmm>`), and the partition images on it. The file names aren't always
+right; the volume label is.
+
+| Release (file name) | Build on the disc | Images | Notes |
+| --- | --- | --- | --- |
+| Force 2004 (3 discs) | "disc 1–3" | `part1_gz.000`, `part2_gz.000–002`, `part6_gz.000` | older multi-file naming; no `part5` |
+| Force 2005.5 (4 discs) | V15.10 (`050614_1709`) | `part1`, `part2`, `part5` (over all four), `part6` | |
+| Force 2006.5 | V21.51 (`070522_1743`) | `part1`, `part2`, `part5`, `part6` | |
+| Force 2007.5 | V23.00 (`070420_1642`), disc 1 of 2 | `part1`, `part2`, `part5` | disc 2 (`V23_00…_2OF2`) has `part6` |
+| Force 2008.5 / ION 2008.5 | V25.00 (`080320_1114`) | disc 1: `part1`, `part2`, `part5`; disc 2: `part6` | the Force and ION disc 1 files are byte-identical |
+| "Force 2009.5 V29_11…" | **V27.03** (`090811_1443`) | `part1`, `part2`, `part5` | mislabelled: same file as `V27_03…iso`; the real V29.11 (`081203_0708`) is another disc |
+| Force 2010.5 | V28.20 (`100329_1757`) | `part1`, `part2`, `part5` | |
+| Force 2011 "1 of 2" | V28.40 (`101109_1217`) | `part1`, `part2`, `part5` | complete on one disc; **runs** ([guide](../guides/cabinet-loader.md#a-force-cabinet)) |
+| ION 2009 | V30.23 (`090216_1459`) | disc 1: `part1`, `part2`, `part5`; disc 2: `part6` | |
+| ION 2009.5 update | V31.02 | disc 1: `part2`, `part5`; disc 2: `part1`, `part6` | product label PG3002-01 from here on |
+| ION 2010.5 | V33.00 | as 2009.5 | |
+| ION 2011 | V34.10 | as 2009.5 | |
+| ION 2011.5 | V35.00 | as 2009.5 | |
+| ION 2012 | V36.10 | as 2009.5 | also V36.01 (`110826_1325`) |
+| ION 2013 | V38.01 | disc 1: `part2`, `part5`, `part6`; disc 2: `part1`, `part6` | |
+| ION 2014 | V40.02 | as 2013 | **runs** |
+| Unlabelled: V24.04, V28.10 | `070917_1718`, `091204_0300` | disc 1: `part1`, `part2`, `part5`; disc 2: `part6` | platform not checked |
+| Unlabelled: V27.04, V29.11 | `090805_1537`, `081203_0708` | `part1`, `part2`, `part5` | |
+| Unlabelled: V32.03, V32.11 | `090928_1617`, `091207_1021` | ION layout (PG3002-01) | |
+| Maxx Crown, Jade 2, Sapphire, Ruby; `vips40` | "disc 1…", "DISK1…", "10.07" | `part1`, `part2`, `part5`/`part6`, Ruby also `part3`, `part7`, `dospart*` | the Maxx line; not tried |
+| Maxx Diamond, Double Diamond, Emerald, MAXX2K upgrade, XL 5000/6000/Extreme, "2k plus update" | dates 1998–2002 | none | not partimage discs (older installers) |
+| Maxx Ruby 2, Ruby Update, `ruby_force_2003_v10-02_update` | — | — | not ISO 9660 images |
 
 ## The image
 

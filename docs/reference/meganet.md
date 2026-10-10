@@ -1,7 +1,7 @@
 # MegaNet: the cabinet ↔ server exchange
 
 How the ION 2014 loader talks to a MegaNet server, as far as needed to write a compatible
-server. **Source:** static analysis of `start` (the 2021 Keyless build, whose MegaNet code is the
+server (the Force 2011 loader: §6). **Source:** static analysis of `start` (the 2021 Keyless build, whose MegaNet code is the
 factory build's; class `TournamaxxUpdate`,
 `update.cpp`), `network_ui` (`connection_base.cpp`), `libgendef_common.so` (record encoding),
 `libtournamaxx.so` (table registry) and `libnetwork.so` (result codes, read by calling the
@@ -224,6 +224,25 @@ The cabinet keeps these in its TournaMAXX database (`/var/merit/tournamaxx/datab
 - `OSASettings` set the operator website text.
 - `Tournaments`: no active tournament for the machine.
 
+### Force 2011, 2026-10-11 (us.oerinet.net)
+
+The Force loader has the same `TournaMAXX` exchange (`InternetConnectivity`, its own build of the
+tables); its connect flow is in [force → network](force.md#network). Seen in its log on the first
+connection (*Initial TournaMAXX Connection*, reason `TMAXX_INITIAL_CONNECTION_OWN_ISP`):
+
+- Before connecting it tests for broadband with a TCP connection to port 53 of its DNS servers
+  (result 51 `CE_NO_BROADBAND_CONNECTION` when that fails).
+- The server answered with registration details for the machine (a placeholder name and address
+  in Cincinnati OH, distributor "Megatouch Facebook Group"); the Force asks the operator to confirm
+  them.
+- `Tournaments` rows came with a column this build doesn't know (`ParagonBurnCredits`) and for
+  games it doesn't have (`NO_GAME`, `G_PHOTO_HUNT_HD`); it logs and skips them. Many
+  `Unknown column (6), dropping data` lines: other tables also have columns newer than 2010.
+- The catalog was empty; the session ended `RESULT: NO ERROR (0)`.
+
+So a server written for ION-era tables still works with the 2010 Force build: unknown columns
+and rows are ignored, not errors.
+
 ## 7. Open questions
 
 - A plaintext capture of a full session with this build, to confirm the exact header spellings,
@@ -233,8 +252,8 @@ The cabinet keeps these in its TournaMAXX database (`/var/merit/tournamaxx/datab
   the check).
 - `Timeout` and `Timebomb` semantics in detail; `CallInDisable` (a record type that exists but
   isn't registered as a handler).
-- What `ConnectState` does before the exchange (ping/route checks) and which phase the UI calls
-  each "step".
+- What `ConnectState` does before the exchange on ION (on the Force: the TCP port-53 test above)
+  and which phase the UI calls each "step".
 - Why the seen `DownloadFileRequest`s were skipped.
 
 See also: [cabinet software](cabinet-software.md#network-meganet-and-megalink),

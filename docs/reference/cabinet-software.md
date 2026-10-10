@@ -14,6 +14,12 @@ preservation, and for anyone who reimplements the cabinet, its hardware or its s
 
 Anything marked *inferred* comes from code reading and wasn't confirmed by a run.
 
+**The Force (2004–2011):** its loader shares most of this (the same classes: `USBIO`,
+`KeyManager`, `NVRAMMap`, `MenuClass`, TournaMAXX tables), but draws its own screen without a
+layout daemon, reaches the board through usbfs, uses a serial MicroTouch through TouchWare,
+configures the network with dhcpcd and scrambles many of its strings. Those differences are in
+[force](force.md).
+
 **Related pages:**
 
 | Page | Covers |
@@ -25,6 +31,7 @@ Anything marked *inferred* comes from code reading and wasn't confirmed by a run
 | [cabinet state](cabinet-state.md) | NVRAM map, databases and settings files |
 | [meganet](meganet.md), [megalink](megalink.md) | the MegaNet server exchange, the MegaLink wire protocol |
 | [games](games.md) | every game's ID and library |
+| [force](force.md) | the Force platform (2004–2011 software): its system, loader differences, network and key |
 
 - [Start-up and processes](#start-up-and-processes)
 - [Running games](#running-games)
@@ -364,3 +371,4 @@ the current game ID (`Logger::SetGameID`).
 - **MegaLink:** each game's own packet types, and links of more than two cabinets
   ([megalink](megalink.md#open-questions)).
 - **Lockout:** which lockout flag is coins and which is bills, confirmed on hardware.
+- **Force:** see [force → open questions](force.md#open-questions).

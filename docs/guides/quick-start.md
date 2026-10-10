@@ -115,6 +115,7 @@ Setup, **F5–F8** insert coins, **F11** is fullscreen. Close the window to stop
 ## Where next
 
 - Setting the cabinet up and looking after it: the [Operator guide](operator-guide.md).
+- A Force cabinet (2011) next to the ION: [operator guide §20](operator-guide.md#20-a-force-cabinet-2011).
 - Something went wrong: [troubleshooting](troubleshooting.md#cabinet-loader).
 - Every command and setting: [commands reference](../reference/commands.md).
 

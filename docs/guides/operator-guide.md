@@ -8,7 +8,8 @@ What you get is the cabinet's own factory software, unmodified, from its origina
 discs (or from a disk image of a used cabinet): the attract loop, the game menus, Operator
 Setup, coins and credits, operator and player keys, every game, MegaNet and TournaMAXX. The
 cabinet hardware it expects (I/O board, touchscreen, security key, sound card, network port,
-monitor) is simulated. For how that works, see [cabinet-loader](cabinet-loader.md).
+monitor) is simulated. For how that works, see [cabinet-loader](cabinet-loader.md). The Force
+(the cabinet before the ION, 2011 software) runs the same way: [§20](#20-a-force-cabinet-2011).
 
 - [1. What you need](#1-what-you-need)
 - [2. Install (once)](#2-install-once)
@@ -29,6 +30,7 @@ monitor) is simulated. For how that works, see [cabinet-loader](cabinet-loader.m
 - [17. Linked cabinets (MegaLink, experimental)](#17-linked-cabinets-megalink-experimental)
 - [18. Real hardware, lights and home automation](#18-real-hardware-lights-and-home-automation)
 - [19. Where things are](#19-where-things-are)
+- [20. A Force cabinet (2011)](#20-a-force-cabinet-2011)
 
 ## 1. What you need
 
@@ -521,6 +523,50 @@ Everything the cabinet does is logged in `build/loader/var/merit/fakeio/events.j
 | `build/loader/var/merit/fakeio/hwbridge.log` | The hardware bridge's log (§18) |
 | `build/loader/root`, `ion`, `home` | The cabinet's software, unpacked from the discs or the image (read-only use); `root.source` says which discs; `root.image` is a disk image's root kept after switching to the discs |
 | `build/loader/*.log` | Logs of the display and network helpers; `kiosk.log` in kiosk mode |
+| `build/force/` | The Force cabinet (§20): `root`, `home`, `var` (its state), `var.console.log` |
 
 Technical details (how the simulation works, every setting, environment variables):
 [cabinet-loader](cabinet-loader.md) and the [commands reference](../reference/commands.md#cabinet-loader).
+
+## 20. A Force cabinet (2011)
+
+The Force was the Megatouch before the ION. Its 2011 software runs next to your ION cabinet, from
+its own installer disc (one CD, `V28_40T101109_1217`). It has its own settings, books and key.
+
+**Install:** add the disc to `cabinet.local.conf` and run setup again (your ION cabinet is kept):
+
+```bash
+FORCE_DISC1="/path/to/Force 2011 Disk 1 of 1 V28_40T101109_1217_1OF2.iso"
+```
+
+```bash
+make loader-setup                 # builds build/force (a few minutes)
+make loader-run CABINET=force     # the window is titled "Megatouch Force"
+```
+
+**First start:** two calibration screens (640×480, then 800×600). Each ends with *MOVE CURSOR*:
+press **EXIT** (bottom right). Then the menu ("Welcome to Megatouch Force 2011").
+
+**Controls:** as on the ION (§5): **F1** Operator Setup, F5–F8 coins, F9/F10 keys. The Force
+has no sidebar; the game fills the window (640×480, or 800×600 for Hi-Res games).
+
+**Network and TournaMAXX:** Operator Setup → *Network*:
+
+1. *Internet Connection*: **LAN** (the factory setting is Dial-Up).
+2. *Ethernet Setup*: **AUTOMATIC**.
+3. *Setup*: *Server Name* `us.oerinet.net` (a community server), *Next*; DNS **1.1.1.1**,
+   *Next*; **8.8.8.8**, *Next*.
+4. *Initial TournaMAXX Connection*: **YES**. The server sends this machine's registration details;
+   check them and answer YES.
+
+Use public DNS servers as above: the Force tests the Internet through them.
+
+**The licence** is a Force key made the same way as the ION's (§12); `KEY_COUNTRY` and
+`KEY_LANGUAGES` in `cabinet.local.conf` apply to both cabinets.
+
+**Back to factory:** `make loader-reset CABINET=force` (cabinet stopped). `make loader-backup` only
+covers the ION cabinet: to keep the Force's state, copy `build/force/var` while it is stopped.
+
+What isn't there yet: the older Force discs (2004–2006.5), and Force-specific extras such as
+the joystick and light show, which weren't tried. Problems: [troubleshooting → Force
+cabinet](troubleshooting.md#force-cabinet). How it works: [force](../reference/force.md).
