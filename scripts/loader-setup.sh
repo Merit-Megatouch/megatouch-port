@@ -4,11 +4,13 @@
 #   1. build/loader/{root,var,home,ion}: the cabinet's root, var, home and ion_only partitions,
 #      plus var.orig, a pristine copy of /var for `make loader-reset`. From the installer discs
 #      (DISC1, DISC2 … in cabinet.local.conf: factory software, /var from the factory defaults)
-#      or else from the disk image (IMG: the image's sideB partitions)
+#      or else from the disk image (IMG: the image's sideB partitions).
+#      build/force/{root,var,home}: a Force cabinet (2007.5-2011 software) from its disc
+#      (FORCE_DISC1 …), the same way; run it with `make loader-run CABINET=force`
 #   2. toolchain/debug: Xephyr (+ xkbcomp), slirp4netns and SDL2 downloaded with apt-get download; Xephyr's RandR size table
 #      patched to offer the cabinet's widescreen modes (768x480, 1280x800); pactl for checking sound
 #   3. build/loader/bin: our stand-ins (make loader builds them)
-# Needs: cabinet.conf / cabinet.local.conf with DISC1… or IMG, debugfs, apt-get, dpkg-deb, bwrap, setsid.
+# Needs: cabinet.conf / cabinet.local.conf with DISC1… or IMG (and/or FORCE_DISC1…), debugfs, apt-get, dpkg-deb, bwrap, setsid.
 #
 #   scripts/loader-setup.sh [--replace-root]
 #   --replace-root  with discs set: replace an existing build/loader/root (e.g. from the keyless
@@ -27,47 +29,78 @@ done
 
 REPLACE_ROOT=0
 [ "${1:-}" = --replace-root ] && REPLACE_ROOT=1
-discs=()
-for v in DISC1 DISC2 DISC3 DISC4; do
-  [ -n "${!v:-}" ] || continue
-  [ -f "${!v}" ] || { echo "$v: no such file: ${!v}" >&2; exit 1; }
-  discs+=("${!v}")
+disc_list() {   # disc_list <prefix>: the files in <prefix>1..4 (DISC1…, FORCE_DISC1…)
+  local v
+  for v in "$1"1 "$1"2 "$1"3 "$1"4; do
+    if [ -n "${!v:-}" ]; then printf '%s\n' "${!v}"; fi
+  done
+}
+from_disc() {   # from_disc <partition image number> <dir>: never touches an existing directory
+  if [ -d "$C/$2" ] && [ -n "$(ls -A "$C/$2")" ]; then echo "  $2: present"; return; fi
+  local img="$C/disc-part$1.img"
+  python3 "$P/scripts/partimage.py" extract "$1" "$img" "${discs[@]}"
+  rm -rf "${C:?}/$2.partial"; mkdir -p "$C/$2.partial"
+  debugfs -R "rdump / $C/$2.partial" "$img" 2>&1 | grep -v "changing ownership\|^debugfs" || true
+  rm -f "$img"
+  rm -rf "${C:?}/$2" && mv "$C/$2.partial" "$C/$2"
+  if [ "$2" = root ]; then printf '%s\n' "${discs[@]}" > "$C/root.source"; fi
+  echo "  $2: $(du -sh "$C/$2" | cut -f1)"
+}
+factory_var() {   # /var as a fresh install has it after its first boot
+  if [ -d "$C/var" ]; then echo "  var: present"; return; fi
+  # a fresh install's /var is empty; the first boot restores the factory defaults from
+  # /factorybackup/var.tar.gz (merit-checkfs on ION; a Force does the same)
+  [ -f "$C/root/factorybackup/var.tar.gz" ] || { echo "  no /factorybackup/var.tar.gz on these discs: a release this setup can't read yet" >&2; exit 1; }
+  rm -rf "${C:?}/var.partial"; mkdir -p "$C/var.partial"
+  tar -xzf "$C/root/factorybackup/var.tar.gz" -C "$C/var.partial" --strip-components=1 --no-same-owner
+  mkdir -p "$C/var.partial/log"
+  mv "$C/var.partial" "$C/var"
+  echo "  var: factory defaults"
+}
+cabinet_from_discs() {   # cabinet_from_discs <dir> <ion|force> <disc>…
+  local C="$1" want="$2"; shift 2
+  local discs=("$@") parts is
+  mkdir -p "$C"
+  step "Cabinet partitions from the installer discs → ${C#$P/}"
+  parts=$(python3 "$P/scripts/partimage.py" info "${discs[@]}" | tee /dev/stderr | sed -n 's/.*images: //p' | tr '\n' ' ')
+  case " $parts " in
+    *" part5 "*) ;;
+    *) echo "  these discs have no root partition image (part5): an older release this setup can't read yet" >&2; exit 1 ;;
+  esac
+  if [ "$want" = ion ] && [ $REPLACE_ROOT = 1 ] && [ -d "$C/root" ] && [ ! -f "$C/root.source" ]; then
+    [ -e "$C/root.image" ] && { echo "${C#$P/}/root.image exists already; move it away first" >&2; exit 1; }
+    pgrep -x start >/dev/null && { echo "stop the cabinet first" >&2; exit 1; }
+    mv "$C/root" "$C/root.image"
+    echo "  the image's root kept as ${C#$P/}/root.image"
+  fi
+  from_disc 5 root
+  # the software decides, not the setting the discs came from: only an ION has the layout daemon
+  is=force
+  if [ -e "$C/root/usr/local/bin/layout_daemon" ]; then is=ion; fi
+  if [ "$is" != "$want" ]; then
+    echo "  these discs hold $is software, not $want: set them as $([ "$is" = ion ] && echo DISC1… || echo FORCE_DISC1…) instead" >&2
+    echo "  (delete ${C#$P/}/root, extracted from them, before trying again)" >&2
+    exit 1
+  fi
+  from_disc 2 home
+  if [ "$is" = ion ]; then from_disc 6 ion; fi    # /usr/local/ion_only: the ION's game assets
+  factory_var
+  rm -f "$C/var/merit/swapfile"
+  [ -d "$C/var.orig" ] || cp -a "$C/var" "$C/var.orig"
+}
+
+mapfile -t discs < <(disc_list DISC)
+mapfile -t force_discs < <(disc_list FORCE_DISC)
+for f in "${discs[@]}" "${force_discs[@]}"; do
+  [ -f "$f" ] || { echo "no such disc image: $f (cabinet.local.conf)" >&2; exit 1; }
 done
 mkdir -p "$B"
+# a Force cabinet (2007-2011 software) from its disc, next to the ION's: make loader-run CABINET=force
+if [ ${#force_discs[@]} -gt 0 ]; then cabinet_from_discs "$P/build/force" force "${force_discs[@]}"; fi
 if [ ${#discs[@]} -gt 0 ]; then
-step "Cabinet partitions from the installer discs → build/loader"
-python3 "$P/scripts/partimage.py" info "${discs[@]}"
-if [ $REPLACE_ROOT = 1 ] && [ -d "$B/root" ] && [ ! -f "$B/root.source" ]; then
-  [ -e "$B/root.image" ] && { echo "build/loader/root.image exists already; move it away first" >&2; exit 1; }
-  pgrep -x start >/dev/null && { echo "stop the cabinet first" >&2; exit 1; }
-  mv "$B/root" "$B/root.image"
-  echo "  the image's root kept as build/loader/root.image"
-fi
-from_disc() {   # from_disc <partition image number> <dir>: never touches an existing directory
-  if [ -d "$B/$2" ] && [ -n "$(ls -A "$B/$2")" ]; then echo "  $2: present"; return; fi
-  local img="$B/disc-part$1.img"
-  python3 "$P/scripts/partimage.py" extract "$1" "$img" "${discs[@]}"
-  rm -rf "${B:?}/$2.partial"; mkdir -p "$B/$2.partial"
-  debugfs -R "rdump / $B/$2.partial" "$img" 2>&1 | grep -v "changing ownership\|^debugfs" || true
-  rm -f "$img"
-  rm -rf "${B:?}/$2" && mv "$B/$2.partial" "$B/$2"
-  [ "$2" = root ] && printf '%s\n' "${discs[@]}" > "$B/root.source"
-  echo "  $2: $(du -sh "$B/$2" | cut -f1)"
-}
-from_disc 5 root
-from_disc 2 home
-from_disc 6 ion
-if [ ! -d "$B/var" ]; then
-  # a fresh install's /var is empty; the first boot restores the factory defaults from
-  # /factorybackup/var.tar.gz (merit-checkfs)
-  rm -rf "${B:?}/var.partial"; mkdir -p "$B/var.partial"
-  tar -xzf "$B/root/factorybackup/var.tar.gz" -C "$B/var.partial" --strip-components=1 --no-same-owner
-  mkdir -p "$B/var.partial/log"
-  mv "$B/var.partial" "$B/var"
-  echo "  var: factory defaults"
-else
-  echo "  var: present"
-fi
+cabinet_from_discs "$B" ion "${discs[@]}"
+elif [ -z "$IMG" ] && [ ${#force_discs[@]} -gt 0 ]; then
+  :   # only a Force cabinet
 else
 step "Cabinet partitions → build/loader"
 [ -n "$IMG" ] && [ -f "$IMG" ] || { echo "set IMG (the disk image) or DISC1/DISC2 (the installer discs) in cabinet.local.conf" >&2; exit 1; }
@@ -83,9 +116,9 @@ dump "$ROOT_OFF" root
 dump "$VAR_OFF" var
 dump "$HOME_OFF" home
 dump "$ION_OFF" ion      # /usr/local/ion_only, including content/ (the snapshot leaves that out)
-fi
 rm -f "$B/var/merit/swapfile"
 [ -d "$B/var.orig" ] || cp -a "$B/var" "$B/var.orig"
+fi
 
 step "Xephyr, xkbcomp, pactl, slirp4netns and SDL2 (for megaview) → toolchain/debug"
 mkdir -p "$D/debs"

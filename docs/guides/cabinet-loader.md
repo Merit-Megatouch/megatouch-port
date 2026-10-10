@@ -234,8 +234,63 @@ covers the menus and 109 games.
 **First boot of a fresh install:** touchscreen calibration at every resolution, then the
 Connection Wizard. `scripts/loader.sh` writes the `hardware.xml` that the cabinet's hardware
 detection would (ION 945GC, FX1 board, widescreen CML-190W monitor; without it the cabinet runs
-4:3). The other installer discs (ION 2008.5–2013, Force, Maxx) use the same format; only the
-2014 set has been tried.
+4:3). The other installer discs (ION 2008.5–2013, Force, Maxx) use the same format; of those,
+Force 2011 runs (next section).
+
+## A Force cabinet
+
+The Force (2004–2011 software, before the ION) runs from its installer disc next to the ION
+cabinet, in `build/force`. Tried with Force 2011 (`V28_40T101109_1217`); the Force discs from
+2007.5 on have the same layout (`part1`, `part2`, `part5`). Older ones (2004–2006.5) have other
+images and aren't supported by setup yet.
+
+```bash
+# cabinet.local.conf
+FORCE_DISC1="/path/to/Force 2011 Disk 1 of 1 V28_40T101109_1217_1OF2.iso"
+
+make loader-setup                 # also builds build/force (root, home, var from the factory backup)
+make loader-run CABINET=force     # window title "Megatouch Force"
+make loader-reset CABINET=force   # back to the factory /var
+```
+
+Setup checks what the discs hold: ION discs set as `FORCE_DISC1` (or the reverse) stop with a
+message. The cabinet is recognised as a Force by its software (no layout daemon), so
+`MEGA_LOADER_CABINET=build/force scripts/loader.sh` works too.
+
+**First boot:** touchscreen calibration at 640×480 and 800×600 (the fake controller passes the
+targets; press EXIT at each *MOVE CURSOR* check), then the menu.
+**Operator Setup:** F1, as on ION.
+
+**Network and server:** in Operator Setup → *Network*:
+
+1. *Internet Connection*: **LAN**.
+2. *Ethernet Setup* → **AUTOMATIC** (DHCP gives 10.0.2.15).
+3. *Setup*:
+   - *Server Name*: a community MegaNet server, e.g. `us.oerinet.net`;
+   - *DNS*: **1.1.1.1** and **8.8.8.8**.
+4. Answer **YES** to *Initial TournaMAXX Connection*.
+
+The Force tests for broadband by opening a TCP connection to port 53 of its DNS servers. Under
+WSL the sandbox's own DNS (10.0.2.3) passes TCP on to Windows' resolver, which refuses it, so
+use public DNS servers. The first connection registers the cabinet with the server, which answers
+with its registration details, tournaments and catalog.
+
+**What a Force needs besides the ION's stand-ins** (all picked automatically for a Force):
+
+| The Force had | Stand-in | Source |
+|---|---|---|
+| Its own usbfs code for the I/O board (`/proc/bus/usb`, `USBDEVFS_CONTROL`) instead of libusb | the board's entry in `/proc/bus/usb/devices` and its device file; control transfers go to the fake board | `src/fakeio/usbfsfake.c` |
+| An Intel 810 motherboard with a CMI8738 sound card (platform detection) | a `/proc/bus/pci/devices` listing them | `src/fakeio/pci-devices.force810` |
+| XFree86 with XF86VidMode/DGA, full-screen mode switches | windowed Allegro (`--videomode W`); the loader's unchecked VidMode calls answered; the nested screen follows the window's size with RandR (640×480, 800×600) | `src/fakeio/forcefix.c`, `xinit-force.sh` |
+| MicroTouch serial controller behind the TouchWare driver (`/dev/twscreen*`) | a fake controller: OK to every command, parameter block 1 (`GP1`/`SP1`, where the loader keeps its calibration) in `fakeio/microtouch-block1.bin`, `CX` calibration answered at once | `src/fakeio/forcefix.c` |
+| `/dev/rtc` (written after a network time sync; an unchecked open, and the loader's debug `close` aborts on -1) | `/dev/null` with the clock ioctls answered | `src/fakeio/forcefix.c` |
+| A 2.4 kernel: `dhcpcd` 1.3.22 adds the default route with a 32-bit `SIOCADDRT` on its packet socket | today's 64-bit kernels refuse that on a packet socket (no gateway, no Internet); retried on an IPv4 socket | `src/fakeio/forcefix.c` |
+| Loudmouth 1.0 (the MegaNet messenger's XMPP) expects a failed connect to poll as just "error"; Linux also reports writable/hang-up, and Loudmouth aborts the loader | for sockets with an error, only the error is reported | `src/fakeio/forcefix.c` |
+| 2005 libogg/libvorbis (RPATH `/usr/local/lib`), LinuxThreads `pthread_create` exported by the loader | the runtime's Ogg/Vorbis preloaded; PulseAudio loaded with `RTLD_DEEPBIND` | `scripts/loader.sh`, `src/fakeio/ossfake.c` |
+| Its security key: Force cabinet code `90322bbaa4370cfe`, data in block 0 XORed with `id[1..6] ^ "NVI6=9"` (no footer) | `loader-key.sh` writes it for a Force (`MEGA_KEY_PLATFORM=force`); the key's country and languages come from the same `KEY_*` settings | `scripts/loader-key.sh` |
+
+Five failed key reads in a row make the Force stop for good at its tamper screen; the count is
+`read_attempts` in `var/config/settings/never/key_settings.xml`.
 
 ## How it works
 

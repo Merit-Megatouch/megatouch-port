@@ -77,7 +77,8 @@ and TournaMAXX, languages and region, backups and troubleshooting.
 | Light-show kit, books printer | yes: the cabinet's light sequences and printouts, passed on to real lights and files |
 | Real hardware and services | coin acceptors, buttons, GPIO, a real iButton reader, relays for meters and lockout, MQTT / Home Assistant, webhooks, WLED lights ([connectors](docs/guides/connectors.md)) |
 | Linked cabinets (MegaLink) | yes on one PC (a full linked game played); PCs joined over a LAN or the internet share a network and find each other (experimental) ([guide](docs/guides/operator-guide.md#17-linked-cabinets-megalink-experimental)) |
-| Other years' installer discs (ION 2008.5–2013, Force, Maxx) | same disc format, not tried yet |
+| Force 2011 (the cabinet before the ION), from its installer disc | yes: menus, Operator Setup, network and MegaNet/TournaMAXX registration with a community server (`FORCE_DISC1`, `make loader-run CABINET=force`; [guide](docs/guides/cabinet-loader.md#a-force-cabinet)) |
+| Other years' installer discs (ION 2008.5–2013, Force 2004–2010.5, Maxx) | same disc format, not tried yet |
 | Credit card reader, TouchTunes / Rowe jukebox links, dial-up modem | no (the services behind them are gone) |
 
 ## Documentation
@@ -99,6 +100,7 @@ and TournaMAXX, languages and region, backups and troubleshooting.
 
 ```
 make loader-run                   start the cabinet
+make loader-run CABINET=force     start the Force cabinet (FORCE_DISC1 in cabinet.local.conf)
 make loader-backup                save a backup of its settings (every start also saves one)
 make loader-restore BACKUP=<file> restore one (cabinet stopped)
 make loader-reset                 back to the original settings: factory (discs) or the image's (backed up first)

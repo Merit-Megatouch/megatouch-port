@@ -14,6 +14,7 @@
 #   make docs                      regenerate the game catalogue; make survey for the porting survey (slow)
 #   make loader-setup              the cabinet's own loader: extract its partitions, fetch display/network helpers (once)
 #   make loader / loader-run       build our stand-in devices / run the cabinet (scalable window, F11 fullscreen)
+#   make loader-run CABINET=force  run the Force cabinet (build/force, from FORCE_DISC1 in cabinet.local.conf)
 #   make loader-reset              put the loader's /var back as it was on the image (backed up first)
 #   make loader-backup / loader-restore BACKUP=<file>   snapshot / restore the loader's settings
 #   make kiosk / kiosk-stop        dedicated box: fullscreen, restarted on crash or hang (scripts/cabinet.sh)
@@ -174,7 +175,7 @@ loader: $(LOADER)
 loader-setup:
 	scripts/loader-setup.sh
 loader-run: loader
-	scripts/loader.sh
+	MEGA_LOADER_CABINET="$(if $(CABINET),$(OUT)/$(CABINET))" scripts/loader.sh
 update:
 	scripts/update.sh
 kiosk: loader
@@ -186,8 +187,13 @@ loader-backup:
 loader-restore:
 	scripts/loader-backup.sh --restore "$(BACKUP)"
 loader-reset:
+ifeq ($(CABINET),)
 	scripts/loader-backup.sh before-reset
 	rm -rf "$(OUT)/loader/var" && cp -a "$(OUT)/loader/var.orig" "$(OUT)/loader/var"
+else
+	@test -d "$(OUT)/$(CABINET)/var.orig" || { echo "no cabinet at build/$(CABINET)"; exit 1; }
+	rm -rf "$(OUT)/$(CABINET)/var" && cp -a "$(OUT)/$(CABINET)/var.orig" "$(OUT)/$(CABINET)/var"
+endif
 
 $(LB)/libusb-1.0.so.0: src/fakeio/fakeio.c src/fakeio/megaio.h
 	@mkdir -p $(LB)

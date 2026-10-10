@@ -30,7 +30,10 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <poll.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #define MAXFD 1024
@@ -126,11 +129,22 @@ ssize_t write(int fd, const void *buf, size_t n) {
     return real_write(fd, buf, n);
 }
 
+/* /dev/rtc: once the network is up the Force syncs its clock (SetHWClock): it sets the system
+ * time (refused in the sandbox, which keeps the PC's time) and then writes the hardware clock
+ * through /dev/rtc without checking the open, and its debug close() aborts on -1. The open gives
+ * /dev/null here and the clock ioctls on it succeed. */
+static char is_rtc[MAXFD];
+
 #define WRAP_OPEN(name)                                                          \
     int name(const char *path, int flags, ...) {                                 \
         static int (*real)(const char *, int, ...);                              \
         if (!real) real = (int (*)(const char *, int, ...))dlsym(RTLD_NEXT, #name); \
         if (!strncmp(path, "/dev/twscreen", 13)) return tw_open(flags);          \
+        if (!strcmp(path, "/dev/rtc") || !strcmp(path, "/dev/rtc0")) {           \
+            int fd = real("/dev/null", O_RDWR | O_CLOEXEC);                      \
+            if (fd >= 0 && fd < MAXFD) is_rtc[fd] = 1;                           \
+            return fd;                                                           \
+        }                                                                        \
         mode_t mode = 0;                                                         \
         if (flags & O_CREAT) { va_list ap; va_start(ap, flags); mode = va_arg(ap, mode_t); va_end(ap); } \
         return real(path, flags, mode);                                          \
@@ -145,8 +159,16 @@ int close(int fd) {
         real(tw[fd].peer);
         tw[fd].peer = 0;
     }
+    if (fd >= 0 && fd < MAXFD) is_rtc[fd] = 0;
     return real(fd);
 }
+
+/* Routes. The Force's DHCP client (dhcpcd 1.3.22, inheriting this preload) adds the default route
+ * with SIOCADDRT on its raw packet socket. Today's 64-bit kernels only translate a 32-bit
+ * program's route ioctls on IPv4 sockets ("Inappropriate ioctl for device" on a packet socket),
+ * so the cabinet got an address but no gateway, and no Internet. Retried on an IPv4 socket. */
+#define SIOCADDRT_ 0x890B
+#define SIOCDELRT_ 0x890C
 
 int ioctl(int fd, unsigned long request, ...) {
     static int (*real)(int, unsigned long, ...);
@@ -156,7 +178,26 @@ int ioctl(int fd, unsigned long request, ...) {
     void *arg = va_arg(ap, void *);
     va_end(ap);
     if (fd >= 0 && fd < MAXFD && tw[fd].peer) return 0;     /* TouchWare driver ioctls */
-    return real(fd, request, arg);
+    if (fd >= 0 && fd < MAXFD && is_rtc[fd]) {               /* RTC_SET_TIME and friends */
+        if (request == 0x80247009 && arg) {                  /* RTC_RD_TIME: the PC's clock (UTC) */
+            time_t now = time(0);
+            struct tm t;
+            gmtime_r(&now, &t);
+            memcpy(arg, &t, 9 * sizeof(int));                /* struct rtc_time = tm's first 9 */
+        }
+        return 0;
+    }
+    int r = real(fd, request, arg);
+    if (r < 0 && errno == ENOTTY && (request == SIOCADDRT_ || request == SIOCDELRT_)) {
+        int s = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+        if (s >= 0) {
+            r = real(s, request, arg);
+            int e = errno;
+            close(s);
+            errno = e;
+        }
+    }
+    return r;
 }
 
 /* Screen size. The Force runs Allegro's windowed driver here (xinit-force.sh: --videomode W), and
@@ -238,4 +279,22 @@ int XF86VidModeSwitchToMode(void *dpy, int screen, void *mode) {
 int XF86VidModeSetViewPort(void *dpy, int screen, int x, int y) {
     (void)dpy; (void)screen; (void)x; (void)y;
     return 1;
+}
+
+/* Failed connects. The Force's MegaNet messenger uses Loudmouth 1.0 (XMPP), whose connect callback
+ * accepts exactly "error" or exactly "writable" and otherwise aborts the loader ("lm-connection.c:
+ * should not be reached"). Linux reports a refused or failed non-blocking connect as writable and
+ * error (and hang-up) together, so for sockets with an error only the error is reported: Loudmouth then takes
+ * its "connection failed" path. Programs read the error with SO_ERROR either way. */
+int poll(struct pollfd *fds, nfds_t n, int timeout) {
+    static int (*real)(struct pollfd *, nfds_t, int);
+    if (!real) real = (int (*)(struct pollfd *, nfds_t, int))dlsym(RTLD_NEXT, "poll");
+    int r = real(fds, n, timeout);
+    for (nfds_t i = 0; r > 0 && i < n; i++) {
+        struct stat st;
+        if ((fds[i].revents & POLLERR) && (fds[i].revents & (POLLOUT | POLLHUP)) &&
+            fstat(fds[i].fd, &st) == 0 && S_ISSOCK(st.st_mode))
+            fds[i].revents &= ~(POLLOUT | POLLHUP);
+    }
+    return r;
 }

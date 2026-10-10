@@ -286,6 +286,17 @@ that in `settings.xml`); the keyless build doesn't read it.
   footer in block 7) from the cabinet's own NVRAM; see `docs/guides/cabinet-loader.md`.
 - `read_header` also tries a 22-byte header XORed with one of six ROM-ID-derived masks and
   accepts it when it decodes to `SA3…`.
+- **Force 2011 (V28.40)** uses the older form of the same format: no footer. After command
+  0x11 with `wIndex` 0 it checks the present flag at `2786`, reads 1 KB from `1F2D` in 0x80-byte
+  pieces, XORs it with `id[1..6] ^ "NVI6=9"` (bytes `0x12–0x15` with the first four), and checks
+  the same u16 sum at `0x355` over `0x3F0` bytes. The contents are laid out as above.
+  `KeyManager::Check` accepts a DS1995 key only with its platform's cabinet code: `90322bbaa4370cfe`
+  on a Force, `29342da908fbc6de` on an ION (status 5 = "ION KEY DETECTED IN FORCE SYSTEM",
+  6 = the reverse, 7 = bad checksum, 8 = unknown code: "INVALID KEY FOR VERSION"). ION 2014 accepts
+  other codes (`93e41c6e20911b9b`, `cfb4a9611bb72003`), so the codes changed between releases.
+  The ROM ID must also be in the loader's range of real keys ("KEY RANGE MISMATCH"); this
+  cabinet's `8c14fc020040000e` is. Five failed reads (`read_attempts` in `key_settings.xml`) end
+  at the tamper screen.
 
 **Legacy format (DS1991).** The host derives three 8-byte subkey passwords from the ROM ID
 (`(id[i] + i + 3/0x11/0x99) % 0xFF`, then `merit_encrypt`, then `^ 0x18/0x19/0x1A`), writes
