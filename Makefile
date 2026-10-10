@@ -166,7 +166,8 @@ LB      := $(OUT)/loader/bin
 LOADER  := $(LB)/libusb-1.0.so.0 $(LB)/libTwDrvFifo.so $(LB)/startfix.so $(LB)/crashlog.so \
            $(LB)/ossfake.so $(LB)/xshot $(LB)/xtouch $(LB)/enumtag $(LB)/dbdump $(LB)/netcfg $(LB)/megaview $(LB)/megalan $(LB)/lantap $(LB)/megaio $(LB)/xinit.sh $(LB)/shots.sh \
            $(LB)/pci-devices.ion945gc $(LB)/bin/ossmix $(LB)/bin/savemixer $(LB)/nolog.so $(LB)/layout-quiet \
-           $(LB)/zlibcompat.so $(LB)/libz-cabinet.so $(LB)/empty $(LB)/soundfix.so $(LB)/gameevents.so
+           $(LB)/zlibcompat.so $(LB)/libz-cabinet.so $(LB)/empty $(LB)/soundfix.so $(LB)/gameevents.so \
+           $(LB)/usbfsfake.so $(LB)/forcefix.so $(LB)/pci-devices.force810 $(LB)/xinit-force.sh
 I386EXE := -Wl,--dynamic-linker=/lib/ld-linux.so.2
 
 loader: $(LOADER)
@@ -211,6 +212,12 @@ $(LB)/soundfix.so: src/fakeio/soundfix.c
 	@mkdir -p $(LB)
 	$(CC) -O2 -Wall -fPIC -shared -o $@ $< -ldl
 $(LB)/gameevents.so: src/fakeio/gameevents.c
+	@mkdir -p $(LB)
+	$(CC) -O2 -Wall -fPIC -shared -o $@ $< -ldl
+$(LB)/usbfsfake.so: src/fakeio/usbfsfake.c
+	@mkdir -p $(LB)
+	$(CC) -O2 -Wall -fPIC -shared -o $@ $< -ldl
+$(LB)/forcefix.so: src/fakeio/forcefix.c
 	@mkdir -p $(LB)
 	$(CC) -O2 -Wall -fPIC -shared -o $@ $< -ldl
 $(LB)/nolog.so: src/fakeio/nolog.c

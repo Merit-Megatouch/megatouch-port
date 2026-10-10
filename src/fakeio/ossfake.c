@@ -87,9 +87,21 @@ static void init_real(void) {
 }
 
 static int load_pulse(void) {
+    static int failed;
     if (p_new) return 1;
-    void *h = dlopen("libpulse-simple.so.0", RTLD_NOW);
-    if (!h) { fprintf(stderr, "[ossfake] no libpulse-simple: %s\n", dlerror()); return 0; }
+    if (failed) return 0;
+    /* The Force loader (2004-2011) exports its own pthread_create and free, written for the old
+     * LinuxThreads; PulseAudio would bind to them and crash. When the program's pthread_create
+     * isn't libc's, load PulseAudio with RTLD_DEEPBIND so it and its libraries use libc's. */
+    int flags = RTLD_NOW;
+    void *libc = dlopen("libc.so.6", RTLD_NOW | RTLD_NOLOAD);
+    if (libc && dlsym(RTLD_DEFAULT, "pthread_create") != dlsym(libc, "pthread_create")) flags |= RTLD_DEEPBIND;
+    void *h = dlopen("libpulse-simple.so.0", flags);
+    if (!h) {
+        fprintf(stderr, "[ossfake] no libpulse-simple: %s (no sound)\n", dlerror());
+        failed = 1;                 /* say it once, not for every write */
+        return 0;
+    }
     p_new = dlsym(h, "pa_simple_new");
     p_write = dlsym(h, "pa_simple_write");
     p_drain = dlsym(h, "pa_simple_drain");
@@ -306,4 +318,28 @@ int _ZN4FMOD6System9setOutputE15FMOD_OUTPUTTYPE(void *sys, int type) {
     int r = real ? real(sys, want) : -1;
     fprintf(stderr, "[ossfake] FMOD output %d requested, using %d (result %d)\n", type, want, r);
     return r;
+}
+
+/* libogg 1.2.2 (2010) added ogg_stream_flush_fill and ogg_stream_pageout_fill. A Force loader
+ * loads its own 2005 libogg first (RPATH /usr/local/lib), and the modern libsndfile that
+ * PulseAudio pulls in then fails to load ("undefined symbol: ogg_stream_flush_fill"), so there
+ * is no sound. These two use the real ones when the libogg has them, else the older calls; the
+ * fill size is only a hint for page sizes when writing Ogg files, which nothing here does. */
+int ogg_stream_flush_fill(void *os, void *og, int fill) {
+    static int (*fill_fn)(void *, void *, int);
+    static int (*plain)(void *, void *);
+    if (!fill_fn && !plain) {
+        fill_fn = (int (*)(void *, void *, int))dlsym(RTLD_NEXT, "ogg_stream_flush_fill");
+        plain = (int (*)(void *, void *))dlsym(RTLD_DEFAULT, "ogg_stream_flush");
+    }
+    return fill_fn ? fill_fn(os, og, fill) : plain ? plain(os, og) : 0;
+}
+int ogg_stream_pageout_fill(void *os, void *og, int fill) {
+    static int (*fill_fn)(void *, void *, int);
+    static int (*plain)(void *, void *);
+    if (!fill_fn && !plain) {
+        fill_fn = (int (*)(void *, void *, int))dlsym(RTLD_NEXT, "ogg_stream_pageout_fill");
+        plain = (int (*)(void *, void *))dlsym(RTLD_DEFAULT, "ogg_stream_pageout");
+    }
+    return fill_fn ? fill_fn(os, og, fill) : plain ? plain(os, og) : 0;
 }

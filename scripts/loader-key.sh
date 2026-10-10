@@ -32,6 +32,11 @@
 #                                   set without Portuguese); the first one listed is the default
 # `scripts/loader-key.sh --languages` lists the 31 languages.
 #
+# Platform: MEGA_KEY_PLATFORM=force (scripts/loader.sh sets it for a Force cabinet) writes the
+# Force cabinet code instead of the ION one (KeyManager::Check tells them apart: "ION KEY DETECTED
+# IN FORCE SYSTEM", "INVALID KEY FOR VERSION"), and the Force's older encoding as well: the same
+# data in block 0 (it reads the board's block 0, no footer), XORed with id[1..6] ^ "NVI6=9".
+#
 # Encoding: the data goes in block 5 (also the loader's fallback block), XORed with
 # id[1..6] ^ "`bnrou" (bytes 0x12-0x15 with the first four mask bytes), u16 checksum at 0x355;
 # block 7 is the footer naming block 5, XORed with rol(id1,1) rol(id2,6) rol(id3,3).
@@ -58,6 +63,7 @@ import struct, sys, time
 mode, nvpath, keypath, idhex = sys.argv[1:5]
 kid = bytes.fromhex(idhex)                      # ROM ID served by the fake board (fakeio.c)
 mask = bytes(kid[1 + k] ^ b'`bnrou'[k] for k in range(6))
+force_mask = bytes(kid[1 + k] ^ b'NVI6=9'[k] for k in range(6))   # Force 2011 USBIO::ReadDS1995KeyData
 rol = lambda b, n: ((b << n) | (b >> (8 - n))) & 0xff
 fmask = (rol(kid[1], 1), rol(kid[2], 6), rol(kid[3], 3))
 BLOCK, OPT, CSUM = 5, 0x2DD, 0x355
@@ -108,7 +114,7 @@ if mode == '--countries':
     print('\n'.join(f'{i:3d} {n}' for i, n in sorted(COUNTRIES.items())))
     sys.exit()
 
-def xor_block(b):
+def xor_block(b, mask=mask):
     b = bytearray(b)
     for i in range(0x400):
         b[i] ^= mask[i - 0x12] if 0x12 <= i <= 0x15 else mask[i % 6]
@@ -123,11 +129,15 @@ if mode == '--show':
     blk = struct.unpack_from('<H', foot, 8)[0]
     ok_f = sum(foot[:0xB2]) & 0xffff == struct.unpack_from('<H', foot, 0xB2)[0]
     d = xor_block(img[blk * 1024:(blk + 1) * 1024])
+    f0 = xor_block(img[:1024], force_mask)
+    if any(img[:1024]):
+        print(f'Force encoding in block 0: {"ok" if checksum(f0) == struct.unpack_from("<H", f0, CSUM)[0] else "BAD"}')
     ok_d = checksum(d) == struct.unpack_from('<H', d, CSUM)[0]
     print(f'footer {"ok" if ok_f else "BAD"}, block {blk}, data {"ok" if ok_d else "BAD"}')
     print('part', d[0:8].decode(errors='replace'), 'revision', d[0xD:0x11].rstrip(b'\0').decode(),
           'date', time.strftime('%Y-%m-%d', time.gmtime(struct.unpack_from('<I', d, 9)[0])),
           'server', d[0x2A:0xF2].split(b'\0')[0].decode())
+    print('cabinet code', d[0xF5:0xFD].hex(), {'90322bbaa4370cfe': '(Force)', '93e41c6e20911b9b': '(ION)', 'cfb4a9611bb72003': '(ION)'}.get(d[0xF5:0xFD].hex(), ''))
     print('country', COUNTRIES.get(d[0xF2], d[0xF2]), 'locale', d[0x16:0x20].split(b'\0')[0].decode(errors='replace'))
     lm, pm = struct.unpack_from('<I', d, 0x104)[0], struct.unpack_from('<I', d, 0x3E5)[0]
     print('languages', mask_names(lm) or '(none: only the default)')
@@ -160,7 +170,10 @@ struct.pack_into('<I', d, 9, 1377820800)        # 2013-08-30, this build's date
 d[0xD:0x11] = rev
 d[0x16:0x1D] = b'USA-STD'                              # locale package (genuine keys: USA-STD); selects the player-selectable languages
 d[0x2A:0x2A + 18] = b'us.accessmerit.com'
-d[0xF5:0xFD] = bytes.fromhex('93e41c6e20911b9b')    # cabinet code: one of the two KeyManager::Check accepts for a DS1995 key (the unpatched loader checks it)
+# cabinet code: KeyManager::Check accepts only its platform's codes for a DS1995 key. ION 2014:
+# 93e41c6e20911b9b or cfb4a9611bb72003. Force 2011: 90322bbaa4370cfe (its ION code is 29342da908fbc6de).
+force = os.environ.get('MEGA_KEY_PLATFORM') == 'force'
+d[0xF5:0xFD] = bytes.fromhex('90322bbaa4370cfe' if force else '93e41c6e20911b9b')
 d[0x1B0:0x1B0 + 300] = b'\x22' * 300                  # per game: default price 2 credits (low nibble), continue 2 (high); 0 = game not offered (KeyManager::DefaultGamePrice)
 # factory USA-STD defaults, as on a genuine key (the unpatched loader reads them; KeyManager::*):
 struct.pack_into('<HHI', d, 0xFE, 8, 0, 10)          # Champion Edition: game cost 8, prize mode, pool rate 10 (x5 = 50 %)
@@ -193,6 +206,8 @@ struct.pack_into('<H', foot, 0xB2, sum(foot[:0xB2]) & 0xffff)
 img = bytearray(8 * 1024)
 img[BLOCK * 1024:(BLOCK + 1) * 1024] = xor_block(d)
 img[7 * 1024:7 * 1024 + 0xB4] = bytes(c ^ fmask[i % 3] for i, c in enumerate(foot))
+if force:
+    img[0:1024] = xor_block(d, force_mask)
 open(keypath, 'wb').write(img)
 print(f'{keypath}: {part.decode()} {rev.rstrip(b"\0").decode()}, {COUNTRIES[d[0xF2]]}, '
       f'{bin(langs).count("1")} languages ({bin(player).count("1")} for players), '

@@ -32,6 +32,9 @@
 #   MEGA_LOADER_KEY=none no security-key image (scripts/loader-key.sh makes one when missing)
 #   MEGA_LOADER_NET      slirp (default: own network namespace + virtual eth0), host, or
 #                        lan[:NAME] (a network shared with other cabinets: linked play)
+#   MEGA_LOADER_CABINET  another cabinet's directory (root/, home/, var/, optional ion/), e.g.
+#                        build/force2011 for a Force; default build/loader. The platform (ION or
+#                        Force) is recognised from its software
 #   MEGA_LOADER_VAR      directory used as /var (default build/loader/var); a second session
 #                        needs its own (e.g. a copy of build/loader/var.orig) and display
 #   MEGAIO_LIGHTSHOW=1   the ION light-show kit is fitted; MEGAIO_JOYSTICK=1 the joystick
@@ -41,7 +44,28 @@
 set -euo pipefail
 P=$(cd "$(dirname "$0")/.." && pwd)
 B="$P/build/loader"
-[ -d "$B/root/usr/local/bin" ] || { echo "no cabinet root: run make loader-setup" >&2; exit 1; }
+C="${MEGA_LOADER_CABINET:-$B}"                 # the cabinet's partitions
+C="${C%/}"
+[ -d "$C/root/usr/local/bin" ] || { echo "no cabinet root in $C: run make loader-setup" >&2; exit 1; }
+# Force cabinets (2004-2011 software) have no layout daemon; they need their own platform stand-ins
+PLATFORM=ion
+[ -e "$C/root/usr/local/bin/layout_daemon" ] || PLATFORM=force
+# the sandbox's /tmp: on a Force /tmp is a link to /var/tmp, and mounts can't go through links
+SBTMP=/tmp
+# a Force's extra library directories, and its stand-ins: usbfs for the I/O board, forcefix
+# (video modes, MicroTouch controller), and the runtime's newer Ogg/Vorbis over the cabinet's
+# 2005 ones (which PulseAudio's libsndfile can't use)
+PLATFORM_LIBS="" PLATFORM_PRELOAD="" TITLE=ION
+if [ "$PLATFORM" = force ]; then
+  TITLE=Force
+  PLATFORM_LIBS=":/usr/X11R6/lib:/usr/local/lib/merit:/usr/mozilla/lib"
+  PLATFORM_PRELOAD=" /opt/fakeio/usbfsfake.so /opt/fakeio/forcefix.so /opt/rt/libogg.so.0 /opt/rt/libvorbis.so.0 /opt/rt/libvorbisenc.so.2"
+fi
+[ -L "$C/root/tmp" ] && SBTMP=$(readlink "$C/root/tmp")
+if [ "$C" != "$B" ]; then
+  export MEGA_LOADER_VAR="${MEGA_LOADER_VAR:-$C/var}"
+  if [ "$PLATFORM" = force ]; then export MEGA_LOADER_IDENTITY="${MEGA_LOADER_IDENTITY:-off}"; fi
+fi
 if [ -f "$P/cabinet.local.conf" ]; then
   while IFS= read -r line; do
     k=${line%%=*}
@@ -50,8 +74,9 @@ if [ -f "$P/cabinet.local.conf" ]; then
 fi
 [ -f "$B/bin/libusb-1.0.so.0" ] || { echo "no fake I/O board: run make loader" >&2; exit 1; }
 
-ION="$B/ion"                                   # the full ion_only partition (make loader-setup)
+ION="$C/ion"                                   # the full ion_only partition (make loader-setup)
 [ -d "$ION/games" ] || ION="$P/cabinet/ion"     # else the porting snapshot (no content/ packs)
+[ "$PLATFORM" = force ] && ION=""               # a Force has no ion_only partition
 X11=/tmp/.X11-unix
 [ -L "$X11" ] && X11=$(readlink -f "$X11")
 DISP="${DISPLAY:-:0}"
@@ -81,7 +106,7 @@ if [ "${MEGA_LOADER_X:-xephyr}" != host ] && [ "${1:-}" != run ] && [ "${1:-}" !
     XHOST="$DISP"
   fi
   DISPLAY="$XHOST" MEGA_X11_DIR="$X11" setsid "$P/toolchain/debug/Xephyr" ":$N" -screen 640x480 -resizeable \
-    -ac -noreset -title "Megatouch ION (cabinet loader)" > "$B/xephyr.log" 2>&1 &
+    -ac -noreset -title "Megatouch $TITLE (cabinet loader)" > "$B/xephyr.log" 2>&1 &
   XEPHYR_PID=$!
   trap 'kill -- -$XEPHYR_PID 2>/dev/null; [ -n "$VIEW_PID" ] && kill $VIEW_PID 2>/dev/null; [ -n "$XVFB_PID" ] && kill -- -$XVFB_PID 2>/dev/null' EXIT INT TERM
   if [ "$VIEW" = megaview ]; then
@@ -90,12 +115,12 @@ if [ "${MEGA_LOADER_X:-xephyr}" != host ] && [ "${1:-}" != run ] && [ "${1:-}" !
       TDL="$P/toolchain/debug/root/usr/lib/x86_64-linux-gnu"
       gpu=(); [ -e /dev/dxg ] && [ -d /usr/lib/wsl/lib ] && gpu=(GALLIUM_DRIVER=d3d12)   # WSLg's GPU
       env "${gpu[@]}" LD_LIBRARY_PATH="$TDL:$TDL/pulseaudio:/usr/lib/wsl/lib" setsid "$B/bin/megaview" \
-        ":$N" "Megatouch ION (cabinet loader)" > "$B/megaview.log" 2>&1 &
+        ":$N" "Megatouch $TITLE (cabinet loader)" > "$B/megaview.log" 2>&1 &
     else
       RTD="$P/shared/runtime"
       LIBGL_DRIVERS_PATH="$RTD/dri" LP_NUM_THREADS=2 MEGAVIEW_XTST="$B/root/usr/lib/libXtst.so.6" setsid \
         "$RTD/ld-linux.so.2" --library-path "$RTD:$RTD/pulseaudio" "$B/bin/megaview" ":$N" \
-        "Megatouch ION (cabinet loader)" > "$B/megaview.log" 2>&1 &
+        "Megatouch $TITLE (cabinet loader)" > "$B/megaview.log" 2>&1 &
     fi
     VIEW_PID=$!
   fi
@@ -109,23 +134,27 @@ elif [ "${1:-}" = run ] || [ "${1:-}" = shell ]; then
 fi
 args=(
   --unshare-user --uid 0 --gid 0 --unshare-pid --die-with-parent
-  --bind "$B/root" /
+  --bind "$C/root" /
   --bind "${MEGA_LOADER_VAR:-$B/var}" /var
-  --bind "$B/home" /home
-  --ro-bind "$ION" /usr/local/ion_only
+  --bind "$C/home" /home
   --proc /proc
-  --ro-bind "$B/bin/pci-devices.ion945gc" /proc/bus/pci/devices
   --ro-bind /sys /sys
   --dev /dev
   --dir /dev/merit_ipc
-  --tmpfs /tmp
-  --bind "$X11" /tmp/.X11-unix
+  --tmpfs "$SBTMP"
+  --bind "$X11" "$SBTMP/.X11-unix"
   --ro-bind "$P/shared/runtime" /opt/rt
   --ro-bind "$B/bin" /opt/fakeio
   --ro-bind "$P/shared/runtime/ld-linux.so.2" /lib/ld-linux.so.2
   --ro-bind "$P/shared/runtime" /lib32
   --ro-bind "$B/bin/empty" /etc/ld.so.cache
 )
+if [ "$PLATFORM" = force ]; then
+  # an Intel 810 board with a CMI8738 sound card is what the loader recognises as a Force
+  args+=(--ro-bind "$B/bin/pci-devices.force810" /proc/bus/pci/devices)
+else
+  args+=(--ro-bind "$ION" /usr/local/ion_only --ro-bind "$B/bin/pci-devices.ion945gc" /proc/bus/pci/devices)
+fi
 # (/lib32 is the modern ld.so's first default library directory, and the cabinet's ld.so.cache,
 #  which points libc.so.6 at the 2007 /lib/libc.so.6, is hidden: programs started with a cleared
 #  environment, e.g. dhclient's script, still get the modern libc)
@@ -178,11 +207,11 @@ if [ "$NET" = lan ]; then
     for i in $(seq 50); do [ -S "$LANSOCK" ] && break; sleep 0.1; done
     [ -S "$LANSOCK" ] || { echo "megalan did not start, see $B/lan/$LAN.log" >&2; exit 1; }
   fi
-  args+=(--bind "$LANSOCK" /tmp/megalan.sock --dev-bind /dev/net/tun /dev/net/tun)
+  args+=(--bind "$LANSOCK" "$SBTMP/megalan.sock" --dev-bind /dev/net/tun /dev/net/tun)
 fi
 for d in /dev/dri /dev/dxg /usr/lib/wsl /mnt/wslg; do [ -e "$d" ] && args+=(--dev-bind "$d" "$d"); done
 [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -S "$XDG_RUNTIME_DIR/pulse/native" ] && \
-  args+=(--bind "$XDG_RUNTIME_DIR/pulse/native" /tmp/pulse-native)
+  args+=(--bind "$XDG_RUNTIME_DIR/pulse/native" "$SBTMP/pulse-native")
 
 RT=/opt/rt
 env=(
@@ -190,7 +219,7 @@ env=(
   --setenv HOME /home/maxx --setenv USER maxx --setenv LOGNAME maxx
   --setenv PATH /opt/fakeio/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
   --setenv DISPLAY "$DISP"
-  --setenv LD_LIBRARY_PATH "/opt/fakeio:$RT:$RT/pulseaudio:/usr/local/lib:/usr/lib:/lib"
+  --setenv LD_LIBRARY_PATH "/opt/fakeio:$RT:$RT/pulseaudio:/usr/local/lib:/usr/lib:/lib$PLATFORM_LIBS"
   --setenv LIBGL_DRIVERS_PATH "$RT/dri"
   --setenv GCONV_PATH "$RT/gconv"
   --setenv GLIBC_TUNABLES "glibc.rtld.execstack=2:glibc.malloc.tcache_count=0"
@@ -199,7 +228,7 @@ env=(
   --setenv MEGAIO_TRACE "${MEGAIO_TRACE:-0}"
   --setenv MEGAIO_JOYSTICK "${MEGAIO_JOYSTICK:-0}"
   --setenv TERM "${TERM:-xterm}"
-  --setenv LD_PRELOAD "/opt/fakeio/startfix.so /opt/fakeio/crashlog.so /opt/fakeio/ossfake.so /opt/fakeio/zlibcompat.so /opt/fakeio/soundfix.so /opt/fakeio/gameevents.so"
+  --setenv LD_PRELOAD "/opt/fakeio/startfix.so /opt/fakeio/crashlog.so /opt/fakeio/ossfake.so /opt/fakeio/zlibcompat.so /opt/fakeio/soundfix.so /opt/fakeio/gameevents.so$PLATFORM_PRELOAD"
 )
 # the stand-ins' optional settings, passed in when set (docs/reference/commands.md#cabinet-loader)
 for v in MEGAIO_SERIAL MEGAIO_OPERATOR_KEY MEGAIO_PLAYER_KEY MEGAIO_NO_KEYS MEGAIO_LIGHTSHOW \
@@ -302,7 +331,7 @@ case "${1:-}" in
     # what the cabinet's hardware detection (harddetect, run by merit-checkplatform at boot) writes
     # on a real ION; a factory-fresh /var has none, and without it the cabinet isn't widescreen
     HW_XML="${MEGA_LOADER_VAR:-$B/var}/merit/hardware.xml"
-    if [ ! -f "$HW_XML" ] && [ -d "${MEGA_LOADER_VAR:-$B/var}/merit" ]; then
+    if [ "$PLATFORM" = ion ] && [ ! -f "$HW_XML" ] && [ -d "${MEGA_LOADER_VAR:-$B/var}/merit" ]; then
       cat > "$HW_XML" <<'HWXML'
 <HardwareCfg>
 <!-- !!!!!!  This file is automaticly generated and is read by a non-XML-aware script.  Please do not edit   !!!!!! -->
@@ -325,8 +354,12 @@ HWXML
       echo "wrote the simulated hardware's hardware.xml (ION, widescreen)"
     fi
     # the security-key image the fake board serves, made once from this /var's NVRAM
-    [ "${MEGA_LOADER_KEY:-make}" = none ] || "$P/scripts/loader-key.sh" >/dev/null || true
+    [ "${MEGA_LOADER_KEY:-make}" = none ] || MEGA_KEY_PLATFORM=$PLATFORM "$P/scripts/loader-key.sh" >/dev/null || true
     CONSOLE=1
     echo "Megatouch cabinet starting (full output: ${CONSOLE_LOG#$P/})"
-    run /opt/fakeio/xinit.sh "$@" ;;
+    if [ "$PLATFORM" = force ]; then
+      run /opt/fakeio/xinit-force.sh "$@"
+    else
+      run /opt/fakeio/xinit.sh "$@"
+    fi ;;
 esac
