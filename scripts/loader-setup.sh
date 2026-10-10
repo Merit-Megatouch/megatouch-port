@@ -124,7 +124,7 @@ for server in Xephyr Xvfb; do
     echo "# $server from toolchain/debug/root, run with our xkbcomp (see scripts/loader-setup.sh)."
     echo '#   MEGA_X11_DIR  directory to use as /tmp/.X11-unix (the loader sandbox shares it)'
     cat <<'WRAP'
-D=$(cd "$(dirname "$0")" && pwd)
+D=$(cd "$(dirname "$0")" && pwd -P)
 B="$D/usrbin"
 mkdir -p "$D/hostbin"
 if [ ! -e "$B/.done" ]; then
@@ -143,7 +143,7 @@ WRAP
 done
 cat > "$D/pactl" <<'EOF'
 #!/bin/sh
-D=$(cd "$(dirname "$0")" && pwd)
+D=$(cd "$(dirname "$0")" && pwd -P)
 LD_LIBRARY_PATH="$D/root/usr/lib/x86_64-linux-gnu:$D/root/usr/lib/x86_64-linux-gnu/pulseaudio" exec "$D/root/usr/bin/pactl" "$@"
 EOF
 chmod +x "$D/Xephyr" "$D/Xvfb" "$D/pactl"

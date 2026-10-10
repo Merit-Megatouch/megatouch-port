@@ -10,8 +10,9 @@ project provides is the cabinet around them. The I/O board, touchscreen, securit
 network port and monitor are simulated, and small compatibility fixes cover the 13 years between
 the cabinet's Linux and today's.
 
-**No cabinet software is included.** You need your own copy of the disk image; everything is
-read from it.
+**No cabinet software is included.** You need your own copy of the cabinet's software: the
+original ION 2014 installer discs (two ISOs; gives the factory software) or the ION 2014 disk image.
+Everything is read from them.
 
 ## Quick start
 
@@ -23,7 +24,7 @@ everything and asks for the image:
 bash <(curl -fsSL https://raw.githubusercontent.com/Merit-Megatouch/megatouch-port/main/scripts/install.sh)
 ```
 
-Add `--kiosk` for a dedicated touchscreen box: it then boots into the cabinet, fullscreen, and
+With the installer discs: add `--disc DISC1.iso --disc DISC2.iso`. Add `--kiosk` for a dedicated touchscreen box: it then boots into the cabinet, fullscreen, and
 restarts it if it crashes or hangs. Or by hand:
 
 ```bash

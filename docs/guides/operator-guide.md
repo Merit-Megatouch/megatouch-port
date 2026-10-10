@@ -69,6 +69,20 @@ WSL, in the applications menu on Linux. On a dedicated touchscreen box, add `--k
 
 Windows drives appear under `/mnt/`: `E:\Images\x.img` is `/mnt/e/Images/x.img`.
 
+**From the original installer discs instead of the disk image:** the two ION 2014 installer CD
+images (`V40_02T130830_1115_1OF2.iso` and `…_2OF2.iso`) work too, and give the factory software,
+unmodified, and a factory-fresh cabinet:
+
+```bash
+scripts/install.sh --disc "/mnt/e/Images/ION 2014 Disc 1 or 2 V40_02T130830_1115_1OF2.iso" \
+                   --disc "/mnt/e/Images/ION 2014 Disc 2 of 2 V40_02T130830_1115_2OF2.iso"
+```
+
+A factory-fresh cabinet starts the way a new one did: touchscreen calibration (touch *EXIT* on
+each screen), then the *Connection Wizard* (time zone, network, MegaNet; *Skip*, then ✕ to leave
+it), then the attract loop with factory settings (free play off, $1 = 6 credits; turn on Kids
+Club, TournaMAXX, languages and the rest in Operator Setup).
+
 Already have the project? `scripts/install.sh` from inside it does the same. Running it again is
 safe: whatever is already done is skipped, and the cabinet's settings are never overwritten.
 
@@ -86,6 +100,19 @@ make loader-setup    # copies the cabinet's software out of the image, downloads
 
 Keep the project in your Linux home folder (`~`), not under `/mnt/c` or `/mnt/e`: those are much
 slower. Keep the quotes around the image path: the file name has spaces.
+
+With the installer discs, put them in `cabinet.local.conf` instead of (or as well as) `IMG`:
+`DISC1="/mnt/e/…/…1OF2.iso"` and `DISC2="/mnt/e/…/…2OF2.iso"`; they win over the image.
+
+**Switching an existing install to the factory software** (an install made from the keyless
+image keeps its settings, books and MegaNet registration): stop the cabinet, add `DISC1`/`DISC2`
+to `cabinet.local.conf`, then
+
+```bash
+make loader-backup
+scripts/loader-setup.sh --replace-root   # the factory root from the discs; the old one is kept as build/loader/root.image
+scripts/loader-key.sh --force            # a key image the factory loader accepts (from this cabinet's NVRAM)
+```
 
 ## 3. Starting and stopping
 

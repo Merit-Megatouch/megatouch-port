@@ -299,6 +299,31 @@ case "${1:-}" in
         echo "HW_ settings made but python3 is missing: the hardware bridge can't run" >&2
       fi
     fi
+    # what the cabinet's hardware detection (harddetect, run by merit-checkplatform at boot) writes
+    # on a real ION; a factory-fresh /var has none, and without it the cabinet isn't widescreen
+    HW_XML="${MEGA_LOADER_VAR:-$B/var}/merit/hardware.xml"
+    if [ ! -f "$HW_XML" ] && [ -d "${MEGA_LOADER_VAR:-$B/var}/merit" ]; then
+      cat > "$HW_XML" <<'HWXML'
+<HardwareCfg>
+<!-- !!!!!!  This file is automaticly generated and is read by a non-XML-aware script.  Please do not edit   !!!!!! -->
+    <Device Name="HardwarePlatform" Value="HARDWARE_ION_945GC" />
+    <Device Name="AMI_IO_Board" Value="IOBOARD_FX1" />
+    <Device Name="Platform" Value="PLATFORM_ION" />
+    <Device Name="Motherboard" Value="Ion.littlefalls" />
+    <Device Name="Network" Value="r8168" />
+    <Device Name="Wireless" Value="not found" />
+    <Device Name="Sound" Value="i845" />
+    <Device Name="Video" Value="i845" />
+    <Device Name="Input" Value="microtouch_usb" />
+    <Device Name="CreditCard" Value="not found" />
+    <Device Name="Monitor" Value="CML-190W-MT0" />
+    <Device Name="Modem" Value="not found" />
+    <Device Name="Memory" Value="505676" />
+    <Device Name="Platform" Value="Ion" />
+</HardwareCfg>
+HWXML
+      echo "wrote the simulated hardware's hardware.xml (ION, widescreen)"
+    fi
     # the security-key image the fake board serves, made once from this /var's NVRAM
     [ "${MEGA_LOADER_KEY:-make}" = none ] || "$P/scripts/loader-key.sh" >/dev/null || true
     CONSOLE=1

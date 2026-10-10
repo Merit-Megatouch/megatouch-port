@@ -181,6 +181,45 @@ offered with a key image (see above).
 a MegaNet connection, free play off (or `TMAXX_OK_IN_FREEPLAY`), the start screen gets a
 *Competition!* (MegaNet / TournaMAXX) button listing the server's running tournaments.
 
+## From the installer discs
+
+Megatouch shipped software as bootable installer CDs. The ION 2014 set
+(`V40_02T130830_1115`, two discs) holds the same software as the keyless disk image, as
+partimage images of each partition. With `DISC1` and `DISC2` in `cabinet.local.conf`,
+`make loader-setup` builds the cabinet from them:
+
+| Partition | From | What it is |
+| --- | --- | --- |
+| root | `lib/images/part5.gz.000–005` (disc 1) | the system and the factory loader |
+| home | `part2` (disc 1) | `/home/maxx`, `/home/firefox` |
+| ion_only | `part6.gz.000` (disc 1) and `.001–.008` (disc 2) | games and content |
+| var | root's `/factorybackup/var.tar.gz` | the factory defaults, as the cabinet's first boot restores them onto its empty /var |
+
+`scripts/partimage.py` reads the discs: `info` shows their version and images, `extract N OUT.img
+DISCS…` writes one partition as a raw ext3 image (CRC-checked), which `debugfs` unpacks. The
+format is described in the script.
+
+**Compared with the keyless disk image:** the root, home and ion_only partitions are the same,
+apart from leftovers of use (browser caches, kernel modules installed at first boot), except for
+one file: the image's `/usr/local/bin/start` has 1,114 bytes patched in five security-key
+functions ([io-board → the keyless build](../reference/io-board.md#security-key-internal-licence)).
+The factory loader reads the security key through the I/O board. The fake board serves
+`key.bin`, which `scripts/loader-key.sh` writes with everything that loader checks:
+
+- the cabinet code;
+- a price for every game (0 hides a game);
+- the factory language set, pricing and Champion Edition values;
+- the game options.
+
+`KEY_COUNTRY`, `KEY_LANGUAGES` and `KEY_PLAYER_LANGUAGES` change the country and the languages it
+offers (`scripts/loader-key.sh --countries`, `--languages`).
+
+**First boot of a fresh install:** touchscreen calibration at every resolution, then the
+Connection Wizard. `scripts/loader.sh` writes the `hardware.xml` that the cabinet's hardware
+detection would (ION 945GC, FX1 board, widescreen CML-190W monitor; without it the cabinet runs
+4:3). The other installer discs (ION 2008.5–2013, Force, Maxx) use the same format; only the
+2014 set has been tried.
+
 ## How it works
 
 `make loader-setup` (`scripts/loader-setup.sh`) dumps the image's side-B partitions with
@@ -191,8 +230,9 @@ A partition directory that already exists is never extracted again, so `/var` ke
 `/home/maxx/.xinitrc` and `layout_start` ran: `db_state`, `layout_daemon`, the start, sidebar
 and loading layouts, then `/usr/local/bin/start -name merit-start --videomode F`.
 
-`start` is the 2021 "Keyless" build of the loader (see `docs/reference/io-board.md`): it needs
-the I/O board, not the security key. Everything below is ours; no cabinet file is modified.
+`start` is either the factory loader (installed from the discs) or the 2021 "Keyless" build
+(from the disk image), which reads a copy of a key built into it instead of the security key
+(see `docs/reference/io-board.md`). Everything below is ours; no cabinet file is modified.
 
 | Cabinet had | Stand-in | Source |
 |---|---|---|

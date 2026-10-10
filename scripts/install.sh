@@ -2,9 +2,11 @@
 # One-command install of the Megatouch cabinet on Ubuntu (desktop, touchscreen box or WSL2).
 #
 #   bash <(curl -fsSL https://raw.githubusercontent.com/Merit-Megatouch/megatouch-port/main/scripts/install.sh)
-#   scripts/install.sh [--image PATH] [--kiosk] [--no-shortcut] [--yes] [--dir DIR]
+#   scripts/install.sh [--disc ISO --disc ISO | --image PATH] [--kiosk] [--no-shortcut] [--yes] [--dir DIR]
 #
-#   --image PATH    the cabinet disk image (asked for if not given and not set yet)
+#   --disc ISO      an original ION 2014 installer disc (give both discs): the cabinet is built
+#                   from them, factory-fresh (docs/guides/cabinet-loader.md)
+#   --image PATH    or the cabinet disk image (asked for if neither is given nor set yet)
 #   --kiosk         dedicated box: start the cabinet fullscreen at login and keep it running
 #                   (scripts/cabinet.sh autostart on); set up automatic login yourself
 #   --no-shortcut   don't create a desktop shortcut
@@ -16,10 +18,11 @@
 # Safe to run again: everything already done is skipped.
 set -euo pipefail
 REPO_URL="https://github.com/Merit-Megatouch/megatouch-port"
-IMAGE="" KIOSK=0 SHORTCUT=1 YES=0 DIR="$HOME/megatouch-port"
+IMAGE="" DISCS=() KIOSK=0 SHORTCUT=1 YES=0 DIR="$HOME/megatouch-port"
 while [ $# -gt 0 ]; do
   case "$1" in
     --image) IMAGE="$2"; shift 2 ;;
+    --disc) DISCS+=("$2"); shift 2 ;;
     --kiosk) KIOSK=1; shift ;;
     --no-shortcut) SHORTCUT=0; shift ;;
     --yes|-y) YES=1; shift ;;
@@ -27,8 +30,9 @@ while [ $# -gt 0 ]; do
     -h|--help)   # (not read from "$0": that is bash itself when piped from curl)
       cat <<'USAGE'
 Install the Megatouch cabinet (Ubuntu, touchscreen box or WSL2).
-  scripts/install.sh [--image PATH] [--kiosk] [--no-shortcut] [--yes] [--dir DIR]
-  --image PATH    the cabinet disk image (asked for if not given and not set yet)
+  scripts/install.sh [--disc ISO --disc ISO | --image PATH] [--kiosk] [--no-shortcut] [--yes] [--dir DIR]
+  --disc ISO      an ION 2014 installer disc ISO; give both (the cabinet is built factory-fresh)
+  --image PATH    or the cabinet disk image (asked for if neither is given nor set yet)
   --kiosk         dedicated box: start fullscreen at login, restart on crash or hang
   --no-shortcut   don't create a desktop shortcut
   --yes           don't ask before installing Ubuntu packages
@@ -90,9 +94,25 @@ fi
 cd "$here"
 case "$here" in /mnt/*) echo "Warning: $here is on a Windows drive; it will be slow. ~/megatouch-port is better." >&2 ;; esac
 
-# ---------------------------------------------------------------- the image
-say "The cabinet disk image"
+# ---------------------------------------------------------------- the discs or the image
 . ./cabinet.conf
+if [ ${#DISCS[@]} -gt 0 ]; then
+  say "The installer discs"
+  for d in "${DISCS[@]}"; do [ -f "$d" ] || { echo "Not found: $d" >&2; exit 1; }; done
+  info=$(python3 scripts/partimage.py info "${DISCS[@]}") || exit 1
+  echo "$info"
+  for n in part5 part6 part2; do
+    grep -q "$n" <<< "$info" || { echo "These discs don't hold the cabinet's $n image: give both discs of one ION release" >&2; exit 1; }
+  done
+  { grep -vE '^DISC[1-4]=' cabinet.local.conf 2>/dev/null || true
+    i=1; for d in "${DISCS[@]}"; do printf 'DISC%d="%s"\n' $i "$d"; i=$((i + 1)); done; } > cabinet.local.conf.new
+  mv cabinet.local.conf.new cabinet.local.conf
+  echo "Discs OK"
+elif [ -n "${DISC1:-}" ] && [ -f "$DISC1" ]; then
+  say "The installer discs"
+  echo "Using the discs from cabinet.local.conf."
+else
+say "The cabinet disk image"
 if [ -z "$IMAGE" ] && [ -n "${IMG:-}" ] && [ -f "$IMG" ]; then
   echo "Using $IMG (from cabinet.local.conf)."
   IMAGE="$IMG"
@@ -114,6 +134,7 @@ if [ "$(. ./cabinet.local.conf 2>/dev/null; echo "${IMG:-}")" != "$IMAGE" ]; the
   mv cabinet.local.conf.new cabinet.local.conf
 fi
 echo "Image OK: $IMAGE"
+fi
 
 # ---------------------------------------------------------------- build
 say "Setting up (first time 10-20 minutes, mostly downloads)"

@@ -181,6 +181,9 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 | `scripts/install.sh [--image P] [--kiosk] [--no-shortcut] [--yes] [--dir D]` | One-command install: packages, clone, image check, setup, shortcut, kiosk autostart |
 | `scripts/cabinet.sh` / `stop` / `status` / `autostart on\|off` | Kiosk mode (`make kiosk` / `make kiosk-stop`): fullscreen, restart on exit, crash or hang, login autostart |
 | `scripts/new-cabinet.sh NAME [--from-image]` | Another cabinet on this PC (`build/loader/cabinets/NAME`) with its own identity and linked games on, for `MEGA_LOADER_NET=lan` |
+| `scripts/loader-setup.sh [--replace-root]` (`make loader-setup`) | Unpack the cabinet from the installer discs (`DISC1`, `DISC2` in `cabinet.local.conf`) or the disk image (`IMG`); `--replace-root`: switch an existing install's root to the factory one from the discs (old one kept as `root.image`) |
+| `scripts/partimage.py info DISC…` / `extract N OUT.img DISC…` / `convert OUT.img VOLUME…` | Read Megatouch installer discs: version and partition images; one partition as a raw ext2/3 image (CRC-checked) |
+| `scripts/install.sh --disc ISO --disc ISO` | Install from the two ION 2014 installer discs instead of the disk image |
 | `scripts/loader.sh` | What `make loader-run` runs: start the cabinet |
 | `scripts/loader.sh shell` / `run <cmd>` | A shell / a command inside the cabinet's userland (joins a running cabinet's display) |
 | `scripts/loader-backup.sh [label]` / `--list` / `--restore FILE` | Snapshot / list / restore `build/loader/var/merit` (`--auto` keeps the newest 20) |
