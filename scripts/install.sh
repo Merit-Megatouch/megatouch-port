@@ -24,7 +24,17 @@ while [ $# -gt 0 ]; do
     --no-shortcut) SHORTCUT=0; shift ;;
     --yes|-y) YES=1; shift ;;
     --dir) DIR="$2"; shift 2 ;;
-    -h|--help) sed -n 2,17p "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)   # (not read from "$0": that is bash itself when piped from curl)
+      cat <<'USAGE'
+Install the Megatouch cabinet (Ubuntu, touchscreen box or WSL2).
+  scripts/install.sh [--image PATH] [--kiosk] [--no-shortcut] [--yes] [--dir DIR]
+  --image PATH    the cabinet disk image (asked for if not given and not set yet)
+  --kiosk         dedicated box: start fullscreen at login, restart on crash or hang
+  --no-shortcut   don't create a desktop shortcut
+  --yes           don't ask before installing Ubuntu packages
+  --dir DIR       where to clone when run from outside a checkout (default ~/megatouch-port)
+USAGE
+      exit 0 ;;
     *) echo "unknown option: $1 (see --help)" >&2; exit 1 ;;
   esac
 done
