@@ -49,7 +49,7 @@ if [ -f "$P/cabinet.local.conf" ]; then
   done < <(grep -E '^KEY_(COUNTRY|LANGUAGES|PLAYER_LANGUAGES)=' "$P/cabinet.local.conf")
 fi
 if [ "$mode" != --show ] && [ "$mode" != --languages ] && [ "$mode" != --countries ]; then
-  [ -f "$NV" ] || { echo "no $NV" >&2; exit 1; }
+  [ -d "$VAR/merit" ] || { echo "no cabinet state at $VAR (make loader-setup)" >&2; exit 1; }
   [ -f "$KEY" ] && [ "$mode" != --force ] && { echo "$KEY exists (--force to rewrite)"; exit 0; }
   mkdir -p "$(dirname "$KEY")"
 fi
@@ -135,8 +135,21 @@ if mode == '--show':
     print('options', ' '.join(f'{i}:{d[OPT + i]}' for i in range(120)))
     sys.exit()
 
-nv = open(nvpath, 'rb').read()
-part, rev = nv[1:9], nv[0x38:0x3C]              # what InitVars stored from the original key
+# NVRAM holds the part number and revision of the key the cabinet last had; a different key makes
+# the loader wipe NVRAM at boot. A factory-fresh /var has no NVRAM yet: then use the ION 2014
+# key's (the loader copies it into NVRAM on its first boot).
+try:
+    nv = open(nvpath, 'rb').read()
+except FileNotFoundError:
+    nv = bytearray(0x1884)
+    nv[1:9], nv[0x38:0x3C] = b'SA362801', b'R00\0'
+    print('no nvram.dat yet (factory-fresh): key SA362801 R00, factory option defaults')
+    # a genuine ION 2014 key's option bytes: on (1, 3) or off (0, 2) is the factory default
+    factory = bytes.fromhex('030302000303000302030301010203010001030303030202010303030300030302000302020303030202020203030200020003030302010102000203'
+                            '030203010302020000030300020000000202020200030000000200030200000001000202020100010202020001010101010000000000000200000200')
+    for i in range(120):
+        nv[0x40 + i] = factory[i] & 1
+part, rev = bytes(nv[1:9]), bytes(nv[0x38:0x3C])
 if not part.startswith(b'SA3'):
     sys.exit(f'nvram.dat has no key part number ({part!r}); not making a key')
 locked_off = {67, 88, 100, 101, 114, 115, 110, 111, 112, 113, 119}

@@ -1,12 +1,19 @@
 #!/bin/bash
 # Prepare the cabinet's own loader to run (make loader-setup). Nothing is installed system-wide.
 #
-#   1. build/loader/{root,var,home,ion}: the image's sideB root, var, home and ion_only partitions,
-#      plus var.orig, a pristine copy of /var for `make loader-reset`
+#   1. build/loader/{root,var,home,ion}: the cabinet's root, var, home and ion_only partitions,
+#      plus var.orig, a pristine copy of /var for `make loader-reset`. From the installer discs
+#      (DISC1, DISC2 … in cabinet.local.conf: factory software, /var from the factory defaults)
+#      or else from the disk image (IMG: the image's sideB partitions)
 #   2. toolchain/debug: Xephyr (+ xkbcomp), slirp4netns and SDL2 downloaded with apt-get download; Xephyr's RandR size table
 #      patched to offer the cabinet's widescreen modes (768x480, 1280x800); pactl for checking sound
 #   3. build/loader/bin: our stand-ins (make loader builds them)
-# Needs: cabinet.conf / cabinet.local.conf with IMG, debugfs, apt-get, dpkg-deb, bwrap, setsid.
+# Needs: cabinet.conf / cabinet.local.conf with DISC1… or IMG, debugfs, apt-get, dpkg-deb, bwrap, setsid.
+#
+#   scripts/loader-setup.sh [--replace-root]
+#   --replace-root  with discs set: replace an existing build/loader/root (e.g. from the keyless
+#                   image) with the factory one from the discs; the old one is kept as root.image.
+#                   /var and /home are kept, so the cabinet keeps its settings, books and identity.
 set -euo pipefail
 P=$(cd "$(dirname "$0")/.." && pwd)
 . "$P/cabinet.conf"
@@ -18,9 +25,52 @@ for t in debugfs apt-get dpkg-deb bwrap setsid python3; do
   command -v "$t" >/dev/null || { echo "missing tool: $t" >&2; exit 1; }
 done
 
-step "Cabinet partitions → build/loader"
-[ -n "$IMG" ] && [ -f "$IMG" ] || { echo "set IMG in cabinet.local.conf" >&2; exit 1; }
+REPLACE_ROOT=0
+[ "${1:-}" = --replace-root ] && REPLACE_ROOT=1
+discs=()
+for v in DISC1 DISC2 DISC3 DISC4; do
+  [ -n "${!v:-}" ] || continue
+  [ -f "${!v}" ] || { echo "$v: no such file: ${!v}" >&2; exit 1; }
+  discs+=("${!v}")
+done
 mkdir -p "$B"
+if [ ${#discs[@]} -gt 0 ]; then
+step "Cabinet partitions from the installer discs → build/loader"
+python3 "$P/scripts/partimage.py" info "${discs[@]}"
+if [ $REPLACE_ROOT = 1 ] && [ -d "$B/root" ] && [ ! -f "$B/root.source" ]; then
+  [ -e "$B/root.image" ] && { echo "build/loader/root.image exists already; move it away first" >&2; exit 1; }
+  pgrep -x start >/dev/null && { echo "stop the cabinet first" >&2; exit 1; }
+  mv "$B/root" "$B/root.image"
+  echo "  the image's root kept as build/loader/root.image"
+fi
+from_disc() {   # from_disc <partition image number> <dir>: never touches an existing directory
+  if [ -d "$B/$2" ] && [ -n "$(ls -A "$B/$2")" ]; then echo "  $2: present"; return; fi
+  local img="$B/disc-part$1.img"
+  python3 "$P/scripts/partimage.py" extract "$1" "$img" "${discs[@]}"
+  rm -rf "${B:?}/$2.partial"; mkdir -p "$B/$2.partial"
+  debugfs -R "rdump / $B/$2.partial" "$img" 2>&1 | grep -v "changing ownership\|^debugfs" || true
+  rm -f "$img"
+  rm -rf "${B:?}/$2" && mv "$B/$2.partial" "$B/$2"
+  [ "$2" = root ] && printf '%s\n' "${discs[@]}" > "$B/root.source"
+  echo "  $2: $(du -sh "$B/$2" | cut -f1)"
+}
+from_disc 5 root
+from_disc 2 home
+from_disc 6 ion
+if [ ! -d "$B/var" ]; then
+  # a fresh install's /var is empty; the first boot restores the factory defaults from
+  # /factorybackup/var.tar.gz (merit-checkfs)
+  rm -rf "${B:?}/var.partial"; mkdir -p "$B/var.partial"
+  tar -xzf "$B/root/factorybackup/var.tar.gz" -C "$B/var.partial" --strip-components=1 --no-same-owner
+  mkdir -p "$B/var.partial/log"
+  mv "$B/var.partial" "$B/var"
+  echo "  var: factory defaults"
+else
+  echo "  var: present"
+fi
+else
+step "Cabinet partitions → build/loader"
+[ -n "$IMG" ] && [ -f "$IMG" ] || { echo "set IMG (the disk image) or DISC1/DISC2 (the installer discs) in cabinet.local.conf" >&2; exit 1; }
 dump() {   # dump <partition offset> <dir>; an existing directory is never touched (var holds
            # the loader's settings, NVRAM and books: `make loader-reset` restores it on purpose)
   if [ -d "$B/$2" ] && [ -n "$(ls -A "$B/$2")" ]; then echo "  $2: present"; return; fi
@@ -33,6 +83,7 @@ dump "$ROOT_OFF" root
 dump "$VAR_OFF" var
 dump "$HOME_OFF" home
 dump "$ION_OFF" ion      # /usr/local/ion_only, including content/ (the snapshot leaves that out)
+fi
 rm -f "$B/var/merit/swapfile"
 [ -d "$B/var.orig" ] || cp -a "$B/var" "$B/var.orig"
 
