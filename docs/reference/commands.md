@@ -205,6 +205,7 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 | `MEGA_LOADER_IDENTITY` | on | `off`: don't apply `<var>.identity` (serial for a new board EEPROM, MegaNet ID) at start |
 | `MEGA_LOADER_KEY` | make | `none`: no security-key image is made (key-gated options stay locked off) |
 | `MEGA_LOADER_BIN` | `/usr/local/bin/start` | Program to start inside the sandbox |
+| `MEGA_LOADER_VERBOSE` | `0` | `1`: show all of the cabinet's console output in the terminal (normally known-harmless lines are left out; `build/loader/console.log`, previous run `.1`, always has everything) |
 | `MEGA_EXTRA_ENV` | — | `"A=1 B=2"`: extra variables passed into the sandbox (debugging) |
 
 ### The window (megaview)

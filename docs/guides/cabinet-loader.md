@@ -95,6 +95,11 @@ Xephyr (no resolution changes), `MEGA_LOADER_DISPLAY` (default 55), `MEGAIO_TRAC
 board command, `OSSFAKE_TRACE=1` every sound ioctl, `MEGA_EXTRA_ENV="A=1 B=2"` passes variables
 in, `MEGAIO_SERIAL` sets the cabinet serial number of a new board EEPROM.
 
+Console: the terminal shows the cabinet's output minus lines known to be harmless (hardware
+probes, the language table, the stand-ins' start-up messages, the card reader's expected crash
+at shutdown: `scripts/console-filter.awk`); `build/loader/console.log` has all of it (previous run:
+`console.log.1`), and `MEGA_LOADER_VERBOSE=1` shows all of it in the terminal.
+
 Logs: the loader's own log is appended to `build/loader/var/merit/logging/logs/*.running.log`
 (fields separated by `|`, records by `\x03`); crash reports land in
 `build/loader/var/merit/logging/crashes/`; the stand-ins print to the terminal (`[fakeio]`,

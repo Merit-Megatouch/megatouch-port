@@ -75,8 +75,13 @@ for the standalone game ports. For debugging a game you're porting, see [debuggi
   and the terminal output. Trix used to freeze after the first card (fixed by `soundfix.so`).
 
 **Lots of `[crash]` lines in the terminal**
-: One or two from `credit_card_reader` at shutdown are expected (there is no card reader). A
-  stream of them that never stops was a bug in `crashlog.so`, fixed: update.
+: The card reader's expected crash at shutdown is no longer shown (it's in
+  `build/loader/console.log`). A stream of them that never stops was a bug in `crashlog.so`,
+  fixed: update. Any other `[crash]` is real: report it with the console log.
+
+**Where's all the output?**
+: The terminal leaves out known-harmless lines. `build/loader/console.log` (previous run:
+  `console.log.1`) has everything; `MEGA_LOADER_VERBOSE=1 make loader-run` shows everything.
 
 **Network shows *No Internet* / MegaNet connection fails**
 : Run the Connection Wizard for **Wired Ethernet** ([operator guide](operator-guide.md#11-network-meganet-and-tournamaxx)).

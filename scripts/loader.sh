@@ -26,6 +26,8 @@
 #   MEGA_LOADER_VIEW     megaview (default: scalable window, F11 fullscreen) or xephyr (Xephyr's
 #                        own window, always the cabinet's exact resolution)
 #   MEGA_LOADER_IDENTITY=off  don't apply this cabinet's identity (scripts/loader-identity.sh)
+#   MEGA_LOADER_VERBOSE=1  show all of the cabinet's console output (normally the known-harmless
+#                        lines are left out of the terminal; the console log has everything)
 #   MEGA_LOADER_BACKUP   auto (default: a snapshot at every start), daily or none
 #   MEGA_LOADER_KEY=none no security-key image (scripts/loader-key.sh makes one when missing)
 #   MEGA_LOADER_NET      slirp (default: own network namespace + virtual eth0), host, or
@@ -210,7 +212,23 @@ wait_sandbox() {
   exit $rc
 }
 
+# The cabinet's console output: everything goes to the console log (the previous run's is kept
+# as .1); the terminal shows it minus known-harmless lines (scripts/console-filter.awk), or all
+# of it with MEGA_LOADER_VERBOSE=1.
+CONSOLE=0
+CONSOLE_LOG="$B/console.log"
+[ -n "${MEGA_LOADER_VAR:-}" ] && CONSOLE_LOG="${MEGA_LOADER_VAR%/}.console.log"
+console() {
+  [ -f "$CONSOLE_LOG" ] && mv -f "$CONSOLE_LOG" "$CONSOLE_LOG.1"
+  if [ "${MEGA_LOADER_VERBOSE:-0}" = 1 ]; then tee "$CONSOLE_LOG"
+  else tee "$CONSOLE_LOG" | awk -f "$P/scripts/console-filter.awk"; fi
+}
+
 run() {
+  if [ "$CONSOLE" = 1 ]; then
+    CONSOLE=0
+    exec > >(console) 2>&1
+  fi
   if [ "$NET" = slirp ]; then
     # start the sandbox, then plug slirp4netns into its network namespace as eth0
     local info="$B/bwrap-info.$$"
@@ -262,5 +280,7 @@ case "${1:-}" in
     fi
     # the security-key image the fake board serves, made once from this /var's NVRAM
     [ "${MEGA_LOADER_KEY:-make}" = none ] || "$P/scripts/loader-key.sh" >/dev/null || true
+    CONSOLE=1
+    echo "Megatouch cabinet starting (full output: ${CONSOLE_LOG#$P/})"
     run /opt/fakeio/xinit.sh "$@" ;;
 esac
