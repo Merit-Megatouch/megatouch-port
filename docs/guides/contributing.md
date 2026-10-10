@@ -15,7 +15,9 @@ Merit-Megatouch/megatouch-port        main repo: src/, scripts/, tools/, docs/, 
 - Each **game repo** holds only what is specific to that game: `game.conf`, `NOTES.md`,
   `README.md`, `notes/scaffold.md`, `notes/unresolved.txt`. Its `lib/`, `data/` and links are
   ignored and regenerated from the cabinet.
-- **Never commit cabinet files**: binaries, art, sound, translations, the image. They are
+- **Never commit cabinet files**: binaries, art, sound, translations, the disk image or the
+  installer discs, or files extracted from them. Small documented facts are fine, such as the
+  factory option defaults and pricing values `scripts/loader-key.sh` writes. They are
   copyrighted, large, and reproducible with `make setup` and `make new`. The `.gitignore` files
   enforce this; don't force-add anything under `lib/`, `data/`, `shared/`, `toolchain/`,
   `reference/` or `cabinet/`.

@@ -1,7 +1,8 @@
 # Running the cabinet's own loader
 
-The Megatouch ION loader from the disk image (menus, attract mode, Operator Setup, coins,
-operator and player keys, and every game it launches) runs unmodified on Linux / WSL2. The
+The Megatouch ION 2014 loader, the factory one from the original installer discs (or the
+"keyless" build from a disk image), runs unmodified on Linux / WSL2, with its menus, attract
+mode, Operator Setup, coins, operator and player keys, and every game it launches. The
 missing cabinet hardware is replaced by stand-ins: a fake USB I/O board, a fake touchscreen
 controller, a security-key image, an OSS sound device that plays through PulseAudio, a virtual
 wired network, and a nested X server that changes resolution the way the cabinet does, shown
@@ -12,7 +13,7 @@ installing, running and setting up the cabinet step by step.
 
 ```bash
 make setup            # once: the 32-bit runtime the cabinet's programs run on
-make loader-setup     # once: extract the image's partitions (~11 GB), download Xephyr, Xvfb, SDL2, slirp4netns
+make loader-setup     # once: unpack the partitions from the discs or the image (~11 GB), download Xephyr, Xvfb, SDL2, slirp4netns
 make loader-run       # builds the stand-ins and starts the cabinet in its own window
 ```
 
@@ -58,7 +59,8 @@ MQTT, webhooks, WLED lights) connect through the hardware bridge: see
 
 ### Setting up the operator key
 
-The image has free play on and no operator keys. To use **F9** as the operator key:
+Neither the disk image nor a factory-fresh cabinet has operator keys. To use **F9** as the
+operator key:
 
 1. **F1** → Operator Setup → *System* → *Setup Operator Keys* → *Set Key* (slot 1).
 2. Hold **F9** while it says "Touch new key to machine…", release when asked.
@@ -76,7 +78,7 @@ To charge for games: Operator Setup → *Credits/Pricing* → *Options* → unti
 | Command | |
 |---|---|
 | `make loader-run` | start the loader (window "Megatouch ION (cabinet loader)") |
-| `make loader-reset` | put the loader's `/var` (settings, NVRAM, books, high scores, logs) back as it was on the image (a backup is taken first) |
+| `make loader-reset` | put the loader's `/var` (settings, NVRAM, books, high scores, logs) back as it was after setup: the factory defaults (discs) or the image's state (a backup is taken first) |
 | `make loader-backup` / `make loader-restore BACKUP=<file>` | snapshot / restore the loader's state (see *Settings and backups*) |
 | `scripts/loader-option.sh --list` | the 120 game options: value and what the key allows (see *Game options and the security key*) |
 | `scripts/loader.sh shell` | a shell inside the cabinet userland |
@@ -136,7 +138,8 @@ The loader gets its own network: a virtual wired `eth0` (slirp4netns: NAT throug
 gives 10.0.2.15, DNS 10.0.2.3). The cabinet's own network manager and DHCP client configure it
 as on a real machine, so its Network menu, Connection Wizard and MegaNet updates work.
 
-The image's settings are for wireless. To connect once: **F1** → *Network* → *Connection Wizard*
+The disk image's settings are for wireless (a factory-fresh cabinet runs the Connection Wizard
+on its first start). To connect once: **F1** → *Network* → *Connection Wizard*
 → *Next* → *Skip* → *Skip* → *Wired Ethernet* → *Wired Ethernet Network* → *Accept Settings and
 Connect* → *Save Settings*. To use a community MegaNet server: *Network Options* → *MegaNet
 Server* → *Set* (e.g. `us.oerinet.net`) → *Enter*, then *Connect to MegaNet/Update from Server*.
@@ -155,11 +158,21 @@ key-gated menus disappear (no TournaMAXX, no MegaNet setup page) and Hi-Res-only
 out of the menu.
 
 So the fake board serves a key image, `var/merit/fakeio/key.bin`, made by `scripts/loader-key.sh`
-the first time the loader starts with this `/var`. It carries the cabinet's own identity from
-NVRAM (`SA362801 R00`; a different part number would make the loader wipe NVRAM) and leaves every
-option to the operator, defaulting to its current value, except options for hardware we don't
-have (MindSpark mode, TouchTunes, credit card, the Rowe download selector), which stay locked
-off. Prices, coin values, country and languages stay as the loader saw them without a key.
+the first time the loader starts with this `/var`. Its contents:
+
+- **Identity:** the cabinet's own, from NVRAM: `SA362801 R00` (a different part number would
+  make the loader wipe NVRAM). A factory-fresh `/var` has no NVRAM yet, so the ION 2014 key's
+  identity and factory option defaults are used.
+- **Options:** every one is left to the operator, defaulting to its current value. The
+  exceptions are options for hardware we don't have (MindSpark mode, TouchTunes, credit card,
+  the Rowe download selector), which stay locked off.
+- **Factory key data:** the cabinet code, a default price for every game, US factory pricing,
+  Champion Edition values, and the language set.
+- **Country and languages:** set with `KEY_COUNTRY` and `KEY_LANGUAGES` (the factory loader
+  reads all of these; [io-board](../reference/io-board.md#security-key-internal-licence) has the
+  layout).
+
+After changing any of it, remake the key (`scripts/loader-key.sh --force`, cabinet stopped).
 
 Change options in Operator Setup (*System → Options*, *Games → Options*, *Credits/Pricing*, …).
 From a terminal, with the loader stopped:
@@ -226,9 +239,14 @@ detection would (ION 945GC, FX1 board, widescreen CML-190W monitor; without it t
 
 ## How it works
 
-`make loader-setup` (`scripts/loader-setup.sh`) dumps the image's side-B partitions with
-`debugfs`: root → `build/loader/root`, /var → `var` (plus `var.orig` for resets), /home → `home`.
-The ion_only partition (`ion`, including the `content/` packs some games need) is dumped too.
+`make loader-setup` (`scripts/loader-setup.sh`) unpacks the cabinet's partitions with `debugfs`:
+root → `build/loader/root`, /home → `home`, ion_only → `ion` (including the `content/` packs
+some games need), /var → `var` (plus `var.orig` for resets).
+
+- **From the installer discs:** each partition is first converted from its partimage volumes
+  (see *From the installer discs* above), and /var comes from the factory defaults.
+- **From the disk image:** its side-B partitions are read directly.
+
 A partition directory that already exists is never extracted again, so `/var` keeps its state.
 `scripts/loader.sh` turns them into a rootless sandbox (`bwrap`, user namespaces) and runs what
 `/home/maxx/.xinitrc` and `layout_start` ran: `db_state`, `layout_daemon`, the start, sidebar

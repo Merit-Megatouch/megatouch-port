@@ -24,7 +24,13 @@ for t in gcc g++ make python3 curl debugfs apt-get dpkg-deb readelf nm objdump; 
 done
 GCC=$(gcc -dumpversion | cut -d. -f1)
 CODENAME=$(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
-echo "gcc $GCC, Ubuntu $CODENAME, cabinet source: $(cab_mode)"
+if [ "$(cab_mode)" = image ] && [ ! -f "${IMG:-}" ] && [ -n "${DISC1:-}" ]; then
+  # installer discs only: unpack the cabinet first, then read its files from build/loader
+  step "unpacking the cabinet from the installer discs (make loader-setup)"
+  scripts/loader-setup.sh
+  . scripts/lib/cabinet.sh
+fi
+echo "gcc $GCC, Ubuntu $CODENAME, cabinet source: $(cab_mode)${CABINET_SNAPSHOT:+ ($CABINET_SNAPSHOT)}"
 cab_check
 
 # ------------------------------------------------------------------ 32-bit compiler

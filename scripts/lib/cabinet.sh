@@ -1,5 +1,7 @@
 # Read files from the Megatouch cabinet — either straight from the disk image (debugfs, no
-# mounting, no root) or from a snapshot folder made by scripts/snapshot-cabinet.sh.
+# mounting, no root) or from a snapshot folder made by scripts/snapshot-cabinet.sh. Without
+# either (an install from the installer discs), the cabinet unpacked by `make loader-setup` in
+# build/loader (same layout as a snapshot) is used.
 # Source this after cabinet.conf. Partitions are named root | ion | var | home:
 #   root = /   ion = /usr/local/ion_only   var = /var   home = /home
 #
@@ -18,11 +20,19 @@ _cab_dev() {
 }
 _cab_snap() { echo "$CABINET_SNAPSHOT/$1$2"; }   # snapshot layout: <snapshot>/<part>/<path>
 
+# no snapshot and no image: the unpacked cabinet in build/loader (installer discs)
+_cab_unpacked="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/build/loader"
+if { [ -z "${CABINET_SNAPSHOT:-}" ] || [ ! -d "$CABINET_SNAPSHOT" ]; } && [ ! -f "${IMG:-}" ] &&
+   [ -d "$_cab_unpacked/root/usr/local/lib" ]; then
+  CABINET_SNAPSHOT="$_cab_unpacked"
+fi
+unset _cab_unpacked
+
 cab_mode() { if [ -n "${CABINET_SNAPSHOT:-}" ] && [ -d "$CABINET_SNAPSHOT" ]; then echo snapshot; else echo image; fi; }
 
 cab_check() {
   if [ "$(cab_mode)" = snapshot ]; then return 0; fi
-  [ -f "${IMG:-}" ] || { echo "cabinet image not found: '${IMG:-}' (set IMG='…' in cabinet.local.conf, or make a snapshot in ./cabinet)" >&2; return 1; }
+  [ -f "${IMG:-}" ] || { echo "cabinet image not found: '${IMG:-}' (set DISC1/DISC2 or IMG='…' in cabinet.local.conf; with the discs, run make loader-setup first)" >&2; return 1; }
 }
 
 cab_readlink() {

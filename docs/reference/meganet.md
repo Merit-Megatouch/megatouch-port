@@ -1,7 +1,8 @@
 # MegaNet: the cabinet ↔ server exchange
 
 How the ION 2014 loader talks to a MegaNet server, as far as needed to write a compatible
-server. **Source:** static analysis of `start` (2021 Keyless build; class `TournamaxxUpdate`,
+server. **Source:** static analysis of `start` (the 2021 Keyless build, whose MegaNet code is the
+factory build's; class `TournamaxxUpdate`,
 `update.cpp`), `network_ui` (`connection_base.cpp`), `libgendef_common.so` (record encoding),
 `libtournamaxx.so` (table registry) and `libnetwork.so` (result codes, read by calling the
 cabinet's own enum functions).

@@ -2,13 +2,12 @@
 
 | Term | Meaning |
 | --- | --- |
-| **`.spr`** | Megatouch RLE sprite animation format. |
 | **ABI (old C++)** | The GCC 4.1 C++ library ABI the engine uses (copy-on-write strings). Selected with `-D_GLIBCXX_USE_CXX11_ABI=0`. |
 | **Asset dir** | A game's art and sound folder, e.g. `/usr/local/ion_only/games/g_trix`. The game runs with it as its working directory. |
 | **Attract mode** | What a game shows when nobody is playing. Clicking starts a game. |
 | **Backend** | `libgame_device_sprite.so`: the library that does graphics, input and sound for a GameDevice game. Ours is SDL2. |
 | **Base class / base vtable** | Engine classes like `Graphics::BaseTexture` whose code lives in normal libraries. We build objects from them. |
-| **Cabinet** | The Megatouch ION bar-top machine, and here its disk image. |
+| **Cabinet** | The Megatouch ION bar-top machine, and here its software (from the installer discs or a disk image). |
 | **cabinet-libs** | The 2008 third-party libraries taken from the image (Pango 1.14, OpenSSL 0.9.8, SQLite 2…). |
 | **Closure** | A library plus everything it needs, recursively (NEEDED entries). |
 | **D2 / C2** | Itanium C++ ABI names for the base-object destructor and constructor (`_ZN…D2Ev`, `_ZN…C2Ev`). We call them directly. |
@@ -20,6 +19,8 @@
 | **Engine family** | GameDevice, Unity, Merit3D or legacy sprite: how a game was built, which decides how to port it. |
 | **engine-sdk** | The engine libraries the backend links against (`shared/engine-sdk`). |
 | **Event log** | `fakeio/events.jsonl`: one JSON line per thing the cabinet did with its hardware, plus games starting and ending ([events](events.md)). |
+| **Factory loader** | The loader `start` as shipped on the installer discs, unmodified; it reads the security key through the I/O board (our fake board serves a key image). |
+| **Factory-fresh** | A cabinet installed from the discs with `/var` from the factory defaults (`/factorybackup/var.tar.gz`): first start calibrates and runs the Connection Wizard. |
 | **fs shim** | Our replacements for `open`, `stat`… that rewrite cabinet paths. |
 | **gamedata.xml** | The cabinet's game table. |
 | **GameDevice** | The 2009+ engine family; also its central class `GameDevice::BaseGameDevice`. |
@@ -28,7 +29,10 @@
 | **Hardware bridge** | `scripts/hwbridge.py`: passes events on to commands, MQTT, webhooks and WLED, and feeds real inputs into the fake board ([connectors](../guides/connectors.md)). |
 | **Hitch** | A frame that took much longer than 33 ms. |
 | **Host** | `megatouch-host`, our program that loads a game. |
-| **ION** | The Megatouch cabinet line these games come from (this image is the 2014 software release). |
+| **Installer discs** | Merit's bootable software CDs; for ION 2014 two ISOs, `V40_02T130830_1115_1OF2/2OF2`, holding partimage images of each partition ([cabinet](cabinet.md#the-installer-discs)). |
+| **ION** | The Megatouch cabinet line these games come from (this project runs the 2014 software release, V40.02). |
+| **Key image** | `fakeio/key.bin`: the security key (licence iButton) the fake board serves, made by `scripts/loader-key.sh` (identity, options, game prices, languages, country). |
+| **Keyless** | The 2021-patched `start` in the `Megatouch ION 2014 HDD Keyless` disk image: it reads a key built into it instead of the security key. Otherwise the same software as the discs. |
 | **Legacy (sprite) engine** | The pre-2009 2D engine inside the loader (`Sprite`, `Bitmap`, `WorldClass`, Allegro). 143 games use it. |
 | **Light-show kit** | Optional LED lighting for ION cabinets, run by the I/O board's PSoC; the loader's `LightShowManager` plays sequences on it. |
 | **llvmpipe** | Mesa's software OpenGL. Used because WSLg's GPU path is 64-bit only. |
@@ -37,12 +41,14 @@
 | **Merit3D** | 3D engine family (ODE physics, OpenGL). |
 | **Minidrucker** | German for "mini printer": the small printer operators plugged in to print a cabinet's books. |
 | **Pango modules** | Pango 1.14's shaping engines. Without them text renders as boxes. |
+| **partimage** | The 2000s backup tool whose image format the installer discs use (gzip, 512 MB volumes, CRC every 64 KiB); `scripts/partimage.py` reads it. |
 | **PlrScore** | Loader array of player scores. |
 | **PSoC** | The programmable microcontroller on the I/O board; its version (status byte 17) switches on the light show and the improved amplifier. |
 | **Resource locator** | Engine class that finds files by game, resolution and language. |
 | **Seam** | The single point where the game meets the cabinet backend: `GameDevice::CreateNewGameDevice()`. |
 | **Slot** | Index of a virtual function in a vtable (after offset-to-top and typeinfo). |
 | **Snapshot** | `cabinet/`: what porting needs, copied out of the image by `make snapshot`. |
+| **`.spr`** | Megatouch RLE sprite animation format. |
 | **Stand-in** | Our implementation of a loader service. |
 | **Stub library** | An empty `lib*_sprite.so` that satisfies a NEEDED entry. |
 | **Submodule** | A git repo inside another. Each game is one. |

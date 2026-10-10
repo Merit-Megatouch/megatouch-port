@@ -5,8 +5,10 @@ preservation, and for anyone who reimplements the cabinet, its hardware or its s
 
 **Sources:**
 
-- **Code:** the loader binary `start` (the 2021 "Keyless" build, `reference/loader/bin/start.2021`)
-  read in Ghidra. Function names are the loader's own, from its exported symbols.
+- **Code:** the loader binary `start` read in Ghidra: mostly the 2021 "Keyless" build
+  (`reference/loader/bin/start.2021`), which is byte-identical to the factory build from the
+  installer discs apart from five security-key functions, and the factory build for those.
+  Function names are the loader's own, from its exported symbols.
 - **Runs:** observations of the unmodified software running under this project's stand-ins
   ([cabinet loader](../guides/cabinet-loader.md)).
 

@@ -2,16 +2,17 @@
 
 How the cabinet talks to its USB I/O board, and how the two iButton readers on that board are
 used: the internal **security key** (the software licence) and the front **login key** reader
-(operator fobs and player keys). Everything here was read out of the 2014 image; nothing was
-observed on real hardware. Statements marked *inferred* come from firmware/host code whose
+(operator fobs and player keys). Everything here was read out of the 2014 software (installer
+discs and disk image); nothing was observed on real hardware. Statements marked *inferred* come from firmware/host code whose
 purpose was not fully traced.
 
 Sources (all git-ignored, under `reference/loader/`; see [Reproducing](#reproducing)):
 
 | What | Where on the cabinet |
 |---|---|
-| Main program, encrypted | `/usr/local/bin/loader` (2013, the original `start`) |
-| Main program, cracked | `/usr/local/bin/start` (2021, plaintext, two checks patched) |
+| Main program, factory | `/usr/local/bin/start` from the installer discs (2013-08-30, plaintext) |
+| Main program, cracked | `/usr/local/bin/start` on the keyless disk image (2021, the same build with five key functions patched) |
+| Main program, encrypted | `/usr/local/bin/loader` (2013, an encrypted build of the loader, on both) |
 | I/O board firmware (8051 Intel-HEX) | `/usr/local/gamedata/config/*fx*data.dat` |
 | Board ID table used at boot | `/usr/local/gamedata/config/harddetect.xml` → `/var/merit/hardware.xml` |
 | Operator setup UI | `opsetup.so`, `sixstars.so`, `volumecontrol.so` (same code) |
@@ -20,8 +21,9 @@ Sources (all git-ignored, under `reference/loader/`; see [Reproducing](#reproduc
 
 ## The encrypted loader
 
-`.xinitrc` runs `/usr/local/bin/start`. The 2013 `start` (kept on the image as `loader`) is a
-2 KB stub with the real program appended:
+`.xinitrc` runs `/usr/local/bin/start`, which on the installer discs is a plaintext build. The
+software also carries `/usr/local/bin/loader`, an encrypted build: a 2 KB stub with the real
+program appended:
 
 - payload starts at file offset `0x1874`: one flag byte (1 = scrambled), then chunks of
   `u32 len, u32 unused, len bytes`;
@@ -34,10 +36,16 @@ Sources (all git-ignored, under `reference/loader/`; see [Reproducing](#reproduc
 non-PIE i386 ELF that exports its C++ symbols (`USBIO`, `usbioboard::USBIOBoard`,
 `KeyManager`, …), which is why the rest of this page has names.
 
-The 2021 `start` is the "Keyless" crack: a plaintext PIE build of the same program where
-`KeyManager::Check()` and `USBIO::USBConfirmKeyID(uchar)` are overwritten with
-`xor eax,eax; inc eax; ret`. `USBIO::FoundUSB()` is untouched, so **the cracked build still
-needs a working I/O board**; only the security key is bypassed.
+The disk image's 2021 `start` is the "Keyless" crack of the factory `start`.
+
+- **The patch:** 1,114 bytes in five functions. `KeyManager::Check()` and
+  `USBIO::USBConfirmKeyID(uchar)` return 1. `USBIO::USBReadKeyID` returns the fixed ROM ID
+  `8c14fc020040000e`. `USBIO::USBReadKeyData` returns 1. `USBIO::ReadDS1995KeyData` copies a
+  genuine 1 KB key block embedded at file offset `0x1AE408` instead of reading the board.
+- **Unchanged:** `USBIO::FoundUSB()`, so **the cracked build still needs a working I/O board**;
+  only the security key is bypassed.
+- **Everything else** is byte-identical to the factory build, so the analysis on these pages
+  applies to both. It was made on the 2021 build, `reference/loader/bin/start.2021`.
 
 ## The board
 
@@ -329,12 +337,15 @@ The front reader is the second 1-Wire bus. It accepts only family **0x02** (DS19
 
 ## Running the original program
 
-Done: `docs/guides/cabinet-loader.md` runs the cabinet's loader (the 2021 `start`, which needs the
-board but not the security key) unmodified, with a fake board built as `libusb-1.0.so.0` that
-implements everything above, a fake MicroTouch driver, OSS-to-PulseAudio sound and a nested X
-server. The original 2013 `loader` would additionally need a security-key image (`key.bin` for
-the fake board): `.kf` has the ROM IDs and `nvram.dat` the part number, but the 1 KB record with
-its option bytes and checksums is not on the image.
+Done: `docs/guides/cabinet-loader.md` runs the cabinet's loader unmodified, with a fake board
+built as `libusb-1.0.so.0` that implements everything above, a fake MicroTouch driver,
+OSS-to-PulseAudio sound and a nested X server.
+
+- **The factory `start`** from the installer discs needs the fake board to serve a security
+  key: `scripts/loader-key.sh` writes a `key.bin` with everything it checks (cabinet code,
+  per-game prices, languages, options), verified against the genuine block inside the keyless
+  build.
+- **The 2021 keyless `start`** runs with the same board.
 
 ## Reproducing
 

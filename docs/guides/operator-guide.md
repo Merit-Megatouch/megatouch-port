@@ -4,11 +4,11 @@ Everything you need to run a Megatouch ION (2014) cabinet on a PC: installing it
 the controls, Operator Setup, coins and keys, the game menu, MegaNet and TournaMAXX, settings
 and backups, and what to do when something goes wrong.
 
-What you get is the cabinet's own software, unmodified, from the cabinet's disk image: the
-attract loop, the game menus, Operator Setup, coins and credits, operator and player keys,
-every game, MegaNet and TournaMAXX. The cabinet hardware it expects (I/O board, touchscreen,
-security key, sound card, network port, monitor) is simulated. For how that works, see
-[cabinet-loader](cabinet-loader.md).
+What you get is the cabinet's own factory software, unmodified, from its original installer
+discs (or from a disk image of a used cabinet): the attract loop, the game menus, Operator
+Setup, coins and credits, operator and player keys, every game, MegaNet and TournaMAXX. The
+cabinet hardware it expects (I/O board, touchscreen, security key, sound card, network port,
+monitor) is simulated. For how that works, see [cabinet-loader](cabinet-loader.md).
 
 - [1. What you need](#1-what-you-need)
 - [2. Install (once)](#2-install-once)
@@ -35,8 +35,8 @@ security key, sound card, network port, monitor) is simulated. For how that work
 | | |
 | --- | --- |
 | **A PC** | Windows 10/11 with WSL2 (Windows Subsystem for Linux), or Ubuntu Linux. 64-bit Intel/AMD. A graphics card helps but is not required. |
-| **The cabinet disk image** | `Megatouch ION 2014 HDD Keyless.img` (60 GB). This project contains no cabinet software; everything is read from your image. It is only read, never changed. Other images need other partition offsets (see [troubleshooting](troubleshooting.md#setup)). |
-| **Disk space** | About 20 GB free inside Linux, besides the image. The image itself can stay on a Windows drive. |
+| **The cabinet's software** | One of: **the ION 2014 installer discs**, two CD images (`…V40_02T130830_1115_1OF2.iso`, `…_2OF2.iso`): the factory software and a factory-fresh cabinet. **Or the disk image** `Megatouch ION 2014 HDD Keyless.img` (60 GB): a used cabinet's disk, with a patched loader and that cabinet's settings, books and MegaNet registration. This project contains no cabinet software; your files are only read, never changed. |
+| **Disk space** | About 20 GB free inside Linux, besides the discs or image, which can stay on a Windows drive. |
 | **Internet** | During installation (Ubuntu packages are downloaded). Afterwards only for MegaNet. |
 
 ## 2. Install (once)
@@ -57,31 +57,33 @@ All commands below are typed in the Ubuntu window (or a terminal on a Linux box)
 
 ### 2.2 The installer
 
+With the installer discs:
+
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Merit-Megatouch/megatouch-port/main/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Merit-Megatouch/megatouch-port/main/scripts/install.sh) \
+  --disc "/mnt/e/Images/ION 2014 Disc 1 or 2 V40_02T130830_1115_1OF2.iso" \
+  --disc "/mnt/e/Images/ION 2014 Disc 2 of 2 V40_02T130830_1115_2OF2.iso"
 ```
 
-It installs the Ubuntu packages it needs (asks for your password), downloads the project to
-`~/megatouch-port`, asks where the disk image is and checks it, sets everything up (10–20
-minutes the first time, mostly downloads), and offers a shortcut: on the Windows desktop under
-WSL, in the applications menu on Linux. On a dedicated touchscreen box, add `--kiosk`
+Without `--disc` it asks where the disk image is instead, and checks it. Either way it:
+
+1. installs the Ubuntu packages it needs (asks for your password);
+2. downloads the project to `~/megatouch-port`;
+3. sets everything up (10–20 minutes the first time, mostly downloads);
+4. offers a shortcut: on the Windows desktop under WSL, in the applications menu on Linux.
+
+On a dedicated touchscreen box, add `--kiosk`
 ([section 16](#16-dedicated-touchscreen-box-kiosk-mode)).
 
-Windows drives appear under `/mnt/`: `E:\Images\x.img` is `/mnt/e/Images/x.img`.
+Windows drives appear under `/mnt/`: `E:\Images\x.iso` is `/mnt/e/Images/x.iso`.
 
-**From the original installer discs instead of the disk image:** the two ION 2014 installer CD
-images (`V40_02T130830_1115_1OF2.iso` and `…_2OF2.iso`) work too, and give the factory software,
-unmodified, and a factory-fresh cabinet:
+**First start from the discs:** a factory-fresh cabinet starts the way a new one did.
 
-```bash
-scripts/install.sh --disc "/mnt/e/Images/ION 2014 Disc 1 or 2 V40_02T130830_1115_1OF2.iso" \
-                   --disc "/mnt/e/Images/ION 2014 Disc 2 of 2 V40_02T130830_1115_2OF2.iso"
-```
-
-A factory-fresh cabinet starts the way a new one did: touchscreen calibration (touch *EXIT* on
-each screen), then the *Connection Wizard* (time zone, network, MegaNet; *Skip*, then ✕ to leave
-it), then the attract loop with factory settings (free play off, $1 = 6 credits; turn on Kids
-Club, TournaMAXX, languages and the rest in Operator Setup).
+1. Touchscreen calibration: touch *EXIT* on each screen.
+2. The *Connection Wizard* (time zone, network, MegaNet): *Next*, *Skip*, then ✕ and *Yes* to
+   leave it. Run it again later from *Network*.
+3. The attract loop, with factory settings: free play off, $1 = 6 credits. Turn on Kids Club,
+   TournaMAXX, player languages and the rest in Operator Setup ([section 6](#6-first-time-setup-checklist)).
 
 Already have the project? `scripts/install.sh` from inside it does the same. Running it again is
 safe: whatever is already done is skipped, and the cabinet's settings are never overwritten.
@@ -92,17 +94,22 @@ safe: whatever is already done is skipped, and the cabinet's settings are never 
 sudo apt install git gcc g++ make python3 python3-venv curl e2fsprogs binutils bubblewrap
 git clone https://github.com/Merit-Megatouch/megatouch-port ~/megatouch-port
 cd ~/megatouch-port
-echo 'IMG="/mnt/e/path/to/Megatouch ION 2014 HDD Keyless.img"' > cabinet.local.conf
+nano cabinet.local.conf   # the discs (or the image), see below
 make setup           # 32-bit runtime and compiler support
-make loader-setup    # copies the cabinet's software out of the image, downloads the display
-                     # and network helpers
+make loader-setup    # unpacks the cabinet's software, downloads the display and network helpers
+```
+
+`cabinet.local.conf` names your copy of the software:
+
+```bash
+DISC1="/mnt/e/Images/ION 2014 Disc 1 or 2 V40_02T130830_1115_1OF2.iso"
+DISC2="/mnt/e/Images/ION 2014 Disc 2 of 2 V40_02T130830_1115_2OF2.iso"
+# or: IMG="/mnt/e/path/to/Megatouch ION 2014 HDD Keyless.img"
 ```
 
 Keep the project in your Linux home folder (`~`), not under `/mnt/c` or `/mnt/e`: those are much
-slower. Keep the quotes around the image path: the file name has spaces.
-
-With the installer discs, put them in `cabinet.local.conf` instead of (or as well as) `IMG`:
-`DISC1="/mnt/e/…/…1OF2.iso"` and `DISC2="/mnt/e/…/…2OF2.iso"`; they win over the image.
+slower. Keep the quotes around the paths: the file names have spaces. With both set, the discs
+win.
 
 **Switching an existing install to the factory software** (an install made from the keyless
 image keeps its settings, books and MegaNet registration): stop the cabinet, add `DISC1`/`DISC2`
@@ -123,7 +130,9 @@ make loader-run
 
 A window titled **Megatouch ION (cabinet loader)** opens. The cabinet boots in about 20
 seconds (a little faster than the real one), shows the region warning, and then runs its attract
-loop. **Touch the screen** (click) to get the menu.
+loop. **Touch the screen** (click) to get the menu. (The very first start of a cabinet installed
+from the discs calibrates the touchscreen and runs the Connection Wizard first, see
+[section 2.2](#22-the-installer).)
 
 - **To stop**, close the window (or press Ctrl+C in the terminal). Everything shuts down with it.
 - The first start after an unclean stop may show *"Performing database maintenance"*: wait, it
@@ -171,7 +180,8 @@ The keys work while the cabinet's window has focus (click into it first).
 
 ## 6. First-time setup checklist
 
-Your cabinet starts with the settings that were on the image. A sensible first round:
+Installed from the discs, your cabinet starts with factory settings; from the disk image, with
+the settings its previous owner left. A sensible first round:
 
 1. **Operator key and PIN**: so setup isn't open to everyone ([section 9](#9-operator-and-player-keys)).
 2. **Free play or paid play**: *Credits/Pricing* ([section 8](#8-coins-credits-and-free-play)).
@@ -179,6 +189,9 @@ Your cabinet starts with the settings that were on the image. A sensible first r
 4. **Volume**: *System → Volume Control*.
 5. **Which games are in the menu**: *Games → Game Setup* ([section 10](#10-the-game-menu)).
 6. **MegaNet** if you want tournaments and updates ([section 11](#11-network-meganet-and-tournamaxx)).
+7. **Languages** players may pick, and the cabinet's country ([section 12](#12-game-options-and-the-licence)).
+8. From the discs: the categories and features that are off at the factory, such as Kids Club
+   (*Games → Options*) and Tournament Mode (*System → Options*).
 
 ## 7. Operator Setup at a glance
 
@@ -250,8 +263,9 @@ High-Res option is licensed and on, which it is with this project's key image
 
 ## 11. Network, MegaNet and TournaMAXX
 
-The cabinet has its own virtual **wired** network with internet access through your PC. The
-cabinet's settings from the image are for **wireless**, so set it up once:
+The cabinet has its own virtual **wired** network with internet access through your PC. Set it
+up once (a cabinet installed from the disk image was set up for **wireless**; one from the discs
+asked during its first start):
 
 1. **F1** → *Network* → *Connection Wizard* → *Next* (time zone) → *Skip* (MegaNet Core) →
    *Skip* (registration) → **Wired Ethernet** → **Wired Ethernet Network** →
@@ -302,6 +316,33 @@ scripts/loader-option.sh --list                          # every option, its val
 scripts/loader-option.sh ENABLE_SOUND_IN_IDLE_MODE 1     # set one (a backup is taken first)
 ```
 
+**Languages and region.** The licence also sets the cabinet's country and the languages it
+offers. The default is a factory US key:
+
+- **Available:** English, German, Italian, French, Spanish, Dutch, Latin-American Spanish,
+  Canadian French and Portuguese.
+- **For players:** the first eight of those.
+
+The software has 31 languages, among them Arabic, Japanese, Russian, Chinese, Korean, Greek and
+Turkish. To change them, add lines to `cabinet.local.conf`, then remake the licence with the
+cabinet stopped:
+
+```bash
+KEY_COUNTRY=UAE                       # scripts/loader-key.sh --countries lists them
+KEY_LANGUAGES="ENGLISH ARABIC"        # or all; scripts/loader-key.sh --languages lists them
+```
+
+```bash
+scripts/loader-key.sh --force         # then start the cabinet
+```
+
+1. **Languages:** the licence only *offers* languages. Which ones players may pick (up to
+   eight, shown as flags on the menu) is chosen in Operator Setup's language settings. Tick the
+   new ones there.
+2. **Country:** country-specific behaviour (the German books printer, for one) follows
+   `KEY_COUNTRY`.
+3. **Going back:** remove the lines and run `scripts/loader-key.sh --force` again.
+
 ## 13. Settings, backups and resets
 
 Everything the cabinet remembers (settings, books, high scores, keys, MegaNet registration,
@@ -313,7 +354,7 @@ tournaments) is in `build/loader/var/merit`.
 | Make one yourself | `make loader-backup` (or `scripts/loader-backup.sh before-changes` with a label) |
 | List them | `scripts/loader-backup.sh --list` |
 | Restore one | Stop the cabinet, then `make loader-restore BACKUP=<file name>`. The current state is kept aside, not deleted. |
-| Back to the image's original state | `make loader-reset` (takes a backup first) |
+| Back to the original state (factory, from the discs; or as on the image) | `make loader-reset` (takes a backup first) |
 
 Copy `build/loader/backups/` somewhere safe from time to time; it is not in git.
 
@@ -404,7 +445,7 @@ MEGA_LOADER_NET=lan MEGA_LOADER_VAR=$PWD/build/loader/cabinets/second MEGA_LOADE
 
 Each cabinet gets its own address on the network (10.0.2.15, .16, …); the last number is its
 MegaLink ID. Cabinets find each other on their own. Then start a linkable game on one; the others
-are invited to join. `new-cabinet.sh NAME --from-image` starts from the image's original state
+are invited to join. `new-cabinet.sh NAME --from-image` starts from the original state (factory, or the image's)
 instead, which needs the Connection Wizard (wired) once, like any fresh cabinet. Several separate
 networks: `MEGA_LOADER_NET=lan:NAME`.
 
@@ -468,7 +509,7 @@ Everything the cabinet does is logged in `build/loader/var/merit/fakeio/events.j
 
 | Path | What |
 | --- | --- |
-| `cabinet.local.conf` | Your image path, and your connector settings (§18) |
+| `cabinet.local.conf` | Your discs' (or image's) paths, the licence's country and languages (§12), your connector settings (§18) |
 | `build/loader/var.identity` | This cabinet's serial number and MegaNet ID |
 | `build/loader/cabinets/` | Extra cabinets (`scripts/new-cabinet.sh`), each with its own `.identity` |
 | `build/loader/lan/` | Cabinet networks: their switches' sockets and logs |
@@ -478,7 +519,7 @@ Everything the cabinet does is logged in `build/loader/var/merit/fakeio/events.j
 | `build/loader/var/merit/fakeio/events.jsonl` | What the cabinet did: coins, meters, games, lights … (§18) |
 | `build/loader/var/merit/fakeio/printouts/` | Books printouts (F4) |
 | `build/loader/var/merit/fakeio/hwbridge.log` | The hardware bridge's log (§18) |
-| `build/loader/root`, `ion`, `home` | The cabinet's software, copied from the image (read-only use) |
+| `build/loader/root`, `ion`, `home` | The cabinet's software, unpacked from the discs or the image (read-only use); `root.source` says which discs; `root.image` is a disk image's root kept after switching to the discs |
 | `build/loader/*.log` | Logs of the display and network helpers; `kiosk.log` in kiosk mode |
 
 Technical details (how the simulation works, every setting, environment variables):

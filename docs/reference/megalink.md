@@ -1,7 +1,8 @@
 # MegaLink: the wire protocol
 
 MegaLink is how Megatouch cabinets in one venue play each other ("Wired Game-to-Game"). This is
-what the 2014 ION loader (`start`, build 2021, program `PG3002-01 V40.02`) sends. It's taken
+what the 2014 ION loader (`start`, program `PG3002-01 V40.02`; the factory and keyless builds
+share this code) sends. It's taken
 from the code (Ghidra) and confirmed by a capture of a complete linked game of **11 Up** between
 two cabinets on one megalan (2026-10-10).
 

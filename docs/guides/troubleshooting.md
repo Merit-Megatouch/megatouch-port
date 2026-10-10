@@ -9,9 +9,26 @@ for the standalone game ports. For debugging a game you're porting, see [debuggi
 **`missing: debugfs`**, **`missing tool: bwrap`** (or another tool)
 : `sudo apt install e2fsprogs binutils gcc g++ make python3 python3-venv curl bubblewrap`.
 
-**`cabinet image not found: ''`**
-: Create `cabinet.local.conf` with `IMG="/full/path/to/the.img"`. Quote it, because the name
-  has spaces. Or put a snapshot at `./cabinet/`.
+**`set IMG (the disk image) or DISC1/DISC2 (the installer discs) in cabinet.local.conf`** / **`cabinet image not found: ''`**
+: Create `cabinet.local.conf` with `DISC1="/full/path/…1OF2.iso"` and `DISC2="…2OF2.iso"` (the
+  installer discs), or `IMG="/full/path/to/the.img"` (the disk image). Quote the paths, because
+  the names have spaces.
+
+**`DISC1: no such file`**
+: The path in `cabinet.local.conf` is wrong. Windows drives are under `/mnt`: `E:\Images` is
+  `/mnt/e/Images`. `ls "/mnt/e/Images"` shows the exact names.
+
+**`no partition image part5 on these discs`** / **`part6: volume(s) … missing: give all the discs`**
+: One disc is missing, or the discs are from different releases. ION 2014 needs both discs of
+  `V40_02T130830_1115`; `scripts/partimage.py info DISC1.iso DISC2.iso` shows what each disc holds.
+
+**`… checksum errors: the disc image is damaged`**
+: A volume on the disc doesn't match its built-in checksums (a bad rip or a truncated download).
+  Get a good copy of that disc; nothing is installed from a damaged one.
+
+**A factory-fresh cabinet is 4:3, without the sidebar**
+: `/var/merit/hardware.xml` is missing: `scripts/loader.sh` writes it when the cabinet starts
+  through `make loader-run`. Start it that way once.
 
 **`debugfs: Bad magic number in super-block`**
 : Wrong partition offset or wrong image. The offsets in `cabinet.conf` are for the
@@ -34,6 +51,14 @@ for the standalone game ports. For debugging a game you're porting, see [debuggi
 : It's much slower on `/mnt/c` or `/mnt/e`. Clone into the Linux home directory.
 
 ## Cabinet loader
+
+**The menu has no game categories, or only English** (factory loader)
+: The factory loader takes the games and languages it offers from the licence. Remake it with
+  `scripts/loader-key.sh --force` (cabinet stopped): keys made before 2026-10-10 lack the
+  per-game prices and languages. A boot with such a key also switches the games off in the
+  settings; restore the backup taken before it (`scripts/loader-backup.sh --list`), or put the
+  games back in *Games → Game Setup*. For new languages, tick them in Operator Setup's language
+  settings: the licence only offers them.
 
 **No sound, also in other Linux apps** (`pactl info` hangs or says `Connection failure: Timeout`)
 : WSLg's sound server has stopped responding. In PowerShell: `wsl --shutdown`, then reopen Ubuntu

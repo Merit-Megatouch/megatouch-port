@@ -1,12 +1,41 @@
-# The cabinet: image, partitions, files
+# The cabinet: discs, image, partitions, files
 
-Everything known about the `Megatouch ION 2014 HDD Keyless` disk image and where things live on
-it. Software version **PG3002-01 V40.02**.
+Everything known about the ION 2014 software's two forms, the original installer discs and the
+`Megatouch ION 2014 HDD Keyless` disk image, and where things live in them. Software version
+**PG3002-01 V40.02** (build `V40_02T130830_1115`, 2013-08-30).
+
+## The installer discs
+
+Two bootable CD images, `V40_02T130830_1115_1OF2.iso` and `…_2OF2.iso` (3.6 + 4.3 GB, ISO 9660
+with Joliet). Booting them runs a small Linux (`isolinux/vmlinuz`, `initrd` with the installer
+scripts in `/usr/local/bin/install_*` and the partition table in `install.xml`). The installer
+partitions the drive, formats swap, ion_only and var, and restores each other partition from a
+partimage image.
+
+| Disc path | Restored to | Size |
+| --- | --- | --- |
+| `lib/images/part1.gz.000` (disc 2) | bootloader | 10 MB |
+| `lib/images/part2.gz.000` (disc 1) | `/home` | 150 MB |
+| `lib/images/part5.gz.000–005` (disc 1) | `/` (root) | 4.75 GB |
+| `lib/images/part6.gz.000` (disc 1), `.001–.008` (disc 2) | `/usr/local/ion_only` | 8 GB |
+| `share/` (disc 1) | installer screens, `version.dat`, `upgrade.map` (which versions upgrade to which), install sizes | |
+
+`/var` starts empty. On the first boot `merit-checkfs` restores it from root's
+`/factorybackup/var.tar.gz` (and `/home` from `home.tar.gz`). An upgrade from an older version
+also creates `/var/merit/games/upgrade`, which runs `upgrade_manager` on the next boot.
+
+`scripts/partimage.py` reads the discs without booting them (format in the script);
+`make loader-setup` uses it when `DISC1`/`DISC2` are set
+([cabinet-loader → From the installer discs](../guides/cabinet-loader.md#from-the-installer-discs)).
+Other releases (ION 2008.5–2013, Force 2004–2011, Maxx) ship the same way.
 
 ## The image
 
 60 GB raw disk, MBR, GRUB legacy, **CentOS 5** (kernel 2.6.18-92.1.6.el5), **32-bit i386**.
-"Keyless" means the security-key check is patched out.
+
+**Keyless:** `/usr/local/bin/start` has the security-key reads patched out (1,114 bytes in five
+functions, dated 2021-07-25). Apart from that file, root, home and ion_only are the factory
+software from the discs, plus the previous owner's `/var` and leftovers of use.
 
 | # | Start sector | Size | Label | Mounted at | Contents |
 | --- | ---: | --- | --- | --- | --- |
@@ -29,8 +58,11 @@ Reading without root: `debugfs -R "<cmd>" "$IMG?offset=<bytes>"` with `ls -l`, `
 ## Expected hardware
 
 From `/var/merit/hardware.xml`: Intel 945GC graphics (`i845` driver), FX1 I/O board (coin mech,
-key switch), MicroTouch USB touch screen, Realtek r8168 NIC. X drivers: `intel`, `i810`,
-`fbdev`. None of it is needed for a port: we never boot the OS.
+key switch), MicroTouch USB touch screen, Realtek r8168 NIC, CML-190W widescreen monitor. X
+drivers: `intel`, `i810`, `fbdev`. The cabinet's `harddetect` writes this file at every boot; we
+never boot the OS, so `scripts/loader.sh` writes one describing the simulated hardware when it is
+missing (a factory-fresh `/var`). The cabinet reads the monitor from it: without it, it isn't
+widescreen.
 
 ## Directory map
 

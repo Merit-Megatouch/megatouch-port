@@ -1,16 +1,18 @@
 # megatouch-port documentation
 
-This project runs a Megatouch ION (2014) cabinet's own software, unmodified, on a PC (Linux or
-Windows with WSL2), with the cabinet's hardware simulated: menus, every game, Operator Setup,
-coins, keys, MegaNet and TournaMAXX. An older route, standalone ports of single games, is kept
-for development.
+This project runs a Megatouch ION (2014) cabinet's own factory software, unmodified, on a PC
+(Linux or Windows with WSL2), installed from the original installer discs (or a disk image), with
+the cabinet's hardware simulated: menus, every game, Operator Setup, coins, keys, languages,
+MegaNet and TournaMAXX. An older route, standalone ports of single games, is kept for
+development.
 
 ## Start here
 
 | I want to… | Read |
 | --- | --- |
 | **Run a cabinet on my PC and look after it** | [Operator guide](guides/operator-guide.md) |
-| Install from scratch, step by step | [Quick start](guides/quick-start.md) |
+| Install from scratch, step by step (installer discs or disk image) | [Quick start](guides/quick-start.md) |
+| Change the cabinet's languages or country | [Operator guide §12](guides/operator-guide.md#12-game-options-and-the-licence) |
 | Fix something that doesn't work | [Troubleshooting](guides/troubleshooting.md) |
 | Know how the cabinet is simulated | [Cabinet loader](guides/cabinet-loader.md), [I/O board](reference/io-board.md) |
 | Connect real lights, coin acceptors, buttons, keys, home automation | [Connectors](guides/connectors.md) |
@@ -24,10 +26,10 @@ for development.
 
 | Guide | Contents |
 | --- | --- |
-| [operator-guide](guides/operator-guide.md) | Install, start/stop, the window, controls, first-time setup, Operator Setup map, coins and free play, operator and player keys, the game menu, network/MegaNet/TournaMAXX, game options, backups, updating, problems |
-| [quick-start](guides/quick-start.md) | WSL, packages, clone, image path, `make setup`, `make loader-setup`, first run |
+| [operator-guide](guides/operator-guide.md) | Install (discs or image), start/stop, the window, controls, first-time setup, Operator Setup map, coins and free play, operator and player keys, the game menu, network/MegaNet/TournaMAXX, game options, languages and country, backups, updating, kiosk mode, linked cabinets, connectors, problems |
+| [quick-start](guides/quick-start.md) | WSL, packages, clone, disc or image paths, `make setup`, `make loader-setup`, first run (including a factory-fresh first start) |
 | [troubleshooting](guides/troubleshooting.md) | Setup and cabinet problems with fixes; then the standalone ports |
-| [cabinet-loader](guides/cabinet-loader.md) | How the cabinet runs: every stand-in and compatibility fix, network, licence key and options, backups, settings |
+| [cabinet-loader](guides/cabinet-loader.md) | How the cabinet runs: every stand-in and compatibility fix, the installer discs (and how the keyless image differs), network, licence key and options, backups, settings |
 | [connectors](guides/connectors.md) | The hardware bridge: event feed, commands, MQTT, webhooks, WLED, input devices, GPIO, iButton reader, light show, books printer |
 | [porting-a-game](guides/porting-a-game.md) | Standalone ports: scaffold → stand-ins → first run → play-through → commit, worked through on Word Dojo 2 |
 | [debugging](guides/debugging.md) | Standalone ports: symptom → tool table; crash traces, screenshots, sound, profiler |
@@ -41,17 +43,17 @@ for development.
 | [architecture](reference/architecture.md) | Components, startup sequence, frame loop, file, image and sound data flow, repo layout |
 | [engine-abi](reference/engine-abi.md) | Classes, sizes, field offsets, vtable slots; which slots our backend fills; adding a class |
 | [loader-services](reference/loader-services.md) | Every loader stand-in with behaviour and the game that needed it; what unported games still need |
-| [cabinet](reference/cabinet.md) | Disk image partitions, directory map, gamedata.xml, settings.xml, GameIds, engine libraries |
+| [cabinet](reference/cabinet.md) | The installer discs (layout, partimage images, first boot) and the disk image (partitions, keyless patch), directory map, hardware.xml, gamedata.xml, settings.xml, GameIds, engine libraries |
 | [legacy](reference/legacy.md) | The legacy route: reconstructed loader API, `.dlt` delta animations, touch zones, next games |
 | [unity](reference/unity.md) | The Unity route: shared player, game folder layout, launcher.xml keys, sound shim, cabinet .NET code |
 | [file-formats](reference/file-formats.md) | `.spr` (fully decoded), images, sound, layouts, fonts, translations |
 | [known-bugs](reference/known-bugs.md) | Open issues; every bug fixed so far by category; diagnosing a new crash |
 | [games](reference/games.md) | All 194 cabinet games: GameId, library, family, resolution, port status *(generated: `make docs`)* |
 | [gamedevice-survey](reference/gamedevice-survey.md) | Each GameDevice game's missing loader symbols, easiest first *(generated: `make survey`)* |
-| [io-board](reference/io-board.md) | USB I/O board protocol (including the light show and books printer), encrypted loader, security key (licence, option values, the key image) and operator fob (iButton) formats |
+| [io-board](reference/io-board.md) | USB I/O board protocol (including the light show and books printer), encrypted loader, the keyless patch, security key (full layout: options, game prices, languages, country, pricing; the key image) and operator fob (iButton) formats |
 | [cabinet-software](reference/cabinet-software.md) | The loader's internals: start-up and processes, how games run, game and screen IDs, hardware from the loader's side, light show, books printer, NVRAM, identity, MegaNet, MegaLink, debug flags, logging, open questions |
 | [events](reference/events.md) | The event log (`events.jsonl`): every event type and field |
-| [options](reference/options.md) | The 120 game options: index, name, the image's value, our key's licence |
+| [options](reference/options.md) | The 120 game options: index, name, the disk image's value, our key's licence |
 | [cabinet-state](reference/cabinet-state.md) | Where the cabinet keeps its state: the NVRAM map, the encrypted databases (schemas, `dbdump`), the settings files |
 | [meganet](reference/meganet.md) | The MegaNet exchange: hosts, registration check, the POST session, every table, error codes; enough to write a server |
 | [megalink](reference/megalink.md) | The MegaLink wire protocol: discovery, challenges, the TCP game link, packet formats, a linked game step by step |
