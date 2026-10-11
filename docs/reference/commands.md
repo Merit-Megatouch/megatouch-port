@@ -230,7 +230,7 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 | `MEGAVIEW_FULLSCREEN=1` | Start fullscreen (F11 / Alt+Enter toggle it anyway) |
 | `MEGAVIEW_STRETCH=1` | Stretch instead of keeping the cabinet's shape (Ctrl+Alt+S toggles) |
 | `MEGAVIEW_SCALE=<n>` | Initial window size: n × the cabinet's resolution (default 2 for 640×480) |
-| `MEGAVIEW_HIDE_CURSOR=1` | Hide the mouse pointer (touchscreens) |
+| `MEGAVIEW_HIDE_CURSOR=1` | Hide the mouse pointer (touchscreens). Under WSLg the window then uses SDL's Wayland driver, the only way the pointer really disappears there (`SDL_VIDEODRIVER=x11` overrides) |
 | `MEGAVIEW_ALIVE=<file>` | Touch this file every few seconds while the picture changes (kiosk hang detection) |
 | `MEGAVIEW_STATS=1` | Per-frame grab / upload / draw times in `build/loader/megaview.log` |
 | `MEGAVIEW_DEBUG=1` | Log mouse buttons as sent to the cabinet |

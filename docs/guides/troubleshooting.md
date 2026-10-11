@@ -133,6 +133,15 @@ for the standalone game ports. For debugging a game you're porting, see [debuggi
 : `loader-option.sh` and `loader-backup.sh --restore` only change settings while the cabinet is
   stopped. Close its window first.
 
+**A see-through mouse pointer stays on the screen (WSL, touchscreen)**, even with the pointer
+hidden in the touchscreen driver and in Windows
+: Old viewer: under WSLg a pointer hidden through X11 is still sent to Windows as an invisible
+  cursor image, which Windows keeps drawing. Update (`make update`, or `git pull` then
+  `make loader`): with the pointer hidden (`KIOSK_HIDE_CURSOR=1`, the kiosk default, or
+  `MEGAVIEW_HIDE_CURSOR=1`) the window now uses Wayland, where there is no pointer at all.
+  `build/loader/megaview.log` shows `wayland video` when it does. `SDL_VIDEODRIVER=x11` brings
+  back the old way. A hidden-pointer window has no title bar outside fullscreen.
+
 **Kiosk: the cabinet keeps coming back after closing it**
 : That's kiosk mode: anything but **Ctrl+Alt+End** counts as a crash. Or run `make kiosk-stop`
   from a terminal or over SSH.

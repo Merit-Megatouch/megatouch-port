@@ -14,7 +14,8 @@
  * quit (exit status 42: kiosk mode stops instead of restarting). Everything else goes to the
  * cabinet. Closing the window ends the loader (scripts/loader.sh).
  * Settings: MEGAVIEW_XTST (path of a libXtst.so.6), MEGAVIEW_STRETCH=1, MEGAVIEW_SCALE (initial
- * window scale, default 2 for 640x480), MEGAVIEW_FULLSCREEN=1, MEGAVIEW_HIDE_CURSOR=1 (touchscreens),
+ * window scale, default 2 for 640x480), MEGAVIEW_FULLSCREEN=1, MEGAVIEW_HIDE_CURSOR=1 (touchscreens; on
+ * WSLg it also picks SDL's Wayland driver, where a hidden pointer is really gone),
  * MEGAVIEW_ALIVE=<file> (touched every few seconds while the picture changes: scripts/cabinet.sh
  * uses it to spot a frozen cabinet).
  *
@@ -171,6 +172,12 @@ int main(int argc, char **argv) {
     /* the window */
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
     SDL_SetHint(SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR, "0");
+    int hide_cursor = getenv("MEGAVIEW_HIDE_CURSOR") && *getenv("MEGAVIEW_HIDE_CURSOR") == '1';
+    /* A hidden pointer through X11 (XWayland) is an invisible cursor image, which WSLg still hands
+     * to Windows as a pointer: a see-through pointer stays on a touchscreen. Through Wayland,
+     * hiding sets no cursor at all, so Windows hides it. Prefer Wayland then (X11 if it fails). */
+    if (hide_cursor && getenv("WAYLAND_DISPLAY") && !getenv("SDL_VIDEODRIVER"))
+        SDL_SetHint(SDL_HINT_VIDEODRIVER, "wayland,x11");
     if (SDL_Init(SDL_INIT_VIDEO) != 0) { fprintf(stderr, "[megaview] %s\n", SDL_GetError()); return 1; }
     XID r; int gx, gy; unsigned w = 640, h = 480, bw, dep;
     XGetGeometry_(nd, nroot, &r, &gx, &gy, &w, &h, &bw, &dep);
@@ -185,8 +192,9 @@ int main(int argc, char **argv) {
     XSetErrorHandler_(on_x_error);     /* again: SDL may have installed its own */
     SDL_RendererInfo ri;
     SDL_GetRendererInfo(ren, &ri);
-    fprintf(stderr, "[megaview] %s -> window (%s renderer, %s)\n", ndisp, ri.name, use_shm ? "MIT-SHM" : "XGetImage");
-    SDL_ShowCursor(getenv("MEGAVIEW_HIDE_CURSOR") && *getenv("MEGAVIEW_HIDE_CURSOR") == '1' ? SDL_DISABLE : SDL_ENABLE);
+    fprintf(stderr, "[megaview] %s -> window (%s video, %s renderer, %s)\n", ndisp, SDL_GetCurrentVideoDriver(),
+            ri.name, use_shm ? "MIT-SHM" : "XGetImage");
+    SDL_ShowCursor(hide_cursor ? SDL_DISABLE : SDL_ENABLE);
     const char *alive = getenv("MEGAVIEW_ALIVE");
     Uint32 alive_at = 0;
     int stretch = getenv("MEGAVIEW_STRETCH") && *getenv("MEGAVIEW_STRETCH") == '1';
