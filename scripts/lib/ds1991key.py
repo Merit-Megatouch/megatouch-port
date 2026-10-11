@@ -49,8 +49,11 @@ def make():
     d1[0] = 0                                     # NJ exception number
     d1[1] = d1[2] = 0x08                          # Champion Edition cost (and the u16 at +0x11)
     d1[3:7] = struct.pack('>I', (0x9F - 1) // 2)  # language mask (big-endian, mask = v * 2 + 1)
-    for ch in range(6):                           # coin channels at +0x17: credits per pulse
-        d1[7 + ch * 4] = 1
+    # coin channels at +0x17, 4 bytes each: coins, credits, meter pulses (SetupCoinDefaultsFromKey;
+    # SetupCreditPulseWeights: credits per coin = credits / coins). The channels are the scratchpad's
+    # currencies 25c, 50c, $1, $5, $10, $20; one credit = 25c, one meter pulse per credit.
+    for ch, credits in enumerate((1, 2, 4, 20, 40, 80)):
+        d1[7 + ch * 4:10 + ch * 4] = bytes((1, credits, credits))
     d1[0x27] = 0                                  # lockout value
     d1[0x28:0x30] = CABINET_CODE
 
@@ -94,6 +97,8 @@ def show(img):
     print('cabinet code', d1[0x28:0x30].hex(), 'languages', hex(struct.unpack('>I', d1[3:7])[0] * 2 + 1),
           'locale', d2[0x20:0x2A].split(b'\0')[0].decode(errors='replace'), 'country', d2[0x2E],
           'price', d2[0x2A])
+    print('coins', ' '.join('%s=%d/%d' % (sc[i * 8:i * 8 + 5].split(b'\0')[0].decode(errors='replace'), d1[8 + i * 4], d1[7 + i * 4] or 1)
+                            for i in range(6)), '(credits/coins)')
     print('currencies', ' '.join(sc[i * 8:i * 8 + 5].split(b'\0')[0].decode(errors='replace') for i in range(6)))
 
 

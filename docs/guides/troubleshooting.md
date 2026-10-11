@@ -247,8 +247,10 @@ the factory state.
   CABINET=maxx` (cabinet stopped): the next start makes a new key and builds the menu again.
 
 **F5–F8 give no credits**
-: Coins aren't supported on the Maxx yet. Give credits with *Operator Setup → Credits/Pricing →
-  Free Credits* (one per press).
+: A Maxx installed before 2026-10-11's coin fix: its key gave the coins no credit value, and the
+  cabinet keeps the coin settings it started with. `make loader-reset CABINET=maxx` (cabinet
+  stopped; copy `build/maxx/var` first to keep anything): the next start makes a new key and takes
+  its coin values.
 
 **TournaMAXX: "NO MODEM DETECTED"**
 : Old stand-ins: `make loader`, and start with `make loader-run CABINET=maxx`.

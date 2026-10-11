@@ -610,9 +610,9 @@ make loader-run CABINET=maxx      # the window is titled "Megatouch Maxx"
 Then the menu ("Welcome to Merit NTOUCH"): Puzzles, Cards, Quiz & Word, Strategy, Kids Club, Mega
 Sports and New Games 2006, in English (the flags switch language).
 
-**Controls:** as on the ION (§5): **F1** Operator Setup, F11 fullscreen. **Coins (F5–F8) don't
-register on the Maxx yet**; until they do, give credits in Operator Setup: *Credits/Pricing →
-Free Credits* (one credit per press). The game fills the window at 640×480.
+**Controls:** as on the ION (§5): **F1** Operator Setup, F11 fullscreen, **F5–F8** coins: 25¢,
+50¢, $1 and $5, at 25¢ a credit (games cost $0.50, 2 credits). *Credits/Pricing → Free Credits*
+in Operator Setup adds one credit per press. The game fills the window at 640×480.
 
 **The licence** is made on the first start: every game of the release, the factory options,
 English first. It is the older DS1991 key: `scripts/loader-key.sh --show` with
@@ -634,6 +634,6 @@ After *Update From Server* the main menu gets a TournaChamp category and TournaM
 **Back to factory:** `make loader-reset CABINET=maxx` (cabinet stopped). `make loader-backup` only
 covers the ION cabinet: to keep the Maxx's state, copy `build/maxx/var` while it is stopped.
 
-Not working yet: coins. Not tried yet: playing through games, operator keys; the other Maxx discs (Jade 2 has the
+Not tried yet: playing through games, operator keys; the other Maxx discs (Jade 2 has the
 same layout; Sapphire, Ruby and the DOS releases don't). Problems: [troubleshooting → Maxx
 cabinet](troubleshooting.md#maxx-cabinet). How it works: [maxx](../reference/maxx.md).

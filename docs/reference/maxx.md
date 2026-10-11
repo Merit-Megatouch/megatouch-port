@@ -11,9 +11,23 @@ fake board serves, with correct colours and sound, in English, with the categori
 Quiz & Word, Strategy, Kids Club, Mega Sports and New Games 2006, and it dials in for TournaMAXX
 through a fake modem (the server it reaches no longer speaks its protocol; see
 [TournaMAXX](#tournamaxx-dial-up)). Not checked yet: playing games. On the main screen "General Help" and the credits label
-overlap at the top right. **Coins don't register yet:** the fake board answers the older board's
-I/O poll (command 6) with the ION's 15 status bytes; the setup button lands where Crown looks,
-the coin counters don't (Crown's poll layout is still to be worked out).
+overlap at the top right. Coins work (below: [coins](#coins)).
+
+## Coins
+
+The older board's poll (command 6) returns 15 status bytes, copied to the `USBIO` object at
+`+0x369` (`USBDoIO`) and read by `FUN_08284eb0`: bytes 0–5 = coins on channels 1–6 since the last
+poll (bits 0–6) and a jam bit (0x80); byte 8 = the switches, inverted (SETUP …); bytes 9, 10, 13 more
+inputs. The fake board's ION layout already matches. A channel counts only while its jam timer
+(`0x087a567c`, 495 polls) runs, which it does once the coin inputs have been quiet for 330 polls.
+
+Each coin is worth `CreditsPerCoin[ch]` = credits / coins from the key (`SetupCreditPulseWeights`):
+subkey 1 `+0x17 + 4·ch` holds coins, credits, meter pulses (and one more byte) per channel, the
+channel's currency being scratchpad entry *ch* (25¢, 50¢, $1, $5, $10, $20). Our first keys had
+only the coins byte, so every coin was worth 0 credits (and `IntICoins` went to −2³¹).
+`ds1991key.py` now writes 1, 2, 4, 20, 40, 80 credits (one credit = 25¢) and as many meter pulses.
+The cabinet copies these into NVRAM with its defaults (`SetupCoinDefaultsFromKey`, at first start
+and from `Tournament_Start`), so an existing install keeps zero-value coins until reset.
 
 ## The discs and the system
 
@@ -209,7 +223,8 @@ from `0x1B48`) or, without USB, bit-banged directly (`ReadKeyData`).
   code `87 23 87 9F E2 43 24 98` (+1 on the first byte if a hardware flag in subkey 3 `+0x2C`
   disagrees with the platform, or for high-bit characters in a subkey 2 string; −0x11 on the
   last byte is also accepted).
-- **Read elsewhere:** subkey 1 = `DallasKeyP1` (coin defaults at `+0x17`, 6 × 4 bytes),
+- **Read elsewhere:** subkey 1 = `DallasKeyP1` (coin channels at `+0x17`, 6 × 4 bytes: coins,
+  credits, meter pulses; [coins](#coins)),
   subkey 2 = `DallasKeyP2` (prices: a list at `+0x10`, defaults at `+0x2F`/`+0x3A`), subkey 3 =
   `DallasKeyP3`, scratchpad = `DallasKeyScratch` (six 8-byte currency entries: name, value at
   `+5`). About 155 functions read the pages; the rest of the layout is still to be mapped.

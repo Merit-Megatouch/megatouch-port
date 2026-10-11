@@ -115,8 +115,8 @@ cabinet started with `MEGA_TMAXX_SERVER=<this PC's IP address>:17751`, gets a te
 (F1 → *TournaMAXX* → *Update From Server*).
 
 Tried so far: from the discs to the menu, the licence, colours and sound, Operator Setup, the
-TournaMAXX call and a tournament from the included server. **Coins don't register yet** (F1 →
-*Credits/Pricing* → *Free Credits* gives credits). Not tried yet: playing through games, operator keys. Only Crown has been tried: Jade 2 (V15.10) has the same disc layout, Sapphire and
+TournaMAXX call and a tournament from the included server, coins (F5–F8: 25¢, 50¢, $1, $5; one
+credit = 25¢). Not tried yet: playing through games, operator keys. Only Crown has been tried: Jade 2 (V15.10) has the same disc layout, Sapphire and
 Ruby use older layouts, Diamond, Emerald and earlier are DOS. Details: [operator guide
 §21](docs/guides/operator-guide.md#21-a-maxx-cabinet-2005-crown), [the Maxx's software](docs/reference/maxx.md).
 
@@ -140,7 +140,7 @@ Ruby use older layouts, Diamond, Emerald and earlier are DOS. Details: [operator
 | Real hardware and services | coin acceptors, buttons, GPIO, a real iButton reader, relays for meters and lockout, MQTT / Home Assistant, webhooks, WLED lights ([connectors](docs/guides/connectors.md)) |
 | Linked cabinets (MegaLink) | yes on one PC (a full linked game played); PCs joined over a LAN or the internet share a network and find each other (experimental) ([guide](docs/guides/operator-guide.md#17-linked-cabinets-megalink-experimental)) |
 | Force 2011 (the cabinet before the ION), from its installer disc | yes: menus, Operator Setup, licence, network and MegaNet/TournaMAXX registration with a community server; games not yet played through ([above](#the-force-2011)) |
-| Maxx Crown (2005, the cabinet before the Force), from its three installer discs | partly: menus in English with every game licensed, colours, sound, Operator Setup; TournaMAXX dials in through an emulated modem and works with the included server, not with the community one; coins not yet; games not yet played through ([above](#the-maxx-2005-crown)) |
+| Maxx Crown (2005, the cabinet before the Force), from its three installer discs | partly: menus in English with every game licensed, colours, sound, Operator Setup; coins and credits; TournaMAXX dials in through an emulated modem and works with the included server, not with the community one; games not yet played through ([above](#the-maxx-2005-crown)) |
 | Other years' installer discs (ION 2008.5–2013, Force 2004–2010.5, other Maxx releases) | ION, Force and Maxx Jade 2: same disc format, not tried yet; older Maxx releases: other formats ([every disc](docs/reference/cabinet.md#every-installer-disc-as-seen-2026-10-11)) |
 | Credit card reader, TouchTunes / Rowe jukebox links | no (the services behind them are gone) |
 | Dial-up modem | emulated for the Maxx's TournaMAXX call only |

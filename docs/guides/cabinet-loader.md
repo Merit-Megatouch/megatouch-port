@@ -340,8 +340,8 @@ refuses that port, so the call ends with "SERVER NOT RUNNING". `scripts/tmaxx-se
 Verified (2026-10-11): Crown from its discs to the menu through `make loader-setup` and
 `make loader-run CABINET=maxx`; the licence (every game); colours; sound; Operator Setup; the
 TournaMAXX call; a tournament from the included server shown to players; F1 opens Operator
-Setup. **Coins don't register yet** (the older board's I/O poll layout isn't emulated: the fake
-board answers with the ION's). Not yet tried: games, operator keys.
+Setup; coins (F5–F8 = 25¢, 50¢, $1, $5: the key's coin channels give 1, 2, 4, 20 credits). Not yet
+tried: games, operator keys.
 
 ## How it works
 
