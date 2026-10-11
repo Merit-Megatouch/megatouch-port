@@ -7,9 +7,10 @@ what is known so far. The discs of the whole line are listed in
 
 **Status (2026-10-11):** it runs as a Force (`MEGA_LOADER_CABINET=build/maxx`, a tree unpacked by
 hand; `make loader-setup` doesn't build Maxx yet) to its main menu, with a DS1991 key image the
-fake board serves, with correct colours and sound. Not right yet: only Puzzles, Quiz & Word and
-Kids Club appear, and the default language comes out German (the key's default-language byte is
-one off for this release).
+fake board serves, with correct colours and sound, in English, with the categories Puzzles, Cards,
+Quiz & Word, Strategy, Kids Club, Mega Sports and New Games 2006. Not checked yet: playing games,
+coins, Operator Setup, the network. On the main screen "General Help" and the credits label
+overlap at the top right.
 
 ## The discs and the system
 
@@ -133,8 +134,8 @@ from `0x1B48`) or, without USB, bit-banged directly (`ReadKeyData`).
   `KeyManager` reads legacy keys the same way (P1/P2/P3 at `+0x3F0`/`+0x430`/`+0x470`), so its legacy
   branches name fields: NJ exception P1+0x10, Champion Edition cost P1+0x11, language mask P1+0x13
   (Crown: big-endian, `mask = v·2 + 1`), lockout P1+0x37, cabinet code P1+0x38, ID 2 = date
-  `MM/DD/YY`, default language P2+0x2E, prices P2+0x2F/0x3A/0x3B, locale P2+0x30 (10 chars), country
-  P2+0x3E, ID 3 = revision; options: option *i* at legacy position `LEGACY[i]` (2-bit codes in
+  `MM/DD/YY`, default language P2+0x2E, prices P2+0x2F/0x3A/0x3B, locale P2+0x30 (10 chars; "NJ…" New
+  Jersey rules, "KIDZPACE" the kids' version), country P2+0x3E (0 USA; many places test it), ID 3 = revision; options: option *i* at legacy position `LEGACY[i]` (2-bit codes in
   subkey 3 data bytes 0–15, single bits from data byte 0x10; table in `scripts/lib/ds1991key.py`).
 - **Checked at start** (`FUN_0823ff40`): ID 1 starts `SA`; ID 2's last two characters are `0`/`9`
   and a digit `0`–`5` or `9`; ID 3 starts `R`; subkey 1's data bytes `0x28–0x2F` are the cabinet
@@ -145,6 +146,13 @@ from `0x1B48`) or, without USB, bit-banged directly (`ReadKeyData`).
   subkey 2 = `DallasKeyP2` (prices: a list at `+0x10`, defaults at `+0x2F`/`+0x3A`), subkey 3 =
   `DallasKeyP3`, scratchpad = `DallasKeyScratch` (six 8-byte currency entries: name, value at
   `+5`). About 155 functions read the pages; the rest of the layout is still to be mapped.
+- **Games:** game *N* is licensed by bit `0x80 >> N % 8` of P3 `+0x24 + N / 8`
+  (`SetGamePriceAndStatusFromKey`; status 3 = on, 0 = off; games flagged 0x40 in their game data
+  also need `ForceChk1`). This release has 195 game IDs (0 `sol` … 193 `sportsmerithon`, 194 the
+  menu), so the bits run to P3+0x3C; the Force flag at P3+0x2C bit 3 is game 68's bit as well. With
+  no game bits only Puzzles, Quiz & Word and Kids Club had anything to show.
+- **Default language:** P2+0x2E is a language index for `InxToLang` (0 = English; the ION reads the
+  same byte minus 1).
 
 ## Open questions
 

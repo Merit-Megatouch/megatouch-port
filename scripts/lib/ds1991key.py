@@ -55,7 +55,7 @@ def make():
     d1[0x28:0x30] = CABINET_CODE
 
     id2, d2 = b'08/30/05', bytearray(48)          # page 2: ID = the key's date
-    d2[0x1E] = 1                                  # default language + 1 (English)
+    d2[0x1E] = 0                                  # default language: an index (InxToLang), 0 = English
     d2[0x1F] = 2                                  # price of the games at +0x2F
     d2[0x20:0x2A] = b'USA-STD'.ljust(10, b'\0')   # locale (+0x30; "NJ…" = New Jersey rules)
     d2[0x2A] = d2[0x2B] = 2                       # default price
@@ -68,6 +68,12 @@ def make():
             d3[pos // 4] |= (v & 3) << ((3 - pos % 4) * 2)
         elif v & 1:
             d3[0x10 + (pos - 64) // 8] |= 0x80 >> (pos % 8)
+    # games licensed: bit 0x80 >> id % 8 of P3 + 0x24 + id / 8 (SetGamePriceAndStatusFromKey); the
+    # 2005 software has 195 game IDs. Byte 0x1C of these (P3 + 0x2C) also holds the Force hardware flag
+    # (bit 3), which FUN_0823ff40 compares with ForceChk1: set too.
+    GAMES = 195
+    for g in range(GAMES):
+        d3[0x14 + g // 8] |= 0x80 >> (g % 8)
     d3[0x1C] |= 0x08                              # Force hardware (ForceChk1 agrees)
 
     sc = bytearray(64)                            # currencies: name, value from its digits
