@@ -124,7 +124,7 @@ CONNECT, DNS through slirp, `us0.accessmerit.com` → 198.46.150.234 (today the 
 `us.oerinet.net` host), then **connection refused on 17751**: that server only has ports 80 and 443,
 for the ION/Force MegaNet exchange (HTTPS, text tables; [meganet](meganet.md)). The 2005 protocol
 is a binary packet exchange (`CTournamaxxSocket::Process_*_Request`, `CPointToPointSocket`), so
-TournaMAXX for this release needs a server that speaks it (none known running today).
+TournaMAXX for this release needs a server that speaks it. None is known to be running today; the community server's operator, asked on 2026-10-11, knows nothing about the Maxx protocol.
 
 ## Databases
 
