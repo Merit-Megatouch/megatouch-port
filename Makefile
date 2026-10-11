@@ -46,7 +46,7 @@ GENDEF_SRC  := $(wildcard src/gendef/*.cpp)
 GENDEF_OBJ  := $(GENDEF_SRC:src/%.cpp=$(OUT)/%.o)
 HEADERS     := $(wildcard src/*/*.h)
 
-.PHONY: loader loader-setup loader-run loader-reset loader-backup loader-restore kiosk kiosk-stop update all build setup new run analyze decompile package snapshot games publish stubs docs survey clean help
+.PHONY: loader loader-setup loader-run loader-reset loader-backup loader-restore kiosk kiosk-stop update all build setup new run analyze decompile package snapshot games publish stubs docs survey clean help report
 all: build
 
 # Empty stand-ins for the cabinet's other backend libraries: some games list them as
@@ -173,6 +173,10 @@ LOADER  := $(LB)/libusb-1.0.so.0 $(LB)/libTwDrvFifo.so $(LB)/startfix.so $(LB)/c
 I386EXE := -Wl,--dynamic-linker=/lib/ld-linux.so.2
 
 loader: $(LOADER)
+# collect logs and system details for a problem report (scripts/report.sh)
+report:
+	@scripts/report.sh
+
 loader-setup:
 	scripts/loader-setup.sh
 loader-run: loader

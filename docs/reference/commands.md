@@ -34,6 +34,7 @@ the game's DLLName, for example `g_trix`.
 | `make loader` | Build the loader's stand-ins into `build/loader/bin/` | seconds |
 | `make loader-run [CABINET=force\|maxx]` | Build the stand-ins and run the cabinet in a scalable window (F11 fullscreen); `CABINET=force` runs the Force cabinet in `build/force`, `CABINET=maxx` the Maxx in `build/maxx` | — |
 | `make loader-reset [CABINET=force\|maxx]` | Restore the loader's `/var` from `build/loader/var.orig` (backed up first); with `CABINET=force` or `maxx`, that cabinet's from its own `var.orig` (no backup) | seconds |
+| `make report` (`scripts/report.sh`) | One file for a problem report, `build/report-<date>.tar.gz`: every cabinet's logs, its view of its network, system details (OS, WSL, kernel, AppArmor, sandbox) and the sandbox network test; no game data, books or licence, passwords in `cabinet.local.conf` blanked | seconds |
 | `make loader-backup` / `make loader-restore BACKUP=<file>` | Snapshot / restore the loader's `/var/merit` (`build/loader/backups`) | seconds |
 | `scripts/loader-option.sh --list` / `NAME 0\|1` | Show / set the loader's game options (loader stopped) | seconds |
 | `scripts/loader-menu.sh --list` / `--missing` / `--fill` / `add GAME CAT` / `remove GAME` | The ION's game menu: show it, licensed games on no page, place them (loader stopped) | seconds |

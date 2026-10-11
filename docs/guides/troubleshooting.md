@@ -4,6 +4,12 @@ Problems you might hit while setting up or running the cabinet, and what to do a
 The [cabinet loader](#cabinet-loader) section is the one operators need; the sections after it are
 for the standalone game ports. For debugging a game you're porting, see [debugging](debugging.md).
 
+**Reporting a problem:** run `make report` (or `scripts/report.sh`). It writes one file,
+`build/report-<date>.tar.gz`, with the logs of every cabinet (kiosk, console, update, network,
+window), the cabinet's view of its network, system details (Ubuntu or WSL version, kernel,
+AppArmor, sandbox) and a test of the sandbox's network. It holds no game data, books or licence,
+and `cabinet.local.conf` goes in with passwords and tokens blanked. Attach that file to the report.
+
 ## Setup
 
 **`missing: debugfs`**, **`missing tool: bwrap`** (or another tool)
@@ -114,6 +120,15 @@ for the standalone game ports. For debugging a game you're porting, see [debuggi
 **Where's all the output?**
 : The terminal leaves out known-harmless lines. `build/loader/console.log` (previous run:
   `console.log.1`) has everything; `MEGA_LOADER_VERBOSE=1 make loader-run` shows everything.
+
+**`sandbox check: the cabinet's sandbox can't set up its network`** (at start or at the end of
+`make loader-setup`), or no network at all on Ubuntu 23.10 or later (not WSL)
+: Ubuntu's AppArmor lets the sandbox start but takes away its network rights
+  (`kernel.apparmor_restrict_unprivileged_userns=1`), so the cabinet can't set up its network
+  while everything else works. Allow it, either for everything:
+  `echo kernel.apparmor_restrict_unprivileged_userns=0 | sudo tee /etc/sysctl.d/60-megatouch-userns.conf`
+  then `sudo sysctl --system`; or for bwrap alone, with the AppArmor profile the message prints.
+  Start the cabinet again: the warning is gone when it works. WSL has no AppArmor and never needs it.
 
 **Network shows *No Internet* / MegaNet connection fails**
 : Run the Connection Wizard for **Wired Ethernet** ([operator guide](operator-guide.md#11-network-meganet-and-tournamaxx)).

@@ -404,7 +404,13 @@ themselves at night ([section 16](#16-dedicated-touchscreen-box-kiosk-mode)).
 | Network says *No Internet* | Run the Connection Wizard for **Wired Ethernet** ([section 11](#11-network-meganet-and-tournamaxx)) |
 | Settings got messed up | Restore a backup ([section 13](#13-settings-backups-and-resets)) |
 | Kiosk keeps restarting | `scripts/cabinet.sh status` and `build/loader/kiosk.log` show why; `make kiosk-stop`, then `make loader-run` to watch it in a window |
+| No network on Ubuntu (not WSL), "sandbox check" at start | Ubuntu's AppArmor blocks the sandbox's network: the message gives the fix ([troubleshooting](troubleshooting.md#cabinet-loader)) |
 | Something else | [Troubleshooting](troubleshooting.md#cabinet-loader) |
+
+**To report a problem**, run `make report` and attach the file it names
+(`build/report-<date>.tar.gz`): the logs of every cabinet and the system details we need, without
+game data, books or licence. On a kiosk box, stop the kiosk first only if the problem is gone after
+a restart; otherwise run it while the problem shows.
 
 ## 16. Dedicated touchscreen box (kiosk mode)
 

@@ -192,6 +192,12 @@ case "${1:-}" in run|shell) NET=host ;; esac
 LAN=""
 case "$NET" in lan|lan:*) LAN="${NET#lan}"; LAN="${LAN#:}"; LAN="${LAN:-lan}"; NET=lan ;; esac
 [ "$NET" = slirp ] && [ ! -x "$SLIRP" ] && { echo "no slirp4netns (make loader-setup); network shared with the host" >&2; NET=host; }
+# the sandbox must be able to set up its own network (Ubuntu 23.10+ AppArmor can forbid it): say
+# so, with the fix, instead of a cabinet that silently has no network
+if [ "$NET" != host ]; then
+  . "$P/scripts/lib/sandbox-check.sh"
+  sandbox_net_check || echo "  (the cabinet starts anyway, without a network; scripts/report.sh collects details)" >&2
+fi
 if [ "$NET" = host ]; then
   # the cabinet's /etc/resolv.conf links to /var/merit/etc/resolv.conf: give it the host's resolver
   VR="${MEGA_LOADER_VAR:-$B/var}/merit/etc/resolv.conf"

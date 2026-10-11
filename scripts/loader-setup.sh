@@ -192,4 +192,7 @@ LD_LIBRARY_PATH="$D/root/usr/lib/x86_64-linux-gnu:$D/root/usr/lib/x86_64-linux-g
 EOF
 chmod +x "$D/Xephyr" "$D/Xvfb" "$D/pactl"
 
+step "Sandbox network check"
+. "$P/scripts/lib/sandbox-check.sh"
+if sandbox_net_check full; then echo "  ok: the cabinet's sandbox gets its own network"; else echo "  the cabinets will run, but without a network until this is fixed" >&2; fi
 step "Done. Next: make loader && make loader-run"

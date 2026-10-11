@@ -176,6 +176,7 @@ scripts/loader-menu.sh --missing  licensed games on no menu page (each start add
 scripts/loader-option.sh --list   the cabinet's 120 game options (TournaMAXX, free play, …)
 scripts/loader-key.sh --show      the licence: country, languages, options
 make update                       update (settings backed up; rolls back if the new version fails)
+make report                       one file with the logs and system details, to attach to a problem report
 make kiosk / make kiosk-stop      kiosk mode: fullscreen, restarted on crash or hang
 scripts/cabinet.sh autostart on   start the kiosk at login
 ```
