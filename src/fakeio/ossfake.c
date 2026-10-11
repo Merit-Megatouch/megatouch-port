@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -58,6 +59,7 @@ static void *(*p_new)(const char *, const char *, int, const char *, const char 
 static int (*p_write)(void *, const void *, size_t, int *);
 static int (*p_drain)(void *, int *);
 static void (*p_free)(void *);
+static unsigned long long (*p_latency)(void *, int *);
 
 struct dsp {
     int used, fd, peer;         /* fd: what the program holds; peer: our end */
@@ -105,6 +107,7 @@ static int load_pulse(void) {
     p_new = dlsym(h, "pa_simple_new");
     p_write = dlsym(h, "pa_simple_write");
     p_drain = dlsym(h, "pa_simple_drain");
+    p_latency = dlsym(h, "pa_simple_get_latency");
     p_free = dlsym(h, "pa_simple_free");
     return p_new && p_write;
 }
@@ -134,7 +137,7 @@ static void *pump(void *arg) {
             if (!load_pulse()) continue;
             pa_sample_spec ss = { d->fmt == AFMT_U8 ? 0 : 3, (uint32_t)d->rate, (uint8_t)d->channels };
             uint32_t bps = d->rate * d->channels * (d->fmt == AFMT_U8 ? 1 : 2);
-            pa_buffer_attr ba = { (uint32_t)-1, bps / 10, (uint32_t)-1, (uint32_t)-1, (uint32_t)-1 };
+            pa_buffer_attr ba = { (uint32_t)-1, bps * 3 / 20, (uint32_t)-1, (uint32_t)-1, (uint32_t)-1 };   /* 150 ms */
             char name[64];
             snprintf(name, sizeof name, "OSS %s", program_invocation_short_name);
             pa = p_new(NULL, name, 1 /* PLAYBACK */, NULL, "Megatouch", &ss, NULL, &ba, &err);
@@ -142,6 +145,20 @@ static void *pump(void *arg) {
             cur_rate = d->rate; cur_ch = d->channels; cur_fmt = d->fmt;
         }
         if (pa) p_write(pa, buf, n, &err);
+        if (trace) {                    /* forwarded bytes per second, and how low PulseAudio's buffer got */
+            static __thread long sec_bytes, sec_start;
+            static __thread unsigned long long low = ~0ULL;
+            long now = time(NULL);
+            if (!sec_start) sec_start = now;
+            sec_bytes += n;
+            if (pa && p_latency) { unsigned long long l = p_latency(pa, &err); if (l < low) low = l; }
+            if (now != sec_start) {
+                fprintf(stderr, "[ossfake] %ld bytes/s (format needs %d), lowest PulseAudio latency %llu ms\n",
+                        sec_bytes / (now - sec_start), d->rate * d->channels * (d->fmt == AFMT_U8 ? 1 : 2),
+                        low == ~0ULL ? 0 : low / 1000);
+                sec_bytes = 0; sec_start = now; low = ~0ULL;
+            }
+        }
     }
     if (pa) { p_drain(pa, &err); p_free(pa); }
     real_close(d->peer);
@@ -224,9 +241,13 @@ int close(int fd) {
     return real_close(fd);                     /* closing the dsp end ends its pump thread */
 }
 
-static int queued(int fd) {
+/* Bytes of audio written but not yet taken by the pump: the unread bytes at the pump's end
+ * (FIONREAD). The writer's SIOCOUTQ would also count the kernel's per-packet overhead, about
+ * double for 2 KB writes, so programs saw the "device" fuller than it was, held back and let
+ * PulseAudio run dry (clicks). */
+static int queued(struct dsp *d) {
     int q = 0;
-    if (real_ioctl(fd, 0x5411 /* TIOCOUTQ = SIOCOUTQ */, &q) != 0) q = 0;
+    if (real_ioctl(d->peer, 0x541B /* FIONREAD */, &q) != 0) q = 0;
     return q;
 }
 
@@ -235,7 +256,7 @@ static int dsp_ioctl(struct dsp *d, unsigned long req, void *arg) {
     int bufsize = d->fragsize * d->nfrags;
     switch (req) {
     case SNDCTL_DSP_RESET: case SNDCTL_DSP_POST: return 0;
-    case SNDCTL_DSP_SYNC: while (queued(d->fd) > 0) usleep(2000); return 0;
+    case SNDCTL_DSP_SYNC: while (queued(d) > 0) usleep(2000); return 0;
     case SNDCTL_DSP_SPEED: if (*ip > 0) d->rate = *ip; *ip = d->rate; return 0;
     case SNDCTL_DSP_STEREO: d->channels = *ip ? 2 : 1; return 0;
     case SNDCTL_DSP_CHANNELS: if (*ip == 1 || *ip == 2) d->channels = *ip; *ip = d->channels; return 0;
@@ -249,13 +270,14 @@ static int dsp_ioctl(struct dsp *d, unsigned long req, void *arg) {
         if (sel > 15) sel = 15;
         d->fragsize = 1 << sel;
         d->nfrags = n < 2 ? 2 : n > 16 ? 16 : n;
-        int sz = d->fragsize * d->nfrags;
+        int sz = d->fragsize * d->nfrags * 2;   /* room for the whole buffer plus per-packet overhead */
         setsockopt(d->fd, SOL_SOCKET, SO_SNDBUF, &sz, sizeof sz);
+        setsockopt(d->peer, SOL_SOCKET, SO_RCVBUF, &sz, sizeof sz);
         return 0;
     }
     case SNDCTL_DSP_GETBLKSIZE: *ip = d->fragsize; return 0;
     case SNDCTL_DSP_GETOSPACE: {
-        int q = queued(d->fd), free_ = bufsize - q;
+        int q = queued(d), free_ = bufsize - q;
         if (free_ < 0) free_ = 0;
         ip[0] = free_ / d->fragsize; ip[1] = d->nfrags; ip[2] = d->fragsize; ip[3] = free_;
         return 0;
@@ -269,7 +291,7 @@ static int dsp_ioctl(struct dsp *d, unsigned long req, void *arg) {
         ip[0] = (int)d->written; ip[1] = 0; ip[2] = (int)(d->written % (bufsize ? bufsize : 1));
         return 0;
     }
-    case SNDCTL_DSP_GETODELAY: *ip = queued(d->fd); return 0;
+    case SNDCTL_DSP_GETODELAY: *ip = queued(d); return 0;
     case OSS_GETVERSION: *ip = 0x040100; return 0;
     default:
         if (trace) fprintf(stderr, "[ossfake] dsp ioctl %#lx ignored\n", req);
@@ -299,8 +321,12 @@ int ioctl(int fd, unsigned long req, ...) {
     va_list ap; va_start(ap, req); void *arg = va_arg(ap, void *); va_end(ap);
     struct dsp *d = find_dsp(fd);
     if (d) {
-        if (trace) fprintf(stderr, "[ossfake] dsp ioctl %#lx\n", req);
-        return dsp_ioctl(d, req, arg);
+        int in = arg ? *(int *)arg : 0;
+        int r = dsp_ioctl(d, req, arg);
+        if (trace && req != SNDCTL_DSP_GETOSPACE)
+            fprintf(stderr, "[ossfake] dsp ioctl %#lx in %#x out %#x (rate %d ch %d fmt %#x frag %d x %d)\n", req, in,
+                    arg ? *(int *)arg : 0, d->rate, d->channels, d->fmt, d->fragsize, d->nfrags);
+        return r;
     }
     if (is_mixer(fd)) return mixer_ioctl(req, arg);
     return real_ioctl(fd, req, arg);

@@ -83,6 +83,7 @@ static XID nroot;
 static XImage *img;
 static XShmSegmentInfo shm;
 static int use_shm, cw, ch;   /* current capture size */
+static unsigned sdepth = 24;  /* the nested screen's depth (16 for the 2005 software: see loader.sh) */
 
 static void free_capture(void) {
     if (!img) return;
@@ -96,7 +97,7 @@ static int setup_capture(int w, int h) {
     free_capture();
     cw = w; ch = h;
     if (!use_shm) return 1;
-    img = XShmCreateImage_(nd, XDefaultVisual_(nd, 0), 24, ZPixmap, NULL, &shm, w, h);
+    img = XShmCreateImage_(nd, XDefaultVisual_(nd, 0), sdepth, ZPixmap, NULL, &shm, w, h);
     if (!img) { use_shm = 0; return 1; }
     shm.shmid = shmget(IPC_PRIVATE, img->bytes_per_line * h, IPC_CREAT | 0600);
     shm.shmaddr = img->data = shmat(shm.shmid, NULL, 0);
@@ -198,9 +199,11 @@ int main(int argc, char **argv) {
         /* the cabinet changes resolution with RandR: follow the nested root's size */
         if (frame++ % 15 == 0 || !tex || x_error) {   /* a failed grab: the size changed */
             XGetGeometry_(nd, nroot, &r, &gx, &gy, &w, &h, &bw, &dep);
-            if ((int)w != tw || (int)h != th) {
+            if ((int)w != tw || (int)h != th || dep != sdepth) {
                 if (tex) SDL_DestroyTexture(tex);
-                tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, w, h);
+                sdepth = dep;
+                tex = SDL_CreateTexture(ren, dep == 16 ? SDL_PIXELFORMAT_RGB565 : SDL_PIXELFORMAT_ARGB8888,
+                                        SDL_TEXTUREACCESS_STREAMING, w, h);
                 tw = w; th = h;
                 setup_capture(w, h);
                 redraw = 1;
@@ -273,7 +276,7 @@ int main(int argc, char **argv) {
         static char *prev;
         static size_t prevlen;
         int changed = redraw;
-        if (im && im->bits_per_pixel == 32) {
+        if (im && (im->bits_per_pixel == 32 || im->bits_per_pixel == 16)) {
             size_t len = (size_t)im->bytes_per_line * im->height;
             if (len != prevlen) { free(prev); prev = malloc(len); prevlen = len; changed = 1; }
             if (changed || memcmp(prev, im->data, len)) {

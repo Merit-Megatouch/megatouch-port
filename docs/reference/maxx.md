@@ -7,9 +7,9 @@ what is known so far. The discs of the whole line are listed in
 
 **Status (2026-10-11):** it runs as a Force (`MEGA_LOADER_CABINET=build/maxx`, a tree unpacked by
 hand; `make loader-setup` doesn't build Maxx yet) to its main menu, with a DS1991 key image the
-fake board serves. Not right yet: red and blue are swapped in the menu graphics (sprites; the
-PCX splash is correct), only Puzzles, Quiz & Word and Kids Club appear, and the default language
-comes out German (the key's default-language byte is one off for this release).
+fake board serves, with correct colours and sound. Not right yet: only Puzzles, Quiz & Word and
+Kids Club appear, and the default language comes out German (the key's default-language byte is
+one off for this release).
 
 ## The discs and the system
 
@@ -76,6 +76,18 @@ FreeType, Fontconfig, Expat) don't suit this release: SQLite writes another encr
 `pango_font_description_set_size: assertion 'size >= 0'` (millions of log lines). `loader.sh`
 preloads Crown's own copies of those (not GL or X).
 
+## Colours
+
+Merit built this release's Allegro for a BGR screen: `set_gfx_mode` sets the colour layout to red
+shift 0 and blue shift 11 (stock Allegro: 11 and 0), and its colour conversion is built around that
+too (the `_colorconv_*` code is linked into the loader). On a 24-bit X screen Allegro converts its
+16-bit screen as BGR, while the loader's sprites (`.spr`, RGB565, like every release's) are copied in
+as they are, so red and blue came out swapped in all menu graphics (PCX images, loaded through
+`makecol`, were right). Changing the layout values isn't enough, because the conversion keeps BGR.
+On a 16-bit X screen Allegro takes its "matching visual" path instead: it reads the layout from
+the X server (RGB565) and draws without any conversion. `loader.sh` therefore runs Xephyr at
+depth 16 for this release, and `megaview` shows 16-bit screens (an RGB565 texture).
+
 ## Menu background
 
 On a Force the menu wants `main/2k3/forcebkg`, which these Maxx discs don't have (only `maxxbkg`,
@@ -137,6 +149,6 @@ from `0x1B48`) or, without USB, bit-banged directly (`ReadKeyData`).
 ## Open questions
 
 - The rest of the DS1991 layout (which categories and games it offers; options; languages).
-- Why sprites come out with red and blue swapped (the colour conversion is linked into the loader:
-  `_colorconv_blit_*`, `_rgb_*_shift_*`).
+- How the real Maxx hardware showed RGB565 sprites with this BGR Allegro (presumably a 16-bit
+  framebuffer, where no conversion happens).
 - The ISA board's protocol (ports 0x228–0x22D), for running Crown as a Maxx.

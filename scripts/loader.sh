@@ -57,7 +57,7 @@ SBTMP=/tmp
 # a Force's extra library directories, and its stand-ins: usbfs for the I/O board, forcefix
 # (video modes, MicroTouch controller), and the runtime's newer Ogg/Vorbis over the cabinet's
 # 2005 ones (which PulseAudio's libsndfile can't use)
-PLATFORM_LIBS="" PLATFORM_PRELOAD="" TITLE=ION KEY_PLATFORM=$PLATFORM
+PLATFORM_LIBS="" PLATFORM_PRELOAD="" TITLE=ION KEY_PLATFORM=$PLATFORM XDEPTH=""
 if [ "$PLATFORM" = force ]; then
   TITLE=Force
   PLATFORM_LIBS=":/usr/X11R6/lib:/usr/local/lib/merit:/usr/mozilla/lib"
@@ -67,6 +67,10 @@ fi
 # (the runtime's is the ION's, which writes another encryption format) and the older DS1991 key
 if [ "$PLATFORM" = force ] && [ -d "$C/root/usr/local/share/forceonly" ]; then
   TITLE=Maxx KEY_PLATFORM=maxx
+  # a 16-bit screen: Merit built this Allegro for a BGR screen, so on a 24-bit one its conversion
+  # swaps red and blue in every sprite; on a 16-bit screen Allegro draws straight in the X
+  # server's own RGB565 (megaview shows 16-bit screens too)
+  XDEPTH=x16
   # its own SQLite and text stack (with the runtime's newer Pango it spins on "font size >= 0")
   for l in libsqlite.so.0 libexpat.so.0 libfreetype.so.6 libfontconfig.so.1 libglib-2.0.so.0 \
            libgmodule-2.0.so.0 libgobject-2.0.so.0 libpango-1.0.so.0 libpangoft2-1.0.so.0; do
@@ -117,7 +121,7 @@ if [ "${MEGA_LOADER_X:-xephyr}" != host ] && [ "${1:-}" != run ] && [ "${1:-}" !
   else
     XHOST="$DISP"
   fi
-  DISPLAY="$XHOST" MEGA_X11_DIR="$X11" setsid "$P/toolchain/debug/Xephyr" ":$N" -screen 640x480 -resizeable \
+  DISPLAY="$XHOST" MEGA_X11_DIR="$X11" setsid "$P/toolchain/debug/Xephyr" ":$N" -screen 640x480$XDEPTH -resizeable \
     -ac -noreset -title "Megatouch $TITLE (cabinet loader)" > "$B/xephyr.log" 2>&1 &
   XEPHYR_PID=$!
   trap 'kill -- -$XEPHYR_PID 2>/dev/null; [ -n "$VIEW_PID" ] && kill $VIEW_PID 2>/dev/null; [ -n "$XVFB_PID" ] && kill -- -$XVFB_PID 2>/dev/null' EXIT INT TERM

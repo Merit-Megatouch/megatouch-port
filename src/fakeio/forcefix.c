@@ -373,3 +373,4 @@ void check_cpu(void) {
     if (model) *model = 8;                       /* Celeron (Coppermine) */
     if (vendor) strcpy(vendor, "GenuineIntel");
 }
+
