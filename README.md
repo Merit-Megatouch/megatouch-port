@@ -5,7 +5,8 @@ unmodified, from its original installer discs, on Linux or Windows (WSL2). You g
 cabinet: attract loop, game menus, every game, Operator Setup, coins and credits, operator and
 player keys, high scores and books, 31 languages, plus MegaNet and TournaMAXX on community
 servers. The **Megatouch Force** (the cabinet before the ION) runs too, from its 2011 installer
-disc ([below](#the-force-2011)).
+disc ([below](#the-force-2011)), and so does the **Megatouch Maxx** (the one before that), from
+its 2005 Crown discs ([below](#the-maxx-2005-crown)).
 
 Nothing is emulated at the CPU level: the cabinet's x86 Linux programs run directly. What the
 project provides is the cabinet around them. The I/O board, touchscreen, security key, sound card,
@@ -19,6 +20,7 @@ the cabinet's Linux and today's.
 | **The ION 2014 installer discs** (two ISOs, `V40_02T130830_1115`), recommended | the factory software and a factory-fresh cabinet |
 | The `Megatouch ION 2014 HDD Keyless` disk image (60 GB) | the same software with a patched loader, and a previous owner's settings and books |
 | Optional: **the Force 2011 installer disc** (one ISO, `V28_40T101109_1217`) | a Force cabinet next to the ION one |
+| Optional: **the Maxx Crown installer discs** (three ISOs, `PG3002-01 V16.10`) | a Maxx cabinet next to the ION one |
 
 Everything is read from them.
 
@@ -85,6 +87,39 @@ MegaLink. Only the 2011 disc is supported (the 2007.5–2010.5 discs have the sa
 weren't tried; 2004–2006.5 use an older one). Details: [operator guide §20](docs/guides/operator-guide.md#20-a-force-cabinet-2011),
 [how it works](docs/guides/cabinet-loader.md#a-force-cabinet), [the Force's software](docs/reference/force.md).
 
+## The Maxx (2005 Crown)
+
+The Maxx was the Megatouch before the Force: 640×480, an older USB I/O board and the older
+DS1991 security key. Its last Linux release, Crown (`PG3002-01 V16.10`, 2005), runs from its three
+installer discs, next to the ION cabinet and with its own settings, books and licence:
+
+```bash
+# cabinet.local.conf (all three discs, in order)
+MAXX_DISC1="/mnt/e/Images/maxx_crown_v16-10_reva_d1.iso"
+MAXX_DISC2="/mnt/e/Images/maxx_crown_v16-10_reva_d2.iso"
+MAXX_DISC3="/mnt/e/Images/maxx_crown_v16-10_reva_d3.iso"
+
+make loader-setup                 # also builds build/maxx (a few minutes)
+make loader-run CABINET=maxx      # the window is titled "Megatouch Maxx"
+```
+
+First start: one calibration screen (press *EXIT*, bottom right), then the menu ("Welcome to
+Merit NTOUCH"), in English with seven categories. The controls are the ION's. The licence key is
+made automatically on the first start, with every game of the release enabled.
+
+TournaMAXX on the Maxx only dials in, so the cabinet gets an emulated modem: it dials, "connects",
+and its traffic goes out over the PC's network. The community server doesn't speak the Maxx's
+2005 protocol (port 17751), so calls end with "SERVER NOT RUNNING". The protocol is worked out
+and a minimal server is included: `scripts/tmaxx-server.py --tournament` on this PC, and the
+cabinet started with `MEGA_TMAXX_SERVER=<this PC's IP address>:17751`, gets a test tournament
+(F1 → *TournaMAXX* → *Update From Server*).
+
+Tried so far: from the discs to the menu, the licence, colours and sound, Operator Setup, the
+TournaMAXX call and a tournament from the included server. **Coins don't register yet** (F1 →
+*Credits/Pricing* → *Free Credits* gives credits). Not tried yet: playing through games, operator keys. Only Crown has been tried: Jade 2 (V15.10) has the same disc layout, Sapphire and
+Ruby use older layouts, Diamond, Emerald and earlier are DOS. Details: [operator guide
+§21](docs/guides/operator-guide.md#21-a-maxx-cabinet-2005-crown), [the Maxx's software](docs/reference/maxx.md).
+
 ## What works
 
 | | |
@@ -105,8 +140,10 @@ weren't tried; 2004–2006.5 use an older one). Details: [operator guide §20](d
 | Real hardware and services | coin acceptors, buttons, GPIO, a real iButton reader, relays for meters and lockout, MQTT / Home Assistant, webhooks, WLED lights ([connectors](docs/guides/connectors.md)) |
 | Linked cabinets (MegaLink) | yes on one PC (a full linked game played); PCs joined over a LAN or the internet share a network and find each other (experimental) ([guide](docs/guides/operator-guide.md#17-linked-cabinets-megalink-experimental)) |
 | Force 2011 (the cabinet before the ION), from its installer disc | yes: menus, Operator Setup, licence, network and MegaNet/TournaMAXX registration with a community server; games not yet played through ([above](#the-force-2011)) |
-| Other years' installer discs (ION 2008.5–2013, Force 2004–2010.5, Maxx) | same disc format, not tried yet ([every disc](docs/reference/cabinet.md#every-installer-disc-as-seen-2026-10-11)) |
-| Credit card reader, TouchTunes / Rowe jukebox links, dial-up modem | no (the services behind them are gone) |
+| Maxx Crown (2005, the cabinet before the Force), from its three installer discs | partly: menus in English with every game licensed, colours, sound, Operator Setup; TournaMAXX dials in through an emulated modem and works with the included server, not with the community one; coins not yet; games not yet played through ([above](#the-maxx-2005-crown)) |
+| Other years' installer discs (ION 2008.5–2013, Force 2004–2010.5, other Maxx releases) | ION, Force and Maxx Jade 2: same disc format, not tried yet; older Maxx releases: other formats ([every disc](docs/reference/cabinet.md#every-installer-disc-as-seen-2026-10-11)) |
+| Credit card reader, TouchTunes / Rowe jukebox links | no (the services behind them are gone) |
+| Dial-up modem | emulated for the Maxx's TournaMAXX call only |
 
 ## Documentation
 
@@ -121,6 +158,7 @@ weren't tried; 2004–2006.5 use an older one). Details: [operator guide §20](d
 | [Cabinet software](docs/reference/cabinet-software.md) | How the cabinet's software works inside: games, hardware, light show, printer, NVRAM, MegaNet, MegaLink, debug flags |
 | [Cabinet state](docs/reference/cabinet-state.md), [MegaNet](docs/reference/meganet.md), [MegaLink](docs/reference/megalink.md) | Where the cabinet keeps its state (and the game menu); the server exchange; the link protocol |
 | [Force](docs/reference/force.md) | The Force's software: system, files, touchscreen protocol, network, what breaks on today's systems |
+| [Maxx](docs/reference/maxx.md) | The Maxx Crown software: the older I/O board and DS1991 key, colours, the dial-up chain, the TournaMAXX protocol |
 | [Commands](docs/reference/commands.md) | Every command, script and setting |
 | [All docs](docs/README.md) | Index, including reference and history |
 
@@ -129,10 +167,11 @@ weren't tried; 2004–2006.5 use an older one). Details: [operator guide §20](d
 ```
 make loader-run                   start the cabinet
 make loader-run CABINET=force     start the Force cabinet (FORCE_DISC1 in cabinet.local.conf)
+make loader-run CABINET=maxx      start the Maxx cabinet (MAXX_DISC1-3 in cabinet.local.conf)
 make loader-backup                save a backup of its settings (every start also saves one)
 make loader-restore BACKUP=<file> restore one (cabinet stopped)
 make loader-reset                 back to the original settings: factory (discs) or the image's (backed up first)
-make loader-reset CABINET=force   the Force back to factory settings
+make loader-reset CABINET=force   the Force back to factory settings (CABINET=maxx: the Maxx)
 scripts/loader-menu.sh --missing  licensed games on no menu page (each start adds them; --list shows the menu)
 scripts/loader-option.sh --list   the cabinet's 120 game options (TournaMAXX, free play, …)
 scripts/loader-key.sh --show      the licence: country, languages, options

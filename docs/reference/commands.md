@@ -32,8 +32,8 @@ the game's DLLName, for example `g_trix`.
 | `make survey` | Regenerate [gamedevice-survey.md](gamedevice-survey.md) | 5–10 min |
 | `make loader-setup` | The cabinet's own loader: dump its partitions to `build/loader/`; download Xephyr (patched), Xvfb, SDL2 and slirp4netns into `toolchain/debug/` ([guide](../guides/cabinet-loader.md)) | 3–10 min |
 | `make loader` | Build the loader's stand-ins into `build/loader/bin/` | seconds |
-| `make loader-run [CABINET=force]` | Build the stand-ins and run the cabinet in a scalable window (F11 fullscreen); `CABINET=force` runs the Force cabinet in `build/force` | — |
-| `make loader-reset [CABINET=force]` | Restore the loader's `/var` from `build/loader/var.orig` (backed up first); with `CABINET=force`, the Force's from `build/force/var.orig` (no backup) | seconds |
+| `make loader-run [CABINET=force\|maxx]` | Build the stand-ins and run the cabinet in a scalable window (F11 fullscreen); `CABINET=force` runs the Force cabinet in `build/force`, `CABINET=maxx` the Maxx in `build/maxx` | — |
+| `make loader-reset [CABINET=force\|maxx]` | Restore the loader's `/var` from `build/loader/var.orig` (backed up first); with `CABINET=force` or `maxx`, that cabinet's from its own `var.orig` (no backup) | seconds |
 | `make loader-backup` / `make loader-restore BACKUP=<file>` | Snapshot / restore the loader's `/var/merit` (`build/loader/backups`) | seconds |
 | `scripts/loader-option.sh --list` / `NAME 0\|1` | Show / set the loader's game options (loader stopped) | seconds |
 | `scripts/loader-menu.sh --list` / `--missing` / `--fill` / `add GAME CAT` / `remove GAME` | The ION's game menu: show it, licensed games on no page, place them (loader stopped) | seconds |
@@ -182,7 +182,8 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 | `scripts/install.sh [--image P] [--kiosk] [--no-shortcut] [--yes] [--dir D]` | One-command install: packages, clone, image check, setup, shortcut, kiosk autostart |
 | `scripts/cabinet.sh` / `stop` / `status` / `autostart on\|off` | Kiosk mode (`make kiosk` / `make kiosk-stop`): fullscreen, restart on exit, crash or hang, login autostart |
 | `scripts/new-cabinet.sh NAME [--from-image]` | Another cabinet on this PC (`build/loader/cabinets/NAME`) with its own identity and linked games on, for `MEGA_LOADER_NET=lan` |
-| `scripts/loader-setup.sh [--replace-root]` (`make loader-setup`) | Unpack the cabinet from the installer discs (`DISC1`, `DISC2` in `cabinet.local.conf`) or the disk image (`IMG`), and a Force cabinet into `build/force` from `FORCE_DISC1`…; `--replace-root`: switch an existing install's root to the factory one from the discs (old one kept as `root.image`) |
+| `scripts/tmaxx-server.py [--tournament] [PORT]` | A minimal TournaMAXX server for the Maxx (2005 protocol, port 17751): login, tournament list, optionally one test tournament, goodbye; see [maxx](maxx.md#the-tournamaxx-protocol-port-17751) |
+| `scripts/loader-setup.sh [--replace-root]` (`make loader-setup`) | Unpack the cabinet from the installer discs (`DISC1`, `DISC2` in `cabinet.local.conf`) or the disk image (`IMG`), a Force cabinet into `build/force` from `FORCE_DISC1`…, and a Maxx into `build/maxx` from `MAXX_DISC1`–`MAXX_DISC3`; `--replace-root`: switch an existing install's root to the factory one from the discs (old one kept as `root.image`) |
 | `scripts/partimage.py info DISC…` / `extract N OUT.img DISC…` / `convert OUT.img VOLUME…` | Read Megatouch installer discs: version and partition images; one partition as a raw ext2/3 image (CRC-checked) |
 | `scripts/install.sh --disc ISO --disc ISO` | Install from the two ION 2014 installer discs instead of the disk image |
 | `scripts/loader.sh` | What `make loader-run` runs: start the cabinet |
@@ -202,7 +203,7 @@ the [operator guide](../guides/operator-guide.md) and the [cabinet-loader guide]
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `MEGA_LOADER_CABINET` | `build/loader` | The cabinet's folder (`root`, `home`, `var`, `ion`); `make loader-run CABINET=force` sets it to `build/force`. A Force is recognised by its software; its `/var` defaults to the folder's own |
+| `MEGA_LOADER_CABINET` | `build/loader` | The cabinet's folder (`root`, `home`, `var`, `ion`); `make loader-run CABINET=force` sets it to `build/force` (`maxx`: `build/maxx`). A Force is recognised by its software (a Maxx by `/usr/local/share/forceonly`); its `/var` defaults to the folder's own |
 | `MEGA_FORCE_VIDEOMODE` | `W` | The Force loader's `--videomode` (`W` window; `F`/`X` full-screen drivers need XF86VidMode, which the nested X server lacks) |
 | `MEGA_KEY_PLATFORM` | set by `loader.sh` | `force`: `loader-key.sh` writes a Force key (cabinet code, block-0 encoding) |
 | `MEGA_LOADER_MENU` | `fill` | `keep`: don't put licensed games that are on no menu page onto the menu at start (ION) |

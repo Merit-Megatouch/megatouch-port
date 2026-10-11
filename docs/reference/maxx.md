@@ -5,13 +5,15 @@ The Megatouch Maxx was the cabinet line before the Force. Its last Linux release
 what is known so far. The discs of the whole line are listed in
 [cabinet → every installer disc](cabinet.md#every-installer-disc-as-seen-2026-10-11).
 
-**Status (2026-10-11):** it runs as a Force (`MEGA_LOADER_CABINET=build/maxx`, a tree unpacked by
-hand; `make loader-setup` doesn't build Maxx yet) to its main menu, with a DS1991 key image the
+**Status (2026-10-11):** installed with `make loader-setup` (`MAXX_DISC1`–`MAXX_DISC3`) and started
+with `make loader-run CABINET=maxx`, it runs as a Force to its main menu, with a DS1991 key image the
 fake board serves, with correct colours and sound, in English, with the categories Puzzles, Cards,
 Quiz & Word, Strategy, Kids Club, Mega Sports and New Games 2006, and it dials in for TournaMAXX
 through a fake modem (the server it reaches no longer speaks its protocol; see
-[TournaMAXX](#tournamaxx-dial-up)). Not checked yet: playing games, coins. On the main screen "General Help" and the credits label
-overlap at the top right.
+[TournaMAXX](#tournamaxx-dial-up)). Not checked yet: playing games. On the main screen "General Help" and the credits label
+overlap at the top right. **Coins don't register yet:** the fake board answers the older board's
+I/O poll (command 6) with the ION's 15 status bytes; the setup button lands where Crown looks,
+the coin counters don't (Crown's poll layout is still to be worked out).
 
 ## The discs and the system
 

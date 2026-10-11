@@ -31,6 +31,7 @@ monitor) is simulated. For how that works, see [cabinet-loader](cabinet-loader.m
 - [18. Real hardware, lights and home automation](#18-real-hardware-lights-and-home-automation)
 - [19. Where things are](#19-where-things-are)
 - [20. A Force cabinet (2011)](#20-a-force-cabinet-2011)
+- [21. A Maxx cabinet (2005 Crown)](#21-a-maxx-cabinet-2005-crown)
 
 ## 1. What you need
 
@@ -585,3 +586,54 @@ covers the ION cabinet: to keep the Force's state, copy `build/force/var` while 
 What isn't there yet: the older Force discs (2004–2006.5), and Force-specific extras such as
 the joystick and light show, which weren't tried. Problems: [troubleshooting → Force
 cabinet](troubleshooting.md#force-cabinet). How it works: [force](../reference/force.md).
+
+## 21. A Maxx cabinet (2005 Crown)
+
+The Maxx was the Megatouch before the Force. Its last Linux release, Crown (`PG3002-01 V16.10`,
+three CDs), runs next to your ION cabinet with its own settings, books and key.
+
+**Install:** add all three discs to `cabinet.local.conf` and run setup again (your other
+cabinets are kept):
+
+```bash
+MAXX_DISC1="/path/to/maxx_crown_v16-10_reva_d1.iso"
+MAXX_DISC2="/path/to/maxx_crown_v16-10_reva_d2.iso"
+MAXX_DISC3="/path/to/maxx_crown_v16-10_reva_d3.iso"
+```
+
+```bash
+make loader-setup                 # builds build/maxx (a few minutes)
+make loader-run CABINET=maxx      # the window is titled "Megatouch Maxx"
+```
+
+**First start:** one calibration screen ending with *MOVE CURSOR*: press **EXIT** (bottom right).
+Then the menu ("Welcome to Merit NTOUCH"): Puzzles, Cards, Quiz & Word, Strategy, Kids Club, Mega
+Sports and New Games 2006, in English (the flags switch language).
+
+**Controls:** as on the ION (§5): **F1** Operator Setup, F11 fullscreen. **Coins (F5–F8) don't
+register on the Maxx yet**; until they do, give credits in Operator Setup: *Credits/Pricing →
+Free Credits* (one credit per press). The game fills the window at 640×480.
+
+**The licence** is made on the first start: every game of the release, the factory options,
+English first. It is the older DS1991 key: `scripts/loader-key.sh --show` with
+`MEGA_KEY_PLATFORM=maxx MEGA_LOADER_VAR=build/maxx/var` prints it.
+
+**TournaMAXX:** the Maxx only dials in. The cabinet gets an emulated modem, so *Operator Setup →
+TournaMAXX → Update From Server* dials, connects and calls `us0.accessmerit.com`. The community
+server there doesn't speak the Maxx's protocol, so the call ends with "SERVER NOT RUNNING". To
+try tournaments, run the included server on this PC and point the cabinet at it:
+
+```bash
+python3 scripts/tmaxx-server.py --tournament &          # a test tournament (Run 21, one week)
+MEGA_TMAXX_SERVER=$(hostname -I | cut -d' ' -f1):17751 make loader-run CABINET=maxx
+```
+
+After *Update From Server* the main menu gets a TournaChamp category and TournaMAXX banners, and
+*MegaNet → TournaMAXX* lists the tournament.
+
+**Back to factory:** `make loader-reset CABINET=maxx` (cabinet stopped). `make loader-backup` only
+covers the ION cabinet: to keep the Maxx's state, copy `build/maxx/var` while it is stopped.
+
+Not working yet: coins. Not tried yet: playing through games, operator keys; the other Maxx discs (Jade 2 has the
+same layout; Sapphire, Ruby and the DOS releases don't). Problems: [troubleshooting → Maxx
+cabinet](troubleshooting.md#maxx-cabinet). How it works: [maxx](../reference/maxx.md).

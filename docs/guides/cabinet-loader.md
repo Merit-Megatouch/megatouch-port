@@ -237,7 +237,7 @@ covers the menus and 109 games.
 Connection Wizard. `scripts/loader.sh` writes the `hardware.xml` that the cabinet's hardware
 detection would (ION 945GC, FX1 board, widescreen CML-190W monitor; without it the cabinet runs
 4:3). The other installer discs (ION 2008.5–2013, Force, Maxx) use the same format; of those,
-Force 2011 runs (next section).
+Force 2011 and Maxx Crown run (next sections).
 
 ## A Force cabinet
 
@@ -305,10 +305,48 @@ registration with `us.oerinet.net` (tournaments and catalog received); still run
 clock sync and the messenger's connection attempt. Not yet tried: games, coins and credits,
 operator keys, MegaLink, sound in a game.
 
+## A Maxx cabinet
+
+The Maxx's last Linux release, Crown (`PG3002-01 V16.10`, 2005, three discs), runs next to the
+ION cabinet in `build/maxx`. It runs as a Force-family cabinet with extra stand-ins (the rows
+for the 2005 software in the table above, and [maxx](../reference/maxx.md)).
+
+```bash
+# cabinet.local.conf: all three discs (part5, the root, spans them)
+MAXX_DISC1="/path/to/maxx_crown_v16-10_reva_d1.iso"
+MAXX_DISC2="/path/to/maxx_crown_v16-10_reva_d2.iso"
+MAXX_DISC3="/path/to/maxx_crown_v16-10_reva_d3.iso"
+
+make loader-setup                 # also builds build/maxx (root, home, var from the factory backup)
+make loader-run CABINET=maxx      # window title "Megatouch Maxx"
+make loader-reset CABINET=maxx    # back to the factory /var
+```
+
+Setup recognises the Maxx software by its `/usr/local/share/forceonly` mount point and stops
+when the discs are set under the wrong name. It also makes the directories the discs keep
+unreadable readable. On every start `loader.sh` adds what this release needs: Crown's own SQLite
+and text libraries, a 16-bit X screen (its Allegro is built for BGR), the Maxx menu background
+under the Force's name, the DS1991 key image (made on the first start, every game licensed), the
+fake modem, and the network interface as `ppp0`.
+
+**First boot:** one calibration screen (press *EXIT*), then the main menu in English.
+
+**TournaMAXX** dials in: modemfake answers the AT commands, `pppd-fake.sh` reports the link up, and
+the call goes out over slirp to `us0.accessmerit.com`, port 17751. The community server there
+refuses that port, so the call ends with "SERVER NOT RUNNING". `scripts/tmaxx-server.py
+[--tournament]` is a minimal server for the protocol; start the cabinet with
+`MEGA_TMAXX_SERVER=<this PC's address>:17751` to use it (slirp blocks the host's loopback address).
+
+Verified (2026-10-11): Crown from its discs to the menu through `make loader-setup` and
+`make loader-run CABINET=maxx`; the licence (every game); colours; sound; Operator Setup; the
+TournaMAXX call; a tournament from the included server shown to players; F1 opens Operator
+Setup. **Coins don't register yet** (the older board's I/O poll layout isn't emulated: the fake
+board answers with the ION's). Not yet tried: games, operator keys.
+
 ## How it works
 
 `make loader-setup` (`scripts/loader-setup.sh`) unpacks the cabinet's partitions with `debugfs`
-(a Force's into `build/force`, the same way, without `ion`):
+(a Force's into `build/force` and a Maxx's into `build/maxx`, the same way, without `ion`):
 root → `build/loader/root`, /home → `home`, ion_only → `ion` (including the `content/` packs
 some games need), /var → `var` (plus `var.orig` for resets).
 

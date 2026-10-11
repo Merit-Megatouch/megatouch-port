@@ -216,6 +216,43 @@ or `lm-connection.c … should not be reached`)
 copy `build/force/var` yourself while it is stopped; `make loader-reset CABINET=force` restores
 the factory state.
 
+### Maxx cabinet
+
+**`these discs hold maxx software, not …`** during `make loader-setup`
+: A Crown disc is set as `DISC1` or `FORCE_DISC1`. Set the three discs as `MAXX_DISC1`–`MAXX_DISC3`,
+  delete the `root` folder it extracted, and run setup again.
+
+**`part5: volume(s) 001, 002 missing: give all the discs`** during `make loader-setup`
+: The root partition continues on discs 2 and 3: set all three as `MAXX_DISC1`–`MAXX_DISC3`.
+
+**Red and blue swapped in the menu** (a pink background, wrong flags)
+: Started on a 24-bit screen: run it with `make loader-run CABINET=maxx` (the Maxx gets a 16-bit
+  screen) and `make loader` after updating.
+
+**Crash right after the calibration** (`SetBackgroundBmp`)
+: The Maxx menu background is missing under the Force's name: start the Maxx through `loader.sh`
+  (`make loader-run CABINET=maxx`), which copies it in.
+
+**Only three categories, or the menu in German**
+: A key image from before every game was licensed (an early test install). `make loader-reset
+  CABINET=maxx` (cabinet stopped): the next start makes a new key and builds the menu again.
+
+**F5–F8 give no credits**
+: Coins aren't supported on the Maxx yet. Give credits with *Operator Setup → Credits/Pricing →
+  Free Credits* (one per press).
+
+**TournaMAXX: "NO MODEM DETECTED"**
+: Old stand-ins: `make loader`, and start with `make loader-run CABINET=maxx`.
+
+**TournaMAXX: "SERVER NOT RUNNING"**
+: Expected with the community server, which has no Maxx server on port 17751. Use
+  `scripts/tmaxx-server.py` ([operator guide §21](operator-guide.md#21-a-maxx-cabinet-2005-crown)).
+  `MEGA_MODEM_TRACE=1` logs the modem talk and the address and port the cabinet connects to.
+
+**Clicks or screeching in the sound**
+: Old stand-ins: `make loader`. The sound stand-in now keeps PulseAudio 150 ms ahead and sends
+  only whole samples.
+
 ## Standalone ports: starting a game
 
 **`games/<name>/run: No such file or directory`**

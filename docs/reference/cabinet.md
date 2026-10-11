@@ -63,7 +63,7 @@ right; the volume label is.
 | Maxx Ruby Update | — | none: replacement files (`START`, `LIBGFXOLD_SO_1_0.1`, `LIBTMAXX_SO_1_0.1`, `OPSETUP.SO` …) | raw CD image |
 | Maxx Sapphire (3 discs), `maxx_sapphire_v12-01` | **PG3002-01 V12.01** | `part1`, `part2`, `part6`; discs 2–3 `part2` | Linux, isolinux |
 | Maxx Jade 2 (4 discs) | **PG3002-01 V15.10** | `part1`, `part2`, `part5` (over all four), `part6` | Linux; the same version number as Force 2005.5, but different discs |
-| Maxx Crown (3 discs), two copies | **PG3002-01 V16.10** | `part1`, `part2`, `part5` (over all three), `part6` | `Megatouch Maxx Crown …` and `maxx_crown_v16-10_reva_…` have the same version but different checksums |
+| Maxx Crown (3 discs), two copies | **PG3002-01 V16.10** | `part1`, `part2`, `part5` (over all three), `part6` | `Megatouch Maxx Crown …` and `maxx_crown_v16-10_reva_…` have the same version but different checksums. **Runs:** `MAXX_DISC1`–`MAXX_DISC3`, `make loader-run CABINET=maxx` ([maxx](maxx.md)) |
 | `vips40` | **PG4000-01 V4.00** | `part1`, `part2`, `part5` | another product line (PG4000); not identified |
 | Maxx Diamond Rev-B v6.03, Double Diamond, Emerald Rev F (2 discs each) | 2000–2001 (`001107`, `010327`, `011226`) | none | DOS: a `DISKIMGC.001` disk image, `D2000.EXE`, DOS4GW, a boot floppy image |
 | MAXX 2000 upgrade V4 (2 discs) | 1999 (`991213`, `991210`) | none | DOS: `.UDF` upgrade files (`301TO302.UDF` …) |

@@ -57,7 +57,7 @@ development.
 | [cabinet-state](reference/cabinet-state.md) | Where the cabinet keeps its state: the NVRAM map, the game menu (categories, the factory menu, `loader-menu.sh`), the encrypted databases (schemas, `dbdump`), the settings files |
 | [meganet](reference/meganet.md) | The MegaNet exchange: hosts, registration check, the POST session, every table, error codes; enough to write a server; what a Force 2011 session showed |
 | [force](reference/force.md) | The Force platform (2004–2011 software): system, files, obfuscated strings, platform detection, usbfs board access, video modes, MicroTouch protocol, network and Internet test, what breaks today |
-| [maxx](reference/maxx.md) | The Maxx line (Crown, 2005): discs, platforms, the older I/O board, touchscreen check, tamper loop, the DS1991 key (in progress) |
+| [maxx](reference/maxx.md) | The Maxx line (Crown, 2005): discs, platforms, the older I/O board, touchscreen check, tamper loop, the DS1991 key, colours, the dial-up chain and the TournaMAXX protocol |
 | [megalink](reference/megalink.md) | The MegaLink wire protocol: discovery, challenges, the TCP game link, packet formats, a linked game step by step |
 | [glossary](reference/glossary.md) | Terms used throughout |
 

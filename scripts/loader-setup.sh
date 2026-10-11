@@ -7,10 +7,12 @@
 #      or else from the disk image (IMG: the image's sideB partitions).
 #      build/force/{root,var,home}: a Force cabinet (2007.5-2011 software) from its disc
 #      (FORCE_DISC1 …), the same way; run it with `make loader-run CABINET=force`
+#      build/maxx/{root,var,home}: a Maxx cabinet (2005 Crown software) from its three discs
+#      (MAXX_DISC1 … MAXX_DISC3); run it with `make loader-run CABINET=maxx`
 #   2. toolchain/debug: Xephyr (+ xkbcomp), slirp4netns and SDL2 downloaded with apt-get download; Xephyr's RandR size table
 #      patched to offer the cabinet's widescreen modes (768x480, 1280x800); pactl for checking sound
 #   3. build/loader/bin: our stand-ins (make loader builds them)
-# Needs: cabinet.conf / cabinet.local.conf with DISC1… or IMG (and/or FORCE_DISC1…), debugfs, apt-get, dpkg-deb, bwrap, setsid.
+# Needs: cabinet.conf / cabinet.local.conf with DISC1… or IMG (and/or FORCE_DISC1…, MAXX_DISC1…), debugfs, apt-get, dpkg-deb, bwrap, setsid.
 #
 #   scripts/loader-setup.sh [--replace-root]
 #   --replace-root  with discs set: replace an existing build/loader/root (e.g. from the keyless
@@ -29,7 +31,7 @@ done
 
 REPLACE_ROOT=0
 [ "${1:-}" = --replace-root ] && REPLACE_ROOT=1
-disc_list() {   # disc_list <prefix>: the files in <prefix>1..4 (DISC1…, FORCE_DISC1…)
+disc_list() {   # disc_list <prefix>: the files in <prefix>1..4 (DISC1…, FORCE_DISC1…, MAXX_DISC1…)
   local v
   for v in "$1"1 "$1"2 "$1"3 "$1"4; do
     if [ -n "${!v:-}" ]; then printf '%s\n' "${!v}"; fi
@@ -57,7 +59,7 @@ factory_var() {   # /var as a fresh install has it after its first boot
   mv "$C/var.partial" "$C/var"
   echo "  var: factory defaults"
 }
-cabinet_from_discs() {   # cabinet_from_discs <dir> <ion|force> <disc>…
+cabinet_from_discs() {   # cabinet_from_discs <dir> <ion|force|maxx> <disc>…
   local C="$1" want="$2"; shift 2
   local discs=("$@") parts is
   mkdir -p "$C"
@@ -74,16 +76,22 @@ cabinet_from_discs() {   # cabinet_from_discs <dir> <ion|force> <disc>…
     echo "  the image's root kept as ${C#$P/}/root.image"
   fi
   from_disc 5 root
-  # the software decides, not the setting the discs came from: only an ION has the layout daemon
+  # the software decides, not the setting the discs came from: only an ION has the layout daemon,
+  # only the Maxx (2005) software has the /usr/local/share/forceonly mount point
   is=force
   if [ -e "$C/root/usr/local/bin/layout_daemon" ]; then is=ion; fi
+  if [ -d "$C/root/usr/local/share/forceonly" ]; then is=maxx; fi
   if [ "$is" != "$want" ]; then
-    echo "  these discs hold $is software, not $want: set them as $([ "$is" = ion ] && echo DISC1… || echo FORCE_DISC1…) instead" >&2
+    local var=DISC1…
+    case "$is" in force) var=FORCE_DISC1… ;; maxx) var=MAXX_DISC1… ;; esac
+    echo "  these discs hold $is software, not $want: set them as $var instead" >&2
     echo "  (delete ${C#$P/}/root, extracted from them, before trying again)" >&2
     exit 1
   fi
   from_disc 2 home
   if [ "$is" = ion ]; then from_disc 6 ion; fi    # /usr/local/ion_only: the ION's game assets
+  # the Maxx discs keep some directories without read permission (debugfs copies the modes)
+  if [ "$is" = maxx ]; then chmod -R u+rwX "$C/root" "$C/home"; fi
   factory_var
   rm -f "$C/var/merit/swapfile"
   [ -d "$C/var.orig" ] || cp -a "$C/var" "$C/var.orig"
@@ -91,16 +99,19 @@ cabinet_from_discs() {   # cabinet_from_discs <dir> <ion|force> <disc>…
 
 mapfile -t discs < <(disc_list DISC)
 mapfile -t force_discs < <(disc_list FORCE_DISC)
-for f in "${discs[@]}" "${force_discs[@]}"; do
+mapfile -t maxx_discs < <(disc_list MAXX_DISC)
+for f in "${discs[@]}" "${force_discs[@]}" "${maxx_discs[@]}"; do
   [ -f "$f" ] || { echo "no such disc image: $f (cabinet.local.conf)" >&2; exit 1; }
 done
 mkdir -p "$B"
 # a Force cabinet (2007-2011 software) from its disc, next to the ION's: make loader-run CABINET=force
 if [ ${#force_discs[@]} -gt 0 ]; then cabinet_from_discs "$P/build/force" force "${force_discs[@]}"; fi
+# a Maxx cabinet (2005 Crown software, all three discs): make loader-run CABINET=maxx
+if [ ${#maxx_discs[@]} -gt 0 ]; then cabinet_from_discs "$P/build/maxx" maxx "${maxx_discs[@]}"; fi
 if [ ${#discs[@]} -gt 0 ]; then
 cabinet_from_discs "$B" ion "${discs[@]}"
-elif [ -z "$IMG" ] && [ ${#force_discs[@]} -gt 0 ]; then
-  :   # only a Force cabinet
+elif [ -z "$IMG" ] && [ $((${#force_discs[@]} + ${#maxx_discs[@]})) -gt 0 ]; then
+  :   # only a Force and/or Maxx cabinet
 else
 step "Cabinet partitions → build/loader"
 [ -n "$IMG" ] && [ -f "$IMG" ] || { echo "set IMG (the disk image) or DISC1/DISC2 (the installer discs) in cabinet.local.conf" >&2; exit 1; }
