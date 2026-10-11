@@ -124,7 +124,42 @@ CONNECT, DNS through slirp, `us0.accessmerit.com` → 198.46.150.234 (today the 
 `us.oerinet.net` host), then **connection refused on 17751**: that server only has ports 80 and 443,
 for the ION/Force MegaNet exchange (HTTPS, text tables; [meganet](meganet.md)). The 2005 protocol
 is a binary packet exchange (`CTournamaxxSocket::Process_*_Request`, `CPointToPointSocket`), so
-TournaMAXX for this release needs a server that speaks it. None is known to be running today; the community server's operator, asked on 2026-10-11, knows nothing about the Maxx protocol.
+TournaMAXX for this release needs a server that speaks it ([protocol](#the-tournamaxx-protocol-port-17751)). None is known to be running today; the community server's operator, asked on 2026-10-11, knows nothing about the Maxx protocol.
+
+## The TournaMAXX protocol (port 17751)
+
+Worked out from `CTournamaxxSocket` and **tested 2026-10-11** with `scripts/tmaxx-server.py`
+(login, list, one tournament, goodbye: "TournaMAXX Server Connection Complete", and the
+tournament shown to players under MegaNet → TournaMAXX, with a TournaChamp category and
+TournaMAXX banners added to the main menu). Plain TCP, little-endian packed structs, no
+encryption.
+
+- **Header:** u16 type, u16 total length (header included). The server speaks first; a request
+  of type *N* is answered with *N*+1 (or a bare 4-byte header of type *N*+1). Unknown types end the
+  session ("SERVER ERROR REPORTED"); `0xFF11` is ignored (keep-alive); 120 s of silence ends it.
+- **Login** `0x0011` (server: u16 0, u32 session number, u32 Unix time; the cabinet sets its
+  clock when more than 3 s off) → `0x0012`, 283 bytes: protocol 21 at +0x04, game serial +0x06
+  (16), the fixed password `supersecretpasswordthing` +0x16, key ROM ID +0x32 (8), software version
+  +0x3B/+0x3F (u32 16, 10), `/var/config/check.ini` +0x43 (8), time +0x4C, ISP account flag +0x50,
+  ISP number/log-in/password +0x51/+0x60/+0x79, key part and revision +0x92 (`SA316010 R00`),
+  platform +0xA6, modem model or `<BROADBAND>` +0xA7 (100), hardware ID +0x10B (16).
+- **List** `0x0041` → `0x0042`, 142 bytes: count +0x15, then u32[10] IDs +0x16, credits +0x3E,
+  plays +0x66.
+- **Tournament** `0x0021` (3987 bytes; fields = the `tourn` table): ID +0x04, game +0x08 (999 = a
+  free Merit-Thon slot), status +0x0C (2 running, 4 ended, 5 delete), start/end +0x10/+0x14 (seconds
+  from now), credits per play +0x18 (0 = game price), game options +0x1C, name +0x20 (51), description
+  +0x53, seed/increment +0xB8/+0xBC, group names +0xC0 and prize names +0x159 (3 × 51), show scores
+  +0x1F2, payouts flag +0x20C, promote 1–3 +0xF83 (u32 each), scores kept +0xF8F → `0x0022` (ID,
+  +0x1F6 echoed, 77-byte payout records).
+- **Goodbye** `0xFF01` + text: `COMPLETE.` = success, `SERVER ERROR.` = failure, other text shown;
+  the cabinet answers `0xFF02`.
+- Other types (books `0xC1`, players `0x51`/`0x81`, scores `0x67`, rankings `0x73`, files
+  `0x101`–`0x131`, settings `0x201`–`0x221`, timebomb `0xDEAD`, …): dispatch table in
+  `Process__17CTournamaxxSocket`; layouts not worked out yet.
+
+To test: `scripts/tmaxx-server.py [--tournament]` on this PC, and start the cabinet with
+`MEGA_TMAXX_SERVER=<this PC's address>:17751` (modemfake sends the port-17751 connection there;
+slirp blocks the host's loopback, so use the PC's own address).
 
 ## Databases
 
@@ -189,5 +224,5 @@ from `0x1B48`) or, without USB, bit-banged directly (`ReadKeyData`).
 - The rest of the DS1991 layout (which categories and games it offers; options; languages).
 - How the real Maxx hardware showed RGB565 sprites with this BGR Allegro (presumably a 16-bit
   framebuffer, where no conversion happens).
-- The 2005 TournaMAXX packet protocol on port 17751 (for a server of our own).
+- The rest of the TournaMAXX protocol: scores, payouts, books, players, files, timebomb.
 - The ISA board's protocol (ports 0x228–0x22D), for running Crown as a Maxx.

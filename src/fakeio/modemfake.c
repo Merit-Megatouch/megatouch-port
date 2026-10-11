@@ -201,6 +201,24 @@ int close(int fd) {
 int connect(int fd, const struct sockaddr *sa, socklen_t len) {
     static int (*real)(int, const struct sockaddr *, socklen_t);
     if (!real) real = (int (*)(int, const struct sockaddr *, socklen_t))dlsym(RTLD_NEXT, "connect");
+    /* MEGA_TMAXX_SERVER=ADDR:PORT sends the TournaMAXX connection (port 17751) to another server,
+     * e.g. one on this PC for testing */
+    struct sockaddr_in to;
+    const char *redir = getenv("MEGA_TMAXX_SERVER");
+    if (redir && sa && sa->sa_family == AF_INET && ntohs(((const struct sockaddr_in *)sa)->sin_port) == 17751) {
+        char host[64];
+        const char *colon = strrchr(redir, ':');
+        size_t n = colon ? (size_t)(colon - redir) : strlen(redir);
+        if (n < sizeof host) {
+            memcpy(host, redir, n); host[n] = 0;
+            to = *(const struct sockaddr_in *)sa;
+            if (inet_pton(AF_INET, host, &to.sin_addr) == 1) {
+                if (colon) to.sin_port = htons(atoi(colon + 1));
+                sa = (const struct sockaddr *)&to;
+                len = sizeof to;
+            }
+        }
+    }
     int r = real(fd, sa, len), e = errno;
     if (trace < 0) trace = getenv("MEGA_MODEM_TRACE") != NULL;
     if (trace && sa && sa->sa_family == AF_INET) {

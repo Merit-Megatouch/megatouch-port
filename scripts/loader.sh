@@ -255,7 +255,7 @@ env=(
 )
 # the stand-ins' optional settings, passed in when set (docs/reference/commands.md#cabinet-loader)
 for v in MEGAIO_SERIAL MEGAIO_OPERATOR_KEY MEGAIO_PLAYER_KEY MEGAIO_NO_KEYS MEGAIO_LIGHTSHOW \
-         OSSFAKE_TRACE OSSFAKE_FMOD_OUTPUT MEGA_ZLIB MEGA_USBFS_TRACE MEGA_FORCEFIX_TRACE MEGA_FORCE_VIDEOMODE MEGA_MODEM_TRACE; do
+         OSSFAKE_TRACE OSSFAKE_FMOD_OUTPUT MEGA_ZLIB MEGA_USBFS_TRACE MEGA_FORCEFIX_TRACE MEGA_FORCE_VIDEOMODE MEGA_MODEM_TRACE MEGA_TMAXX_SERVER; do
   [ -n "${!v:-}" ] && env+=(--setenv "$v" "${!v}")
 done
 # MEGA_EXTRA_ENV="A=1 B=2": extra variables for debugging
