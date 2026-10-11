@@ -57,7 +57,7 @@ SBTMP=/tmp
 # a Force's extra library directories, and its stand-ins: usbfs for the I/O board, forcefix
 # (video modes, MicroTouch controller), and the runtime's newer Ogg/Vorbis over the cabinet's
 # 2005 ones (which PulseAudio's libsndfile can't use)
-PLATFORM_LIBS="" PLATFORM_PRELOAD="" TITLE=ION KEY_PLATFORM=$PLATFORM XDEPTH=""
+PLATFORM_LIBS="" PLATFORM_PRELOAD="" TITLE=ION KEY_PLATFORM=$PLATFORM XDEPTH="" MODEM="" NET_IF=eth0
 if [ "$PLATFORM" = force ]; then
   TITLE=Force
   PLATFORM_LIBS=":/usr/X11R6/lib:/usr/local/lib/merit:/usr/mozilla/lib"
@@ -76,6 +76,11 @@ if [ "$PLATFORM" = force ] && [ -d "$C/root/usr/local/share/forceonly" ]; then
            libgmodule-2.0.so.0 libgobject-2.0.so.0 libpango-1.0.so.0 libpangoft2-1.0.so.0; do
     PLATFORM_PRELOAD="$PLATFORM_PRELOAD /usr/local/lib/$l"
   done
+  # TournaMAXX only dials in (WvDial on /dev/modem, then pppd), and WSL has no PPP: modemfake.so
+  # is the modem, pppd-fake.sh stands in for pppd, and the slirp interface is ppp0 (configured by
+  # slirp: 10.0.2.100, default route), so the "dial-up" link is the sandbox's ordinary network
+  PLATFORM_PRELOAD="$PLATFORM_PRELOAD /opt/fakeio/modemfake.so"
+  MODEM=1 NET_IF=ppp0
 fi
 [ -L "$C/root/tmp" ] && SBTMP=$(readlink "$C/root/tmp")
 if [ "$C" != "$B" ]; then
@@ -196,6 +201,8 @@ else
   # network admin rights apply only inside the sandbox's own network namespace
   args+=(--unshare-net --cap-add CAP_NET_ADMIN --cap-add CAP_NET_RAW --cap-add CAP_NET_BIND_SERVICE)
 fi
+# the modem: Crown first checks that /dev/modem exists (stat); modemfake.so answers its open
+[ -n "$MODEM" ] && args+=(--ro-bind "$B/bin/pppd-fake.sh" /usr/sbin/pppd --dev-bind /dev/null /dev/modem)
 if [ "$NET" = lan ]; then
   # this LAN's switch (one megalan per name, shared by every cabinet on it; it exits on its own
   # a minute after the last cabinet leaves)
@@ -248,7 +255,7 @@ env=(
 )
 # the stand-ins' optional settings, passed in when set (docs/reference/commands.md#cabinet-loader)
 for v in MEGAIO_SERIAL MEGAIO_OPERATOR_KEY MEGAIO_PLAYER_KEY MEGAIO_NO_KEYS MEGAIO_LIGHTSHOW \
-         OSSFAKE_TRACE OSSFAKE_FMOD_OUTPUT MEGA_ZLIB MEGA_USBFS_TRACE MEGA_FORCEFIX_TRACE MEGA_FORCE_VIDEOMODE; do
+         OSSFAKE_TRACE OSSFAKE_FMOD_OUTPUT MEGA_ZLIB MEGA_USBFS_TRACE MEGA_FORCEFIX_TRACE MEGA_FORCE_VIDEOMODE MEGA_MODEM_TRACE; do
   [ -n "${!v:-}" ] && env+=(--setenv "$v" "${!v}")
 done
 # MEGA_EXTRA_ENV="A=1 B=2": extra variables for debugging
@@ -285,7 +292,8 @@ run() {
     exec > >(console) 2>&1
   fi
   if [ "$NET" = slirp ]; then
-    # start the sandbox, then plug slirp4netns into its network namespace as eth0
+    # start the sandbox, then plug slirp4netns into its network namespace as eth0 (the cabinet
+    # sets it up by DHCP), or for the Maxx as ppp0, configured by slirp itself
     local info="$B/bwrap-info.$$"
     rm -f "$info"
     bwrap "${args[@]}" "${env[@]}" --info-fd 9 --chdir /home/maxx "$@" 9>"$info" &
@@ -295,7 +303,7 @@ run() {
     done
     rm -f "$info"
     LD_LIBRARY_PATH="$P/toolchain/debug/root/usr/lib/x86_64-linux-gnu" "$SLIRP" --mtu 1500 \
-      --disable-host-loopback "$pid" eth0 > "$B/slirp.log" 2>&1 &
+      --disable-host-loopback $([ "$NET_IF" = ppp0 ] && echo --configure) "$pid" "$NET_IF" > "$B/slirp.log" 2>&1 &
     SLIRP_PID=$!
     # slirp4netns outlives a killed sandbox: stop it (and Xephyr) however this script ends
     trap 'kill $SLIRP_PID 2>/dev/null; [ -n "$XEPHYR_PID" ] && kill -- -$XEPHYR_PID 2>/dev/null; [ -n "$VIEW_PID" ] && kill $VIEW_PID 2>/dev/null; [ -n "$XVFB_PID" ] && kill -- -$XVFB_PID 2>/dev/null' EXIT

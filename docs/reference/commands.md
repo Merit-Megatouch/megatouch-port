@@ -266,6 +266,7 @@ other ending is restarted (5 s; 1 min after 3 quick failures, 5 min after 6). Lo
 | `MEGAIO_TRACE=1` | Log every I/O board command |
 | `MEGAIO_DIR` | Board state directory inside the sandbox (set by the launcher: `/var/merit/fakeio`) |
 | `OSSFAKE_TRACE=1` | Log every sound ioctl |
+| `MEGA_MODEM_TRACE=1` | Maxx: log the fake modem's AT conversation and every IPv4 `connect` (TournaMAXX server address and port) |
 | `OSSFAKE_FMOD_OUTPUT=<n>` | FMOD output for Unity games (default PulseAudio) |
 | `MEGA_ZLIB=modern` | Don't route the cabinet's `gz*` calls to its own zlib 1.2.3 |
 

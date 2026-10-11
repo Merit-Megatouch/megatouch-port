@@ -8,8 +8,9 @@ what is known so far. The discs of the whole line are listed in
 **Status (2026-10-11):** it runs as a Force (`MEGA_LOADER_CABINET=build/maxx`, a tree unpacked by
 hand; `make loader-setup` doesn't build Maxx yet) to its main menu, with a DS1991 key image the
 fake board serves, with correct colours and sound, in English, with the categories Puzzles, Cards,
-Quiz & Word, Strategy, Kids Club, Mega Sports and New Games 2006. Not checked yet: playing games,
-coins, Operator Setup, the network. On the main screen "General Help" and the credits label
+Quiz & Word, Strategy, Kids Club, Mega Sports and New Games 2006, and it dials in for TournaMAXX
+through a fake modem (the server it reaches no longer speaks its protocol; see
+[TournaMAXX](#tournamaxx-dial-up)). Not checked yet: playing games, coins. On the main screen "General Help" and the credits label
 overlap at the top right.
 
 ## The discs and the system
@@ -96,6 +97,35 @@ On a Force the menu wants `main/2k3/forcebkg`, which these Maxx discs don't have
 `loader.sh` puts the Maxx one there as `forcebkg.spr`. Without it the menu crashes in
 `SetBackgroundBmp` (a null bitmap) right after the first-boot calibration.
 
+## TournaMAXX (dial-up)
+
+*Operator Setup → TournaMAXX → Internet Setup* offers only **DIAL-UP** on this release: access
+phone number, log-in, password, server (`us.accessmerit.com`), DNS. *Update From Server* (or the
+automatic call after a real-time tournament game, `NT_DoTMaxxUpdate_FromIdle`) runs:
+
+1. `PPP_Config`: `stat("/dev/modem")` (fails → "NO MODEM DETECTED"); writes
+   `/var/merit/ppp/wvdial.conf` (sections `Dialer Defaults` and `Dialer TMaxx<n>`, Stupid Mode on),
+   `pap-secrets`/`chap-secrets`, and the configured DNS servers into `/var/config/resolv.conf`
+   (Crown's `/etc/resolv.conf`). Init string 2 depends on the modem named in
+   `/var/config/hardware.cfg` (`AEIGEX560LKTF1` gets extra S-registers); `MODEM_INIT` overrides it.
+2. `PPP_Start`: WvDial (`libwvdial.so` on the disc, linked to the loader) sends `ATZ`, the init
+   strings and `ATM0L0` (speaker off), retrying with simpler init strings twice ("MODEM BROKEN"
+   after the third), then dials (`ATDT…`).
+3. On CONNECT WvDial starts `/usr/sbin/pppd` and reports Online; `PPP_Is_Up` then needs an IPv4
+   address on **`ppp0`**.
+4. The server name gets a 0 or 1 after its first label (`us.accessmerit.com` → `us0.…`,
+   `us1.…`, alternating per attempt), looked up with c-ares, then a TCP connection to port
+   **17751** (`0x4557`, fixed in `NT_Idle_Connect_To_Server`); refused → "SERVER NOT RUNNING".
+
+In the loader this runs on stand-ins (see the
+[loader guide](../guides/cabinet-loader.md)): `modemfake.so` is the modem, `pppd-fake.sh` stands in
+for `pppd`, and slirp's interface is named `ppp0`. Seen 2026-10-11: init, dial (`ATDT654376`),
+CONNECT, DNS through slirp, `us0.accessmerit.com` → 198.46.150.234 (today the community
+`us.oerinet.net` host), then **connection refused on 17751**: that server only has ports 80 and 443,
+for the ION/Force MegaNet exchange (HTTPS, text tables; [meganet](meganet.md)). The 2005 protocol
+is a binary packet exchange (`CTournamaxxSocket::Process_*_Request`, `CPointToPointSocket`), so
+TournaMAXX for this release needs a server that speaks it (none known running today).
+
 ## Databases
 
 The loader's encrypted SQLite 2 is its own `libsqlite.so.0`; the ION's copy in the runtime writes
@@ -159,4 +189,5 @@ from `0x1B48`) or, without USB, bit-banged directly (`ReadKeyData`).
 - The rest of the DS1991 layout (which categories and games it offers; options; languages).
 - How the real Maxx hardware showed RGB565 sprites with this BGR Allegro (presumably a 16-bit
   framebuffer, where no conversion happens).
+- The 2005 TournaMAXX packet protocol on port 17751 (for a server of our own).
 - The ISA board's protocol (ports 0x228–0x22D), for running Crown as a Maxx.

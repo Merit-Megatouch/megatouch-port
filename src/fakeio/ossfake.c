@@ -128,23 +128,41 @@ static void *pump(void *arg) {
     char buf[8192];
     void *pa = NULL;
     int cur_rate = 0, cur_ch = 0, cur_fmt = 0, err;
+    ssize_t have = 0;                   /* bytes in buf, a partial sample frame carried over */
     for (;;) {
-        ssize_t n = read(d->peer, buf, sizeof buf);
-        if (n <= 0) break;
-        d->written += n;
+        ssize_t got = read(d->peer, buf + have, sizeof buf - have);
+        if (got <= 0) break;
+        d->written += got;
+        /* A stream socket hands over any byte count; PulseAudio refuses writes that aren't whole
+         * frames, and one refused odd-sized chunk shifts every later sample (loud noise). Send
+         * whole frames, keep the rest for the next read. */
+        int frame = d->channels * (d->fmt == AFMT_U8 ? 1 : 2);
+        if (frame < 1) frame = 1;
+        have += got;
+        ssize_t n = have - have % frame;
+        if (n == 0) continue;
         if (!pa || cur_rate != d->rate || cur_ch != d->channels || cur_fmt != d->fmt) {
             if (pa) { p_drain(pa, &err); p_free(pa); pa = NULL; }
-            if (!load_pulse()) continue;
+            static __thread time_t next_try;
+            if (time(NULL) < next_try || !load_pulse()) { have = 0; continue; }   /* no PulseAudio: drop it */
             pa_sample_spec ss = { d->fmt == AFMT_U8 ? 0 : 3, (uint32_t)d->rate, (uint8_t)d->channels };
             uint32_t bps = d->rate * d->channels * (d->fmt == AFMT_U8 ? 1 : 2);
             pa_buffer_attr ba = { (uint32_t)-1, bps * 3 / 20, (uint32_t)-1, (uint32_t)-1, (uint32_t)-1 };   /* 150 ms */
             char name[64];
             snprintf(name, sizeof name, "OSS %s", program_invocation_short_name);
             pa = p_new(NULL, name, 1 /* PLAYBACK */, NULL, "Megatouch", &ss, NULL, &ba, &err);
-            if (!pa) fprintf(stderr, "[ossfake] pa_simple_new failed (%d)\n", err);
+            if (!pa) {                  /* no server: say so once, try again every 10 s, drop the sound meanwhile */
+                static int said;
+                if (!said++) fprintf(stderr, "[ossfake] pa_simple_new failed (%d); sound off\n", err);
+                next_try = time(NULL) + 10;
+                have = 0;
+                continue;
+            }
             cur_rate = d->rate; cur_ch = d->channels; cur_fmt = d->fmt;
         }
         if (pa) p_write(pa, buf, n, &err);
+        memmove(buf, buf + n, have - n);
+        have -= n;
         if (trace) {                    /* forwarded bytes per second, and how low PulseAudio's buffer got */
             static __thread long sec_bytes, sec_start;
             static __thread unsigned long long low = ~0ULL;
