@@ -64,7 +64,11 @@ cab_dump() {
 
 cab_rdump() {
   mkdir -p "$3"
-  if [ "$(cab_mode)" = snapshot ]; then cp -a "$(_cab_snap "$1" "$2")" "$3/"
+  if [ "$(cab_mode)" = snapshot ]; then
+    # a folder this cabinet doesn't have (e.g. /var/merit/locale, made at the first boot, is
+    # missing on a fresh install from the discs) is skipped, as debugfs skips it on an image
+    if [ -e "$(_cab_snap "$1" "$2")" ]; then cp -a "$(_cab_snap "$1" "$2")" "$3/"
+    else echo "  (not on this cabinet, skipped: $1:$2)"; fi
   else (cd "$3" && debugfs -R "rdump \"$2\" ." "$(_cab_dev "$1")" >/dev/null 2>&1) || true; fi
 }
 

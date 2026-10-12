@@ -12,6 +12,12 @@ and `cabinet.local.conf` goes in with passwords and tokens blanked. Attach that 
 
 ## Setup
 
+**`cp: cannot stat '…/build/loader/var/merit/locale': No such file or directory`**, then
+`make: *** [Makefile:…: setup] Error 1` (installing from the discs)
+: Fixed on 2026-10-12: a fresh install's `/var` has no `merit/locale` until the cabinet's first
+  boot, and setup stopped there. `git pull` (or `make update`) and run the install again; it
+  continues where it stopped.
+
 **`missing: debugfs`**, **`missing tool: bwrap`** (or another tool)
 : `sudo apt install e2fsprogs binutils gcc g++ make python3 python3-venv curl bubblewrap`.
 
