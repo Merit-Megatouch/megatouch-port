@@ -133,32 +133,34 @@ fi
 
 step "Xephyr, xkbcomp, pactl, slirp4netns and SDL2 (for megaview) → toolchain/debug"
 mkdir -p "$D/debs"
-PKGS="xserver-xephyr libxfont2 libfontenc1 libxcb-shape0 libxcb-render-util0 libxcb-util1
+# a|b|c: the package's name in newer and older Ubuntu releases (26.04, 24.04, 22.04), first found
+# wins; ! marks the ones the cabinet can't run without
+PKGS="!xserver-xephyr libxfont2 libfontenc1 libxcb-shape0 libxcb-render-util0 libxcb-util1
       libxcb-image0 libxcb-icccm4 libxcb-keysyms1 libxcb-xkb1 libxcb-xv0 x11-xkb-utils libxkbfile1
-      pulseaudio-utils libpulse0 libsndfile1 libflac14 libvorbisenc2 libvorbis0a libogg0 libopus0
-      libmpg123-0t64 libmp3lame0 libasyncns0 libapparmor1 libpulse-dev slirp4netns libslirp0
-      libsdl2-dev libsdl2-classic libasound2t64 libsamplerate0 libxss1 libdecor-0-0 xvfb"
-(cd "$D/debs" && for p in $PKGS; do
-   ls "${p}"_*.deb >/dev/null 2>&1 || apt-get download "$p" >/dev/null 2>&1 || echo "  (skip $p)"; done)
+      pulseaudio-utils libpulse0 libsndfile1 libflac14|libflac12t64|libflac8 libvorbisenc2 libvorbis0a
+      libogg0 libopus0 libmpg123-0t64|libmpg123-0 libmp3lame0 libasyncns0 libapparmor1 libpulse-dev
+      !slirp4netns !libslirp0 libsdl2-dev !libsdl2-classic|libsdl2-2.0-0 libasound2t64|libasound2
+      libsamplerate0 libxss1 libdecor-0-0 !xvfb"
+missing=""
+for entry in $PKGS; do
+  need=0; case "$entry" in !*) need=1; entry=${entry#!} ;; esac
+  got=""
+  for p in ${entry//|/ }; do
+    if ls "$D/debs/${p}"_*.deb >/dev/null 2>&1 || (cd "$D/debs" && apt-get download "$p" >/dev/null 2>&1); then got=$p; break; fi
+  done
+  if [ -z "$got" ]; then
+    echo "  (skip $entry: not found)"
+    [ $need = 1 ] && missing="$missing ${entry%%|*}"
+  fi
+done
+if [ -n "$missing" ]; then
+  echo "  can't download:$missing" >&2
+  echo "  Update the package lists and run setup again: sudo apt update && make loader-setup" >&2
+  exit 1
+fi
 for d in "$D"/debs/*.deb; do dpkg-deb -x "$d" "$D/root"; done
 X="$D/root/usr/bin/Xephyr"
-python3 - "$X" <<'EOF'
-# Xephyr's RandR only offers a fixed size list; the cabinet switches between 640x480, 768x480,
-# 800x600 and 1280x800. Replace 832x624 with 1280x800 and 720x400 with 768x480 in that table.
-import struct, sys
-p = sys.argv[1]; d = bytearray(open(p, 'rb').read())
-table = struct.pack('<6i', 832, 624, 800, 600, 720, 400)
-done = struct.pack('<6i', 1280, 800, 800, 600, 768, 480)
-if d.find(done) >= 0:
-    print('  Xephyr size table: already patched')
-else:
-    i = d.find(table)
-    if i < 0: sys.exit('  Xephyr size table not found: unknown Xephyr build')
-    d[i:i + 24] = done
-    open(p + '.new', 'wb').write(d)
-    import os; os.chmod(p + '.new', 0o755); os.replace(p + '.new', p)
-    print('  Xephyr size table patched at', hex(i))
-EOF
+python3 "$P/scripts/lib/xephyr-sizes.py" "$X" && touch "$X.sizes-960"
 for server in Xephyr Xvfb; do
   # $server from the downloaded Ubuntu package (toolchain/debug/root). The server runs
   # /usr/bin/xkbcomp, which the host lacks, so inside a bwrap /usr/bin is replaced by a symlink

@@ -107,6 +107,36 @@ XVFB_PID=
 if [ "${MEGA_LOADER_X:-xephyr}" != host ] && [ "${1:-}" != run ] && [ "${1:-}" != shell ]; then
   # A nested X server: its own socket directory, shared with the sandbox as /tmp/.X11-unix.
   N="${MEGA_LOADER_DISPLAY:-55}"
+  # X servers and the viewer of a run that ended without cleaning up (killed, a crashed terminal,
+  # a native Ubuntu session where closing the window left Xvfb behind: issue #3) would make this
+  # start fail ("Xvfb did not start", "server already running"). Stop them, unless a cabinet is
+  # still running with them: a living loader.sh among a process's parents.
+  under_loader() {   # under_loader <pid>: is a loader.sh one of its parents?
+    local p=$1 i
+    for i in 1 2 3 4 5 6; do
+      p=$(awk '{print $4}' "/proc/$p/stat" 2>/dev/null); [ -n "$p" ] && [ "$p" -gt 1 ] || return 1
+      grep -qa "loader.sh" "/proc/$p/cmdline" 2>/dev/null && return 0
+    done
+    return 1
+  }
+  leftovers=""
+  for pat in "Xvfb :$((N + 100))" "Xephyr :$N" "megaview :$N"; do
+    # by process name and its exact display argument (never a pattern over whole command lines,
+    # which would also hit a terminal or editor mentioning them)
+    for pid in $(pgrep -x "${pat% *}"); do
+      tr '\0' '\n' < "/proc/$pid/cmdline" 2>/dev/null | grep -qx "${pat#* }" || continue
+      if under_loader "$pid"; then
+        echo "A cabinet is already running on display :$N. Close it first, or start this one on another" >&2
+        echo "display: MEGA_LOADER_DISPLAY=$((N + 1)) make loader-run" >&2
+        exit 1
+      fi
+      leftovers="$leftovers $pid"
+    done
+  done
+  if [ -n "$leftovers" ]; then
+    echo "stopping X servers left over from an earlier run (pid$leftovers)" >&2
+    kill $leftovers 2>/dev/null || true; sleep 1; kill -9 $leftovers 2>/dev/null || true
+  fi
   X11="$B/x11"
   mkdir -p "$X11"
   rm -f "$X11/X$N"
@@ -125,6 +155,12 @@ if [ "${MEGA_LOADER_X:-xephyr}" != host ] && [ "${1:-}" != run ] && [ "${1:-}" !
     XHOST=":$H"
   else
     XHOST="$DISP"
+  fi
+  # the cabinet's screen sizes in Xephyr's RandR list (960x600 since 2026-10-13: issue #1); setup
+  # does it for new installs, this for installs made before
+  XB="$P/toolchain/debug/root/usr/bin/Xephyr"
+  if [ -f "$XB" ] && [ ! -e "$XB.sizes-960" ]; then
+    python3 "$P/scripts/lib/xephyr-sizes.py" "$XB" >/dev/null && touch "$XB.sizes-960"
   fi
   DISPLAY="$XHOST" MEGA_X11_DIR="$X11" setsid "$P/toolchain/debug/Xephyr" ":$N" -screen 640x480$XDEPTH -resizeable \
     -ac -noreset -title "Megatouch $TITLE (cabinet loader)" > "$B/xephyr.log" 2>&1 &

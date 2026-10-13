@@ -18,6 +18,19 @@ and `cabinet.local.conf` goes in with passwords and tokens blanked. Attach that 
   boot, and setup stopped there. `git pull` (or `make update`) and run the install again; it
   continues where it stopped.
 
+**`can't download: xvfb …` / `Update the package lists and run setup again`** (or, before
+2026-10-13, `(skip libsdl2-classic)`, `(skip libflac14)` and SDL2, Xvfb or slirp missing later)
+: Setup downloads Xephyr, Xvfb, SDL2 and slirp4netns from Ubuntu's archive and needs the package
+  lists: `sudo apt update && make loader-setup`. Package names differ between Ubuntu releases;
+  setup tries the 26.04, 24.04 and 22.04 names.
+
+**`A cabinet is already running on display :55`**
+: Two cabinets can't share a display number: close the first, or start the second with
+  `MEGA_LOADER_DISPLAY=56 make loader-run`.
+
+**960×600 games in a small rectangle in the top-left corner**
+: Fixed on 2026-10-13 (Xephyr didn't offer 960×600): update; the next start patches it.
+
 **`missing: debugfs`**, **`missing tool: bwrap`** (or another tool)
 : `sudo apt install e2fsprogs binutils gcc g++ make python3 python3-venv curl bubblewrap`.
 
@@ -91,9 +104,10 @@ and `cabinet.local.conf` goes in with passwords and tokens blanked. Attach that 
 : Run `make loader-setup` (once), then `make loader-run` (which builds the stand-ins).
 
 **`Xvfb did not start` / `Xephyr did not start` / `megaview did not start`**
-: See `build/loader/xvfb.log`, `xephyr.log` or `megaview.log`. A stale display from a killed run
-  can block the number: wait a few seconds and retry, or pick another one with
-  `MEGA_LOADER_DISPLAY=57 make loader-run`. `MEGA_LOADER_VIEW=xephyr make loader-run` skips the
+: See `build/loader/xvfb.log`, `xephyr.log` or `megaview.log`. X servers left over from a run
+  that ended badly ("server already running" in `xvfb.log`, seen on native Ubuntu) are stopped
+  at the next start since 2026-10-13 ("stopping X servers left over from an earlier run"); update
+  if you still see it. Or pick another display with `MEGA_LOADER_DISPLAY=57 make loader-run`. `MEGA_LOADER_VIEW=xephyr make loader-run` skips the
   scalable window and shows Xephyr's own (fixed size) window.
 
 **`bwrap: setting up uid map: Permission denied`** (or another `bwrap` error about namespaces)

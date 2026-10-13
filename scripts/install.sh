@@ -75,6 +75,12 @@ if [ -n "$missing" ]; then
   sudo apt-get install -y $missing
 else
   echo "Packages: all present."
+  # setup downloads more packages (Xephyr, Xvfb, SDL2, slirp4netns) with apt-get download, which
+  # needs the package lists: a fresh Ubuntu may never have fetched them
+  if ! ls /var/lib/apt/lists/*_Packages* >/dev/null 2>&1; then
+    say "Ubuntu's package lists are empty (apt update never ran)"
+    ask "Update them now (needs your password)?" && sudo apt-get update
+  fi
 fi
 
 # ---------------------------------------------------------------- the repository
