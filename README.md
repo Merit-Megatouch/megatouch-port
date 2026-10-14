@@ -44,7 +44,8 @@ By hand, put `DISC1="…1OF2.iso"` and `DISC2="…2OF2.iso"` (or `IMG="….img"`
 `cabinet.local.conf`, then:
 
 ```bash
-sudo apt install git gcc g++ make python3 python3-venv curl e2fsprogs binutils bubblewrap
+sudo apt install git gcc g++ make python3 python3-venv curl e2fsprogs binutils bubblewrap \
+  xvfb xserver-xephyr slirp4netns libslirp-dev libsdl2-2.0-0
 git clone https://github.com/Merit-Megatouch/megatouch-port ~/megatouch-port
 cd ~/megatouch-port
 nano cabinet.local.conf   # DISC1= / DISC2= (or IMG=), see above

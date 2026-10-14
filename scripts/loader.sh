@@ -104,6 +104,20 @@ DISP="${DISPLAY:-:0}"
 XEPHYR_PID=
 VIEW_PID=
 XVFB_PID=
+# at the end: the X servers and the viewer. By process group, and also by name and display
+# (display_procs), for any that ended up outside it: setsid forks when this script leads its
+# process group, as when started from a desktop launcher, and the group killed is then the wrong
+# one (issue #3: Xvfb left running after closing the window on a native Ubuntu)
+stop_x() {
+  [ -n "$VIEW_PID" ] && kill $VIEW_PID 2>/dev/null
+  [ -n "$XEPHYR_PID" ] && kill -- -$XEPHYR_PID 2>/dev/null
+  [ -n "$XVFB_PID" ] && kill -- -$XVFB_PID 2>/dev/null
+  if [ -n "$XEPHYR_PID$XVFB_PID" ]; then
+    local left; left=$(display_procs)
+    [ -n "$left" ] && kill $left 2>/dev/null
+  fi
+  return 0
+}
 if [ "${MEGA_LOADER_X:-xephyr}" != host ] && [ "${1:-}" != run ] && [ "${1:-}" != shell ]; then
   # A nested X server: its own socket directory, shared with the sandbox as /tmp/.X11-unix.
   N="${MEGA_LOADER_DISPLAY:-55}"
@@ -119,19 +133,25 @@ if [ "${MEGA_LOADER_X:-xephyr}" != host ] && [ "${1:-}" != run ] && [ "${1:-}" !
     done
     return 1
   }
-  leftovers=""
-  for pat in "Xvfb :$((N + 100))" "Xephyr :$N" "megaview :$N"; do
-    # by process name and its exact display argument (never a pattern over whole command lines,
-    # which would also hit a terminal or editor mentioning them)
-    for pid in $(pgrep -x "${pat% *}"); do
-      tr '\0' '\n' < "/proc/$pid/cmdline" 2>/dev/null | grep -qx "${pat#* }" || continue
-      if under_loader "$pid"; then
-        echo "A cabinet is already running on display :$N. Close it first, or start this one on another" >&2
-        echo "display: MEGA_LOADER_DISPLAY=$((N + 1)) make loader-run" >&2
-        exit 1
-      fi
-      leftovers="$leftovers $pid"
+  display_procs() {   # this display's Xvfb, Xephyr and megaview
+    local pat pid
+    for pat in "Xvfb :$((N + 100))" "Xephyr :$N" "megaview :$N"; do
+      # by process name and its exact display argument (never a pattern over whole command lines,
+      # which would also hit a terminal or editor mentioning them)
+      for pid in $(pgrep -x "${pat% *}"); do
+        tr '\0' '\n' < "/proc/$pid/cmdline" 2>/dev/null | grep -qx "${pat#* }" && echo "$pid"
+      done
     done
+    return 0
+  }
+  leftovers=""
+  for pid in $(display_procs); do
+    if under_loader "$pid"; then
+      echo "A cabinet is already running on display :$N. Close it first, or start this one on another" >&2
+      echo "display: MEGA_LOADER_DISPLAY=$((N + 1)) make loader-run" >&2
+      exit 1
+    fi
+    leftovers="$leftovers $pid"
   done
   if [ -n "$leftovers" ]; then
     echo "stopping X servers left over from an earlier run (pid$leftovers)" >&2
@@ -165,7 +185,7 @@ if [ "${MEGA_LOADER_X:-xephyr}" != host ] && [ "${1:-}" != run ] && [ "${1:-}" !
   DISPLAY="$XHOST" MEGA_X11_DIR="$X11" setsid "$P/toolchain/debug/Xephyr" ":$N" -screen 640x480$XDEPTH -resizeable \
     -ac -noreset -title "Megatouch $TITLE (cabinet loader)" > "$B/xephyr.log" 2>&1 &
   XEPHYR_PID=$!
-  trap 'kill -- -$XEPHYR_PID 2>/dev/null; [ -n "$VIEW_PID" ] && kill $VIEW_PID 2>/dev/null; [ -n "$XVFB_PID" ] && kill -- -$XVFB_PID 2>/dev/null' EXIT INT TERM
+  trap stop_x EXIT INT TERM
   if [ "$VIEW" = megaview ]; then
     if [ "$(od -An -tx1 -j4 -N1 "$B/bin/megaview" | tr -d ' ')" = 02 ]; then
       # 64-bit build: the desktop's GPU (WSLg d3d12) does the scaling
@@ -348,7 +368,7 @@ run() {
       --disable-host-loopback $([ "$NET_IF" = ppp0 ] && echo --configure) "$pid" "$NET_IF" > "$B/slirp.log" 2>&1 &
     SLIRP_PID=$!
     # slirp4netns outlives a killed sandbox: stop it (and Xephyr) however this script ends
-    trap 'kill $SLIRP_PID 2>/dev/null; [ -n "$XEPHYR_PID" ] && kill -- -$XEPHYR_PID 2>/dev/null; [ -n "$VIEW_PID" ] && kill $VIEW_PID 2>/dev/null; [ -n "$XVFB_PID" ] && kill -- -$XVFB_PID 2>/dev/null' EXIT
+    trap 'kill $SLIRP_PID 2>/dev/null; stop_x' EXIT
     trap 'exit 143' INT TERM
     wait_sandbox "$bw"
   fi

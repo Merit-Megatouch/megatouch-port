@@ -65,7 +65,11 @@ if [ "$WSL" = 1 ]; then
   [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] || echo "Warning: no WSLg display. In PowerShell: wsl --update, then wsl --shutdown." >&2
 fi
 
-PKGS="git gcc g++ make python3 python3-venv curl e2fsprogs binutils bubblewrap"
+# the X servers, slirp and SDL2 the cabinet runs with are also installed here, though setup takes
+# its own copies (toolchain/debug): apt brings in their libraries, which a fresh Ubuntu (WSL above
+# all) lacks (issue #3: libunwind.so.8, libSDL2-2.0.so.0, slirp/libslirp.h missing on 26.04)
+PKGS="git gcc g++ make python3 python3-venv curl e2fsprogs binutils bubblewrap
+      xvfb xserver-xephyr slirp4netns libslirp-dev libsdl2-2.0-0"
 missing=""
 for p in $PKGS; do dpkg -s "$p" >/dev/null 2>&1 || missing="$missing $p"; done
 if [ -n "$missing" ]; then

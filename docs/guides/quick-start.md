@@ -42,7 +42,8 @@ downloads Ubuntu packages.
 
 ```bash
 sudo apt update
-sudo apt install git gcc g++ make python3 python3-venv curl e2fsprogs binutils bubblewrap
+sudo apt install git gcc g++ make python3 python3-venv curl e2fsprogs binutils bubblewrap \
+  xvfb xserver-xephyr slirp4netns libslirp-dev libsdl2-2.0-0
 ```
 
 | Package | Used for |
@@ -52,8 +53,9 @@ sudo apt install git gcc g++ make python3 python3-venv curl e2fsprogs binutils b
 | `gcc g++ make binutils` | Building the simulated hardware (32-bit support is added locally, no `gcc-multilib`) |
 | `python3 python3-venv` | Helper scripts (including the reader for the installer discs) |
 | `git curl` | Cloning, downloads |
+| `xvfb xserver-xephyr slirp4netns libslirp-dev libsdl2-2.0-0` | The libraries the cabinet's X servers, network and window need. Setup takes its own copies of these programs (`toolchain/debug/`), but a fresh Ubuntu (WSL above all) lacks the libraries they load, which these packages bring |
 
-Nothing else is installed system-wide: everything setup downloads stays inside the repository.
+Everything else setup downloads stays inside the repository.
 
 ## 3. Clone
 

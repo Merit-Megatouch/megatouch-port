@@ -256,16 +256,34 @@ static void switch_frame(int from, const unsigned char *f, size_t len) {
 }
 
 /* ---- libslirp glue ---- */
+/* libslirp 4.9 (Ubuntu 26.04) has sockets of their own type and timers that call back through
+   slirp_handle_timer; before it (24.04: 4.7, 22.04: 4.6) sockets are ints and a timer is a function
+   to call (timer_new, which 4.7 still takes) */
+#define SLIRP_NEW_API SLIRP_CHECK_VERSION(4, 9, 0)
+#if !SLIRP_NEW_API
+typedef int slirp_os_socket;
+#endif
 static ssize_t cb_send(const void *buf, size_t len, void *opaque) { (void)opaque; switch_frame(ROUTER, buf, len); return len; }
 static void cb_error(const char *msg, void *opaque) { (void)opaque; logm("router: %s", msg); }
 static int64_t cb_clock(void *opaque) { (void)opaque; return now_ns(); }
-typedef struct Timer { SlirpTimerId id; void *cb_opaque; int64_t expire_ms; struct Timer *next; } Timer;
+typedef struct Timer { int id; SlirpTimerCb fn; void *cb_opaque; int64_t expire_ms; struct Timer *next; } Timer;
 static Timer *timers;
-static void *cb_timer_new_opaque(SlirpTimerId id, void *cb_opaque, void *opaque) {
-    (void)opaque;
+static void *timer_add(int id, SlirpTimerCb fn, void *cb_opaque) {
     Timer *t = calloc(1, sizeof *t);
-    t->id = id; t->cb_opaque = cb_opaque; t->expire_ms = -1; t->next = timers; timers = t;
+    t->id = id; t->fn = fn; t->cb_opaque = cb_opaque; t->expire_ms = -1; t->next = timers; timers = t;
     return t;
+}
+#if SLIRP_NEW_API
+static void *cb_timer_new_opaque(SlirpTimerId id, void *cb_opaque, void *opaque) { (void)opaque; return timer_add(id, NULL, cb_opaque); }
+#else
+static void *cb_timer_new(SlirpTimerCb fn, void *cb_opaque, void *opaque) { (void)opaque; return timer_add(0, fn, cb_opaque); }
+#endif
+static void timer_fire(Timer *t) {
+#if SLIRP_NEW_API
+    slirp_handle_timer(slirp, t->id, t->cb_opaque);
+#else
+    t->fn(t->cb_opaque);
+#endif
 }
 static void cb_timer_free(void *timer, void *opaque) {
     (void)opaque;
@@ -304,7 +322,7 @@ static void start_router(int block) {
     my_block = block;
     char start[32];
     snprintf(start, sizeof start, "10.0.2.%d", 16 + 16 * block);
-    SlirpConfig cfg = { .version = 6,   /* 6: register_poll_socket, not the old register_poll_fd */
+    SlirpConfig cfg = { .version = SLIRP_NEW_API ? 6 : 3,   /* 6: register_poll_socket, not the old register_poll_fd */
                         .in_enabled = true, .if_mtu = 1500, .if_mru = 1500, .disable_host_loopback = true };
     inet_pton(AF_INET, "10.0.2.0", &cfg.vnetwork);
     inet_pton(AF_INET, "255.255.255.0", &cfg.vnetmask);
@@ -313,8 +331,13 @@ static void start_router(int block) {
     inet_pton(AF_INET, "10.0.2.3", &cfg.vnameserver);
     static const SlirpCb cb = { .send_packet = cb_send, .guest_error = cb_error, .clock_get_ns = cb_clock,
                                 .timer_free = cb_timer_free, .timer_mod = cb_timer_mod, .notify = cb_notify,
+#if SLIRP_NEW_API
                                 .timer_new_opaque = cb_timer_new_opaque,
                                 .register_poll_socket = cb_register, .unregister_poll_socket = cb_register };
+#else
+                                .timer_new = cb_timer_new,
+                                .register_poll_fd = cb_register, .unregister_poll_fd = cb_register };
+#endif
     slirp = slirp_new(&cfg, &cb, NULL);
     if (!slirp) { logm("router failed to start"); exit(1); }
     logm("router up: this PC's cabinets get 10.0.2.%d-%d (block %d)", 16 + 16 * block, 31 + 16 * block, block);
@@ -501,7 +524,11 @@ int main(int argc, char **argv) {
                 if (left < 0) left = 0;
                 if ((uint32_t)left < timeout) timeout = left;
             }
+#if SLIRP_NEW_API
         if (slirp) slirp_pollfds_fill_socket(slirp, &timeout, cb_add_poll, NULL);
+#else
+        if (slirp) slirp_pollfds_fill(slirp, &timeout, cb_add_poll, NULL);
+#endif
         int ils = npfd;
         pfd[npfd++] = (struct pollfd){ .fd = ls, .events = POLLIN };
         int its = -1;
@@ -520,7 +547,7 @@ int main(int argc, char **argv) {
             int64_t nowms = now_ns() / 1000000;
             for (Timer *t = timers; t; t = t->next)
                 if (t->expire_ms >= 0 && t->expire_ms <= nowms) {
-                    t->expire_ms = -1; slirp_handle_timer(slirp, t->id, t->cb_opaque); again = 1; break;
+                    t->expire_ms = -1; timer_fire(t); again = 1; break;
                 }
         }
         if (r > 0) {

@@ -8,7 +8,9 @@
  * loaded on first use). /dev/mixer is a stub that remembers volumes. Forked children may keep
  * writing to an inherited /dev/dsp descriptor; the thread in the parent plays it.
  * Unity games use FMOD, which is switched to PulseAudio directly (see the end of this file).
- * Settings: OSSFAKE_TRACE=1 logs ioctls.
+ * Settings: OSSFAKE_TRACE=1 logs ioctls. OSSFAKE_PACE=0 turns off reporting at most one free
+ * fragment at a time (see SNDCTL_DSP_GETOSPACE). OSSFAKE_DUMP=<prefix> also writes what each /dev/dsp
+ * open plays to <prefix>-<pid>-<n>-<rate>-<channels>-<bits>.raw (for checking what was played).
  */
 #define _GNU_SOURCE
 #include <dlfcn.h>
@@ -72,7 +74,7 @@ static struct dsp dsps[MAXDSP];
 static int mixer_fds[16], nmixer;
 static int mixer_vol[32];
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static int trace;
+static int trace, pace;
 
 static int (*real_open)(const char *, int, ...);
 static int (*real_open64)(const char *, int, ...);
@@ -86,6 +88,7 @@ static void init_real(void) {
     real_ioctl = dlsym(RTLD_NEXT, "ioctl");
     real_close = dlsym(RTLD_NEXT, "close");
     trace = getenv("OSSFAKE_TRACE") && *getenv("OSSFAKE_TRACE") == '1';
+    pace = !(getenv("OSSFAKE_PACE") && *getenv("OSSFAKE_PACE") == '0');   /* on unless OSSFAKE_PACE=0 */
 }
 
 static int load_pulse(void) {
@@ -129,6 +132,7 @@ static void *pump(void *arg) {
     void *pa = NULL;
     int cur_rate = 0, cur_ch = 0, cur_fmt = 0, err;
     ssize_t have = 0;                   /* bytes in buf, a partial sample frame carried over */
+    int dump_fd = -1, dump_rate = 0, dump_ch = 0, dump_fmt = 0;
     for (;;) {
         ssize_t got = read(d->peer, buf + have, sizeof buf - have);
         if (got <= 0) break;
@@ -161,6 +165,18 @@ static void *pump(void *arg) {
             cur_rate = d->rate; cur_ch = d->channels; cur_fmt = d->fmt;
         }
         if (pa) p_write(pa, buf, n, &err);
+        if (pa && getenv("OSSFAKE_DUMP")) {          /* what PulseAudio was given, as raw PCM */
+            static int seq;
+            if (dump_fd == -1 || (dump_fd >= 0 && (dump_rate != cur_rate || dump_ch != cur_ch || dump_fmt != cur_fmt))) {
+                char path[512];
+                if (dump_fd >= 0) real_close(dump_fd);
+                snprintf(path, sizeof path, "%s-%d-%d-%d-%d-%d.raw", getenv("OSSFAKE_DUMP"), (int)getpid(),
+                         __sync_add_and_fetch(&seq, 1), cur_rate, cur_ch, cur_fmt == AFMT_U8 ? 8 : 16);
+                dump_fd = real_open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                dump_rate = cur_rate; dump_ch = cur_ch; dump_fmt = cur_fmt;
+            }
+            if (dump_fd >= 0 && write(dump_fd, buf, n) < 0) { real_close(dump_fd); dump_fd = -2; }
+        }
         memmove(buf, buf + n, have - n);
         have -= n;
         if (trace) {                    /* forwarded bytes per second, and how low PulseAudio's buffer got */
@@ -179,6 +195,7 @@ static void *pump(void *arg) {
         }
     }
     if (pa) { p_drain(pa, &err); p_free(pa); }
+    if (dump_fd >= 0) real_close(dump_fd);
     real_close(d->peer);
     pthread_mutex_lock(&lock);
     d->used = 0;
@@ -255,6 +272,11 @@ int close(int fd) {
     init_real();
     pthread_mutex_lock(&lock);
     for (int i = 0; i < nmixer; i++) if (mixer_fds[i] == fd) mixer_fds[i] = mixer_fds[--nmixer];
+    /* A closed /dev/dsp keeps its slot until its pump has played the rest, but the program's fd
+     * number is free at once, and an immediate reopen gets the same number. The old slot must stop
+     * answering to it, or find_dsp() gives the new device's SETFMT/STEREO/SPEED to the old one and
+     * the new stream plays 44.1 kHz stereo 16-bit as 8 kHz mono 8-bit (loud "modem" noise). */
+    for (int i = 0; i < MAXDSP; i++) if (dsps[i].used && dsps[i].fd == fd) dsps[i].fd = -1;
     pthread_mutex_unlock(&lock);
     return real_close(fd);                     /* closing the dsp end ends its pump thread */
 }
@@ -297,6 +319,13 @@ static int dsp_ioctl(struct dsp *d, unsigned long req, void *arg) {
     case SNDCTL_DSP_GETOSPACE: {
         int q = queued(d), free_ = bufsize - q;
         if (free_ < 0) free_ = 0;
+        /* At most one fragment free per query (OSSFAKE_PACE=0 turns this off). The pump hands audio on at once, so
+         * the "device" usually looks empty, and Allegro 4 then mixes every free fragment in one go.
+         * A looped audio stream (the loader's Ogg music: a 2 x 1024-frame ring refilled by SoundOGG's
+         * poll thread every millisecond) is mixed past its refilled half and repeats: music plays slow
+         * and low while one-shot samples (sound effects) are fine. One fragment at a time keeps every
+         * mix shorter than half the ring; Allegro's sound thread asks again within ~1 ms. */
+        if (pace && free_ > d->fragsize) free_ = d->fragsize;
         ip[0] = free_ / d->fragsize; ip[1] = d->nfrags; ip[2] = d->fragsize; ip[3] = free_;
         return 0;
     }

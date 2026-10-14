@@ -50,9 +50,11 @@ log_copy() {   # log_copy <file> <name in the report>
   echo "DISPLAY=${DISPLAY:-} WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-} XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-} XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-}"
   [ -n "${XDG_RUNTIME_DIR:-}" ] && { [ -S "$XDG_RUNTIME_DIR/pulse/native" ] && echo "PulseAudio socket: yes" || echo "PulseAudio socket: no"; }
   section "Running"
-  for p in start dstart Xephyr Xvfb megaview slirp4netns megalan bwrap; do
-    n=$(pgrep -x "$p" | wc -l); [ "$n" -gt 0 ] && echo "$p: $n"
-  done
+  # with parent, process group and session: what was left running after a cabinet closed, and
+  # why its cleanup missed it (issue #3)
+  pids=$(for p in start dstart Xephyr Xvfb megaview slirp4netns megalan bwrap; do pgrep -x "$p"; done | sort -un | tr '\n' ,)
+  pids="$pids$(pgrep -f '^(/bin/)?bash .*scripts/loader\.sh' | tr '\n' ,)"
+  [ -n "${pids%,}" ] && ps -o pid,ppid,pgid,sid,stat,etime,args -p "${pids%,}" | cut -c1-200
   [ -x "$P/scripts/cabinet.sh" ] && run "$P/scripts/cabinet.sh" status
   section "Cabinets"
   for c in "$P"/build/loader "$P"/build/force "$P"/build/maxx "$P"/build/loader/cabinets/*; do

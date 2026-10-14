@@ -134,13 +134,15 @@ fi
 step "Xephyr, xkbcomp, pactl, slirp4netns and SDL2 (for megaview) → toolchain/debug"
 mkdir -p "$D/debs"
 # a|b|c: the package's name in newer and older Ubuntu releases (26.04, 24.04, 22.04), first found
-# wins; ! marks the ones the cabinet can't run without
+# wins; ! marks the ones the cabinet can't run without. A fresh Ubuntu has none of these installed,
+# so everything megaview, megalan, Xephyr and Xvfb load or build against must be in the list
+# (libsdl2-2.0-0 is only links into libsdl2-classic on 26.04; libsdl2-classic is missing before it)
 PKGS="!xserver-xephyr libxfont2 libfontenc1 libxcb-shape0 libxcb-render-util0 libxcb-util1
       libxcb-image0 libxcb-icccm4 libxcb-keysyms1 libxcb-xkb1 libxcb-xv0 x11-xkb-utils libxkbfile1
       pulseaudio-utils libpulse0 libsndfile1 libflac14|libflac12t64|libflac8 libvorbisenc2 libvorbis0a
       libogg0 libopus0 libmpg123-0t64|libmpg123-0 libmp3lame0 libasyncns0 libapparmor1 libpulse-dev
-      !slirp4netns !libslirp0 libsdl2-dev !libsdl2-classic|libsdl2-2.0-0 libasound2t64|libasound2
-      libsamplerate0 libxss1 libdecor-0-0 !xvfb"
+      !slirp4netns !libslirp0 !libslirp-dev libsdl2-dev libsdl2-classic !libsdl2-2.0-0 libasound2t64|libasound2
+      libsamplerate0 libxss1 libdecor-0-0 !xvfb !libunwind8"
 missing=""
 for entry in $PKGS; do
   need=0; case "$entry" in !*) need=1; entry=${entry#!} ;; esac
@@ -159,6 +161,18 @@ if [ -n "$missing" ]; then
   exit 1
 fi
 for d in "$D"/debs/*.deb; do dpkg-deb -x "$d" "$D/root"; done
+# what the downloaded programs need beyond the list comes from the PC; a fresh Ubuntu may lack it
+# (issue #3). The installer (scripts/install.sh) installs these packages, which bring it all.
+L="$D/root/usr/lib/x86_64-linux-gnu"
+nolib=$(for b in "$D"/root/usr/bin/{Xvfb,Xephyr,slirp4netns} "$L"/sdl2-classic/libSDL2-2.0.so.0 "$L"/libSDL2-2.0.so.0; do
+          [ -e "$b" ] && LD_LIBRARY_PATH="$L:$L/pulseaudio" ldd "$b" 2>/dev/null | awk '/not found/ {print $1}'
+        done | sort -u | tr '\n' ' ')
+if [ -n "$nolib" ]; then
+  echo "  missing on this PC: $nolib" >&2
+  echo "  Install them with: sudo apt install xvfb xserver-xephyr slirp4netns libslirp-dev libsdl2-2.0-0" >&2
+  echo "  then run: make loader-setup" >&2
+  exit 1
+fi
 X="$D/root/usr/bin/Xephyr"
 python3 "$P/scripts/lib/xephyr-sizes.py" "$X" && touch "$X.sizes-960"
 for server in Xephyr Xvfb; do

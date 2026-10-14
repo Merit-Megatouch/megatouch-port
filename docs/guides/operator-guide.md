@@ -94,7 +94,8 @@ safe: whatever is already done is skipped, and the cabinet's settings are never 
 ### 2.3 By hand (what the installer does)
 
 ```bash
-sudo apt install git gcc g++ make python3 python3-venv curl e2fsprogs binutils bubblewrap
+sudo apt install git gcc g++ make python3 python3-venv curl e2fsprogs binutils bubblewrap \
+  xvfb xserver-xephyr slirp4netns libslirp-dev libsdl2-2.0-0
 git clone https://github.com/Merit-Megatouch/megatouch-port ~/megatouch-port
 cd ~/megatouch-port
 nano cabinet.local.conf   # the discs (or the image), see below

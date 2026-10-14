@@ -34,6 +34,16 @@ and `cabinet.local.conf` goes in with passwords and tokens blanked. Attach that 
 **`missing: debugfs`**, **`missing tool: bwrap`** (or another tool)
 : `sudo apt install e2fsprogs binutils gcc g++ make python3 python3-venv curl bubblewrap`.
 
+**`missing on this PC: libunwind.so.8 …`** (setup), or before 2026-10-14 on a fresh Ubuntu 26.04:
+`cannot find -l:libSDL2-2.0.so.0`, `slirp/libslirp.h: No such file or directory` (`make loader`),
+`libunwind.so.8: cannot open shared object file` (`xvfb.log`)
+: The programs setup downloads load libraries from the PC, which a fresh Ubuntu doesn't have yet:
+  `sudo apt install xvfb xserver-xephyr slirp4netns libslirp-dev libsdl2-2.0-0`, then
+  `make loader-setup && make loader`. The installer does this since 2026-10-14 (issue #3).
+
+**`implicit declaration of function 'slirp_pollfds_fill_socket'`** (`make loader`, Ubuntu 24.04 or 22.04)
+: Before 2026-10-14 `megalan` only built with libslirp 4.9 (Ubuntu 26.04). Update.
+
 **`set IMG (the disk image) or DISC1/DISC2 (the installer discs) in cabinet.local.conf`** / **`cabinet image not found: ''`**
 : Create `cabinet.local.conf` with `DISC1="/full/path/…1OF2.iso"` and `DISC2="…2OF2.iso"` (the
   installer discs), or `IMG="/full/path/to/the.img"` (the disk image). Quote the paths, because
@@ -107,7 +117,10 @@ and `cabinet.local.conf` goes in with passwords and tokens blanked. Attach that 
 : See `build/loader/xvfb.log`, `xephyr.log` or `megaview.log`. X servers left over from a run
   that ended badly ("server already running" in `xvfb.log`, seen on native Ubuntu) are stopped
   at the next start since 2026-10-13 ("stopping X servers left over from an earlier run"); update
-  if you still see it. Or pick another display with `MEGA_LOADER_DISPLAY=57 make loader-run`. `MEGA_LOADER_VIEW=xephyr make loader-run` skips the
+  if you still see it. Closing the window or Ctrl+C in the terminal ends the cabinet with its X
+  servers; since 2026-10-14 these are also looked up by name and display at the end. If one is
+  still running after that, run `make report` right away and attach it to issue #3: it lists
+  what's running, with its parent and process group. Or pick another display with `MEGA_LOADER_DISPLAY=57 make loader-run`. `MEGA_LOADER_VIEW=xephyr make loader-run` skips the
   scalable window and shows Xephyr's own (fixed size) window.
 
 **`bwrap: setting up uid map: Permission denied`** (or another `bwrap` error about namespaces)
@@ -298,6 +311,13 @@ the factory state.
 **Clicks or screeching in the sound**
 : Old stand-ins: `make loader`. The sound stand-in now keeps PulseAudio 150 ms ahead and sends
   only whole samples.
+
+**Music slow, low or stuttering while sound effects are fine** (Tug of Words, Final Table, Trix,
+Boxxi Blitz, Little Shop games, Photo Hunt), or **loud "modem" noise when a game starts**
+: Fixed on 2026-10-14 (issue #2, found by kerryw92 and mattpsu03): update, then `make loader`.
+  The music (Ogg, refilled by a thread in small pieces) was mixed too far ahead at once and
+  repeated; a reopened `/dev/dsp` could get the previous one's format. `OSSFAKE_PACE=0` turns
+  the pacing off to compare.
 
 ## Standalone ports: starting a game
 

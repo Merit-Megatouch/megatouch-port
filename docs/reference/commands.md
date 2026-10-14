@@ -268,6 +268,8 @@ other ending is restarted (5 s; 1 min after 3 quick failures, 5 min after 6). Lo
 | `MEGAIO_TRACE=1` | Log every I/O board command |
 | `MEGAIO_DIR` | Board state directory inside the sandbox (set by the launcher: `/var/merit/fakeio`) |
 | `OSSFAKE_TRACE=1` | Log every sound ioctl |
+| `OSSFAKE_PACE=0` | Report all free sound buffer space at once, not one fragment at a time (the old behaviour, under which Ogg music stuttered) |
+| `OSSFAKE_DUMP=<prefix>` | Also write what each `/dev/dsp` open plays to `<prefix>-<pid>-<n>-<rate>-<channels>-<bits>.raw` |
 | `MEGA_MODEM_TRACE=1` | Maxx: log the fake modem's AT conversation and every IPv4 `connect` (TournaMAXX server address and port) |
 | `MEGA_TMAXX_SERVER=ADDR:PORT` | Maxx: send the TournaMAXX connection (port 17751) to another server, e.g. `scripts/tmaxx-server.py` on this PC |
 | `OSSFAKE_FMOD_OUTPUT=<n>` | FMOD output for Unity games (default PulseAudio) |
