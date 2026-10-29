@@ -58,6 +58,11 @@ SBTMP=/tmp
 # (video modes, MicroTouch controller), and the runtime's newer Ogg/Vorbis over the cabinet's
 # 2005 ones (which PulseAudio's libsndfile can't use)
 PLATFORM_LIBS="" PLATFORM_PRELOAD="" TITLE=ION KEY_PLATFORM=$PLATFORM XDEPTH="" MODEM="" NET_IF=eth0
+# the ION's OpenGL games: glDrawPixels and front-buffer drawing as the cabinet's driver did them
+# (src/fakeio/glfix.c; black "quit this game?" backgrounds, loading bars). MEGA_GLFIX=0: off
+if [ "$PLATFORM" != force ] && [ "${MEGA_GLFIX:-1}" != 0 ] && [ -f "$B/bin/glfix.so" ]; then
+  PLATFORM_PRELOAD=" /opt/fakeio/glfix.so"
+fi
 if [ "$PLATFORM" = force ]; then
   TITLE=Force
   PLATFORM_LIBS=":/usr/X11R6/lib:/usr/local/lib/merit:/usr/mozilla/lib"

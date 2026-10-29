@@ -167,7 +167,7 @@ LB      := $(OUT)/loader/bin
 LOADER  := $(LB)/libusb-1.0.so.0 $(LB)/libTwDrvFifo.so $(LB)/startfix.so $(LB)/crashlog.so \
            $(LB)/ossfake.so $(LB)/xshot $(LB)/xtouch $(LB)/enumtag $(LB)/dbdump $(LB)/netcfg $(LB)/megaview $(LB)/megalan $(LB)/lantap $(LB)/megaio $(LB)/xinit.sh $(LB)/shots.sh \
            $(LB)/pci-devices.ion945gc $(LB)/bin/ossmix $(LB)/bin/savemixer $(LB)/nolog.so $(LB)/layout-quiet \
-           $(LB)/zlibcompat.so $(LB)/libz-cabinet.so $(LB)/empty $(LB)/soundfix.so $(LB)/gameevents.so \
+           $(LB)/zlibcompat.so $(LB)/libz-cabinet.so $(LB)/empty $(LB)/soundfix.so $(LB)/gameevents.so $(LB)/glfix.so \
            $(LB)/usbfsfake.so $(LB)/forcefix.so $(LB)/pci-devices.force810 $(LB)/xinit-force.sh $(LB)/proc-pci.force810 \
            $(LB)/modemfake.so $(LB)/pppd-fake.sh
 I386EXE := -Wl,--dynamic-linker=/lib/ld-linux.so.2
@@ -220,6 +220,9 @@ $(LB)/libz-cabinet.so: $(OUT)/loader/root/usr/lib/libz.so.1.2.3
 	@mkdir -p $(LB)
 	python3 -c "import sys; d=open(sys.argv[1],'rb').read(); n=d.count(b'libz.so.1\0'); assert n>=1; open(sys.argv[2],'wb').write(d.replace(b'libz.so.1\0', b'libzcab.1\0'))" $< $@
 $(LB)/soundfix.so: src/fakeio/soundfix.c
+	@mkdir -p $(LB)
+	$(CC) -O2 -Wall -fPIC -shared -o $@ $< -ldl
+$(LB)/glfix.so: src/fakeio/glfix.c
 	@mkdir -p $(LB)
 	$(CC) -O2 -Wall -fPIC -shared -o $@ $< -ldl
 $(LB)/gameevents.so: src/fakeio/gameevents.c
