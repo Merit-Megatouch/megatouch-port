@@ -237,6 +237,14 @@ if [ "$PLATFORM" = force ]; then
 else
   args+=(--ro-bind "$ION" /usr/local/ion_only --ro-bind "$B/bin/pci-devices.ion945gc" /proc/bus/pci/devices)
 fi
+# the cabinet's clock is the CPU's time-stamp counter divided by /proc/cpuinfo's "cpu MHz", which
+# on a modern PC is the core's current (often idle, lower) speed: the clock then ran fast, games'
+# timers and animations with it. "cpu MHz" here is the counter's measured rate (src/fakeio/cpuinfo.c)
+if [ -x "$B/bin/cpuinfo" ] && "$B/bin/cpuinfo" > "$C/cpuinfo.new" && mv "$C/cpuinfo.new" "$C/cpuinfo"; then
+  args+=(--ro-bind "$C/cpuinfo" /proc/cpuinfo)
+else
+  rm -f "$C/cpuinfo.new"
+fi
 # (/lib32 is the modern ld.so's first default library directory, and the cabinet's ld.so.cache,
 #  which points libc.so.6 at the 2007 /lib/libc.so.6, is hidden: programs started with a cleared
 #  environment, e.g. dhclient's script, still get the modern libc)
